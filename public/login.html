@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Login</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="auth-split">
+      <!-- Left Section -->
+      <div class="auth-left">
+        <h2 class="tagline">SOCIAL MEDIA MANAGEMENT<br>IS NOW SIMPLE</h2>
+        <div class="illustration">
+          <svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+            <rect x="50" y="180" width="300" height="80" fill="#E0E7FF" rx="8"/>
+            <rect x="60" y="190" width="280" height="50" fill="#C7D2FE" rx="4"/>
+            <circle cx="100" cy="215" r="8" fill="#818CF8"/>
+            <circle cx="130" cy="215" r="8" fill="#818CF8"/>
+            <circle cx="160" cy="215" r="8" fill="#818CF8"/>
+            <rect x="200" y="80" width="120" height="100" fill="#A78BFA" rx="8"/>
+            <rect x="210" y="90" width="100" height="70" fill="#C7D2FE" rx="4"/>
+            <circle cx="240" cy="120" r="6" fill="#818CF8"/>
+            <circle cx="270" cy="120" r="6" fill="#818CF8"/>
+            <rect x="180" y="140" width="30" height="40" fill="#A78BFA" rx="15"/>
+            <ellipse cx="200" cy="200" rx="25" ry="30" fill="#A78BFA"/>
+            <rect x="160" y="200" width="80" height="20" fill="#A78BFA" rx="10"/>
+            <rect x="170" y="210" width="60" height="30" fill="#818CF8" rx="8"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Right Section -->
+      <div class="auth-right">
+        <div class="card-white">
+          <h1 class="card-title">Welcome</h1>
+
+          <form id="login-form" novalidate>
+            <div class="field-icon">
+              <label for="login-email">Email</label>
+              <div class="input-wrapper">
+                <span class="input-icon">👤</span>
+                <input id="login-email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="Type Username" required />
+              </div>
+              <p class="error" data-error-for="login-email"></p>
+            </div>
+
+            <div class="field-icon">
+              <label for="login-password">Password</label>
+              <div class="input-wrapper">
+                <span class="input-icon">🔑</span>
+                <input id="login-password" name="password" type="password" autocomplete="current-password" placeholder="Enter Password" minlength="8" required />
+                <button type="button" class="toggle-password" data-toggle-password="login-password" aria-label="Toggle password visibility">👁️</button>
+              </div>
+              <p class="error" data-error-for="login-password"></p>
+            </div>
+
+            <div class="form-options">
+              <label class="checkbox-label">
+                <input type="checkbox" />
+                <span>Remember Login</span>
+              </label>
+              <a href="#" class="forgot-link">Forgot Password?</a>
+            </div>
+
+            <button class="btn-primary" type="submit">Log In</button>
+
+            <div class="divider">
+              <span>OR</span>
+            </div>
+
+            <div class="social-login">
+              <button type="button" class="social-btn" aria-label="Login with Facebook">f</button>
+              <button type="button" class="social-btn" aria-label="Login with Google">M</button>
+              <button type="button" class="social-btn" aria-label="Login with Twitter">🐦</button>
+            </div>
+
+            <p class="signup-link">Don't have account? <a href="./signup.html">SignUp</a></p>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <script src="./app.js" defer></script>
+  </body>
+</html>

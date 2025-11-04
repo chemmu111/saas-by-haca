@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Home • Social Manager</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./styles.css" />
+    <style>
+      .home-nav { display:flex; align-items:center; justify-content:flex-end; margin-bottom: 20px; }
+      .home-nav a { color: var(--text); text-decoration: none; padding: 8px 12px; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background: rgba(255,255,255,0.03); }
+    </style>
+  </head>
+  <body>
+    <main class="auth-container">
+      <div style="text-align: right; margin-bottom: 20px;">
+        <a id="logout-btn" href="#" class="home-nav" style="display: inline-block;">Logout</a>
+      </div>
+      <section class="card">
+        <h1 class="title">Welcome! 👋</h1>
+        <p class="subtitle">You have successfully logged in.</p>
+      </section>
+    </main>
+
+    <script src="./app.js" defer></script>
+  </body>
+  </html>
+
+
