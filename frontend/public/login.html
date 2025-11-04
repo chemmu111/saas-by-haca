@@ -72,6 +72,29 @@
 
             <p class="signup-link">Don't have account? <a href="./signup.html">SignUp</a></p>
           </form>
+
+          <!-- Verification Code Form (hidden by default) -->
+          <form id="verification-form" style="display: none;" novalidate>
+            <h1 class="card-title">Verify Your Email</h1>
+            <p style="text-align: center; color: #6b7280; margin-bottom: 20px; font-size: 14px;">
+              We've sent a verification code to <span id="verification-email-display"></span>
+            </p>
+            
+            <div class="field-icon">
+              <label for="verification-code">Verification Code</label>
+              <div class="input-wrapper">
+                <span class="input-icon">🔐</span>
+                <input id="verification-code" name="code" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="Enter 6-digit code" required />
+              </div>
+              <p class="error" data-error-for="verification-code"></p>
+            </div>
+
+            <button class="btn-primary" type="submit">Verify</button>
+            
+            <p style="text-align: center; margin-top: 16px;">
+              <a href="#" id="back-to-login" style="color: var(--purple-text); text-decoration: none; font-size: 13px;">Back to Login</a>
+            </p>
+          </form>
         </div>
     </div>
 

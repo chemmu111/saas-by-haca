@@ -107,7 +107,7 @@
 
   function clearErrorsOnInput() {
     // Clear errors when user starts typing
-    var inputs = qsa('#login-form input, #signup-form input, #signup-form select');
+    var inputs = qsa('#login-form input, #signup-form input');
     inputs.forEach(function(input) {
       input.addEventListener('input', function() {
         var inputId = input.id;
@@ -115,15 +115,6 @@
           setError(inputId, '');
         }
       });
-      // Also handle change event for select dropdowns
-      if (input.tagName === 'SELECT') {
-        input.addEventListener('change', function() {
-          var inputId = input.id;
-          if (inputId) {
-            setError(inputId, '');
-          }
-        });
-      }
     });
   }
 
@@ -176,6 +167,31 @@
             setError('login-password');
             // Show error message
             setError('login-password', errorMsg);
+            if (submitBtn) submitBtn.disabled = false;
+            return;
+          }
+          
+          // Check if verification is required (for admin)
+          if (result.data && result.data.requiresVerification) {
+            // Show verification form
+            var loginForm = qs('#login-form');
+            var verificationForm = qs('#verification-form');
+            var emailDisplay = qs('#verification-email-display');
+            
+            if (loginForm && verificationForm) {
+              loginForm.style.display = 'none';
+              verificationForm.style.display = 'block';
+              if (emailDisplay) {
+                emailDisplay.textContent = result.data.email || email.value;
+              }
+              
+              // Store email for verification
+              verificationForm.dataset.email = email.value;
+              
+              // Show success message
+              showSuccessMessage('Verification code sent to your email!');
+            }
+            
             if (submitBtn) submitBtn.disabled = false;
             return;
           }
@@ -239,14 +255,12 @@
       e.preventDefault();
       var name = qs('#signup-name');
       var email = qs('#signup-email');
-      var role = qs('#signup-role');
       var password = qs('#signup-password');
       var confirm = qs('#signup-confirm');
       var valid = true;
 
       setError('signup-name');
       setError('signup-email');
-      setError('signup-role');
       setError('signup-password');
       setError('signup-confirm');
 
@@ -256,10 +270,6 @@
       }
       if (!email.value || !validateEmail(email.value)) {
         setError('signup-email', 'Enter a valid email address');
-        valid = false;
-      }
-      if (!role.value) {
-        setError('signup-role', 'Please select a role');
         valid = false;
       }
       if (!password.value || password.value.length < 8) {
@@ -279,7 +289,7 @@
       fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.value, email: email.value, password: password.value, role: role.value })
+        body: JSON.stringify({ name: name.value, email: email.value, password: password.value })
       })
         .then(function (res) {
           return res.json().then(function (data) {
@@ -296,7 +306,6 @@
             // Clear all errors first
             setError('signup-name');
             setError('signup-email');
-            setError('signup-role');
             setError('signup-password');
             setError('signup-confirm');
             
@@ -305,8 +314,6 @@
               setError('signup-email', errorMsg);
             } else if (/name/i.test(errorMsg)) {
               setError('signup-name', errorMsg);
-            } else if (/role/i.test(errorMsg)) {
-              setError('signup-role', errorMsg);
             } else if (/password/i.test(errorMsg)) {
               setError('signup-password', errorMsg);
             } else {
@@ -329,9 +336,110 @@
     });
   }
 
+  function initVerification() {
+    var verificationForm = qs('#verification-form');
+    var backToLoginBtn = qs('#back-to-login');
+    
+    if (!verificationForm) return;
+    
+    // Handle verification form submission
+    verificationForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var codeInput = qs('#verification-code');
+      var email = verificationForm.dataset.email;
+      var valid = true;
+
+      setError('verification-code');
+
+      if (!codeInput.value || codeInput.value.length !== 6 || !/^\d{6}$/.test(codeInput.value)) {
+        setError('verification-code', 'Please enter a valid 6-digit code');
+        valid = false;
+      }
+
+      if (!valid || !email) return;
+
+      var submitBtn = verificationForm.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.disabled = true;
+
+      fetch('/api/auth/verify-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email, code: codeInput.value })
+      })
+        .then(function (res) {
+          return res.json().then(function (data) {
+            return { ok: res.ok, status: res.status, data: data };
+          }).catch(function (parseErr) {
+            console.error('JSON parse error:', parseErr);
+            return { ok: false, status: res.status, data: { error: 'Invalid server response' } };
+          });
+        })
+        .then(function (result) {
+          if (!result || !result.ok) {
+            var errorMsg = (result && result.data && result.data.error) ? result.data.error : 'Invalid verification code';
+            setError('verification-code', errorMsg);
+            if (submitBtn) submitBtn.disabled = false;
+            return;
+          }
+          
+          // Save token and redirect
+          var token = result.data && result.data.token;
+          if (token) {
+            try {
+              localStorage.setItem('auth_token', token);
+              var userRole = result.data.user && result.data.user.role ? result.data.user.role : getUserRole(token);
+              showSuccessMessage('Verification successful! Welcome back!');
+              redirectToRoleHome(userRole);
+            } catch (err) {
+              console.error('Failed to save token:', err);
+              setError('verification-code', 'Failed to save session. Please try again.');
+              if (submitBtn) submitBtn.disabled = false;
+            }
+          } else {
+            setError('verification-code', 'Server response missing authentication token.');
+            if (submitBtn) submitBtn.disabled = false;
+          }
+        })
+        .catch(function (err) {
+          console.error('Verification request failed:', err);
+          setError('verification-code', 'Network error. Please check your connection and try again.');
+          if (submitBtn) submitBtn.disabled = false;
+        });
+    });
+
+    // Handle back to login button
+    if (backToLoginBtn) {
+      backToLoginBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        var loginForm = qs('#login-form');
+        if (loginForm && verificationForm) {
+          verificationForm.style.display = 'none';
+          loginForm.style.display = 'block';
+          verificationForm.dataset.email = '';
+        }
+      });
+    }
+
+    // Restrict verification code input to numbers only
+    var codeInput = qs('#verification-code');
+    if (codeInput) {
+      codeInput.addEventListener('input', function (e) {
+        // Only allow numbers
+        e.target.value = e.target.value.replace(/\D/g, '');
+        // Limit to 6 digits
+        if (e.target.value.length > 6) {
+          e.target.value = e.target.value.slice(0, 6);
+        }
+        // Clear error when typing
+        setError('verification-code', '');
+      });
+    }
+  }
+
   window.AuthPages = {
     initLogin: initLogin,
-    initSignup: initSignup
+    initSignup: initSignup,
+    initVerification: initVerification
   };
 })();
 
@@ -344,6 +452,9 @@ window.addEventListener('DOMContentLoaded', function () {
     }
     if (document.querySelector('#signup-form')) {
       window.AuthPages && window.AuthPages.initSignup();
+    }
+    if (document.querySelector('#verification-form')) {
+      window.AuthPages && window.AuthPages.initVerification();
     }
 
     // Logout button
