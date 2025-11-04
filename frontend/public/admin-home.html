@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Admin Home • Social Manager</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./styles.css" />
+    <style>
+      .home-nav { display:flex; align-items:center; justify-content:flex-end; margin-bottom: 20px; }
+      .home-nav a { color: var(--text); text-decoration: none; padding: 8px 12px; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background: rgba(255,255,255,0.03); }
+      .admin-badge { display: inline-block; padding: 4px 12px; background: #8b5cf6; color: white; border-radius: 12px; font-size: 12px; font-weight: 600; margin-left: 10px; }
+    </style>
+  </head>
+  <body>
+    <main class="auth-container">
+      <div style="text-align: right; margin-bottom: 20px;">
+        <a id="logout-btn" href="#" class="home-nav" style="display: inline-block;">Logout</a>
+      </div>
+      <section class="card">
+        <h1 class="title">Welcome Admin! 👋<span class="admin-badge">ADMIN</span></h1>
+        <p class="subtitle">You have successfully logged in as an administrator.</p>
+        <div style="margin-top: 30px; padding: 20px; background: #f3f4f6; border-radius: 10px;">
+          <h3 style="margin-top: 0; color: #4f46e5;">Admin Dashboard</h3>
+          <p style="color: #6b7280; margin-bottom: 15px;">Manage users, settings, and system configuration.</p>
+          <ul style="color: #6b7280; line-height: 1.8;">
+            <li>User Management</li>
+            <li>System Settings</li>
+            <li>Analytics & Reports</li>
+            <li>Role Management</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+
+    <script src="./app.js" defer></script>
+  </body>
+  </html>
+

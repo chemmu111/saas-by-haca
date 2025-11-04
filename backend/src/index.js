@@ -48,13 +48,31 @@ app.get('/signup', (req, res) => {
   res.sendFile(path.join(publicDir, 'signup.html'));
 });
 
-// Home page - handle both /home and /home.html
+// Admin home page
+app.get('/admin-home', (req, res) => {
+  res.sendFile(path.join(publicDir, 'admin-home.html'));
+});
+
+app.get('/admin-home.html', (req, res) => {
+  res.sendFile(path.join(publicDir, 'admin-home.html'));
+});
+
+// Social Media Manager home page
+app.get('/social-media-manager-home', (req, res) => {
+  res.sendFile(path.join(publicDir, 'social-media-manager-home.html'));
+});
+
+app.get('/social-media-manager-home.html', (req, res) => {
+  res.sendFile(path.join(publicDir, 'social-media-manager-home.html'));
+});
+
+// Old /home routes - redirect to login (role-based routing handled by frontend)
 app.get('/home', (req, res) => {
-  res.sendFile(path.join(publicDir, 'home.html'));
+  res.redirect('/');
 });
 
 app.get('/home.html', (req, res) => {
-  res.sendFile(path.join(publicDir, 'home.html'));
+  res.redirect('/');
 });
 
 // Routes

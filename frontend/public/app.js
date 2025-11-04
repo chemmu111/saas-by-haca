@@ -10,6 +10,39 @@
     try { return localStorage.getItem('auth_token'); } catch (_) { return null; }
   }
 
+  function decodeToken(token) {
+    try {
+      if (!token) return null;
+      // JWT tokens have 3 parts separated by dots: header.payload.signature
+      const parts = token.split('.');
+      if (parts.length !== 3) return null;
+      // Decode the payload (second part)
+      const payload = parts[1];
+      // Base64 decode and parse JSON
+      const decoded = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+      return decoded;
+    } catch (e) {
+      console.error('Error decoding token:', e);
+      return null;
+    }
+  }
+
+  function getUserRole(token) {
+    const decoded = decodeToken(token);
+    return decoded ? decoded.role : null;
+  }
+
+  function redirectToRoleHome(role) {
+    if (role === 'admin') {
+      window.location.href = '/admin-home.html';
+    } else if (role === 'social media manager') {
+      window.location.href = '/social-media-manager-home.html';
+    } else {
+      // Default fallback
+      window.location.href = '/social-media-manager-home.html';
+    }
+  }
+
   function setError(inputId, message) {
     var err = document.querySelector('[data-error-for="' + inputId + '"]');
     if (err) {
@@ -172,11 +205,12 @@
                 // Continue with redirect even if message fails
               }
               
-              // Step 4: Redirect immediately to home.html
+              // Step 4: Redirect based on user role
+              var userRole = result.data.user && result.data.user.role ? result.data.user.role : getUserRole(token);
               console.log('Token saved:', !!localStorage.getItem('auth_token'));
-              console.log('Redirecting to /home.html...');
-              // Immediate redirect to home.html
-              window.location.href = '/home.html';
+              console.log('User role:', userRole);
+              // Redirect to role-specific home page
+              redirectToRoleHome(userRole);
             } catch (err) {
               console.error('Failed to save token:', err);
               setError('login-password', 'Failed to save session. Please try again.');
@@ -325,24 +359,53 @@ window.addEventListener('DOMContentLoaded', function () {
     setTimeout(function() {
       var token = getToken();
       
-      // Redirect authenticated users away from login to home.html
+      // Redirect authenticated users away from login to role-specific home
       if (document.querySelector('#login-form') && token) {
-        console.log('User already authenticated, redirecting to /home.html');
-        window.location.replace('/home.html');
+        var userRole = getUserRole(token);
+        console.log('User already authenticated, redirecting based on role:', userRole);
+        redirectToRoleHome(userRole);
         return;
       }
 
-      // Enforce auth on home page - only redirect if NO token exists
-      var isHomePage = location.pathname.endsWith('/home') || location.pathname.endsWith('/home.html');
-      if (isHomePage && !token) {
-        console.log('No token found, redirecting to login');
-        window.location.replace('/');
-        return;
-      }
+      // Check if user is on wrong home page and redirect based on role
+      var isAdminHome = location.pathname.includes('admin-home.html');
+      var isManagerHome = location.pathname.includes('social-media-manager-home.html');
+      var isOldHome = location.pathname.endsWith('/home') || location.pathname.endsWith('/home.html');
       
-      // If we're on home page and token exists, allow access
-      if (isHomePage && token) {
-        console.log('Token found, allowing access to home page');
+      if (token) {
+        var userRole = getUserRole(token);
+        
+        // Redirect old home.html to role-specific page
+        if (isOldHome) {
+          console.log('Redirecting from old home to role-specific page');
+          redirectToRoleHome(userRole);
+          return;
+        }
+        
+        // Redirect if user is on wrong role page
+        if (isAdminHome && userRole !== 'admin') {
+          console.log('Non-admin user on admin page, redirecting...');
+          redirectToRoleHome(userRole);
+          return;
+        }
+        
+        if (isManagerHome && userRole === 'admin') {
+          console.log('Admin user on manager page, redirecting...');
+          redirectToRoleHome(userRole);
+          return;
+        }
+        
+        // Allow access if role matches
+        if ((isAdminHome && userRole === 'admin') || (isManagerHome && userRole === 'social media manager')) {
+          console.log('User on correct role page');
+        }
+      } else {
+        // No token - redirect to login from any home page
+        if (isAdminHome || isManagerHome || isOldHome) {
+          console.log('No token found, redirecting to login');
+          window.location.replace('/');
+          return;
+        }
       }
     }, 50); // Small delay to ensure localStorage is accessible
   } catch (_) {}
