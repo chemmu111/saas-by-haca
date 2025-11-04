@@ -74,7 +74,7 @@
 
   function clearErrorsOnInput() {
     // Clear errors when user starts typing
-    var inputs = qsa('#login-form input, #signup-form input');
+    var inputs = qsa('#login-form input, #signup-form input, #signup-form select');
     inputs.forEach(function(input) {
       input.addEventListener('input', function() {
         var inputId = input.id;
@@ -82,6 +82,15 @@
           setError(inputId, '');
         }
       });
+      // Also handle change event for select dropdowns
+      if (input.tagName === 'SELECT') {
+        input.addEventListener('change', function() {
+          var inputId = input.id;
+          if (inputId) {
+            setError(inputId, '');
+          }
+        });
+      }
     });
   }
 
@@ -196,12 +205,14 @@
       e.preventDefault();
       var name = qs('#signup-name');
       var email = qs('#signup-email');
+      var role = qs('#signup-role');
       var password = qs('#signup-password');
       var confirm = qs('#signup-confirm');
       var valid = true;
 
       setError('signup-name');
       setError('signup-email');
+      setError('signup-role');
       setError('signup-password');
       setError('signup-confirm');
 
@@ -211,6 +222,10 @@
       }
       if (!email.value || !validateEmail(email.value)) {
         setError('signup-email', 'Enter a valid email address');
+        valid = false;
+      }
+      if (!role.value) {
+        setError('signup-role', 'Please select a role');
         valid = false;
       }
       if (!password.value || password.value.length < 8) {
@@ -230,7 +245,7 @@
       fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.value, email: email.value, password: password.value })
+        body: JSON.stringify({ name: name.value, email: email.value, password: password.value, role: role.value })
       })
         .then(function (res) {
           return res.json().then(function (data) {
@@ -247,6 +262,7 @@
             // Clear all errors first
             setError('signup-name');
             setError('signup-email');
+            setError('signup-role');
             setError('signup-password');
             setError('signup-confirm');
             
@@ -255,6 +271,8 @@
               setError('signup-email', errorMsg);
             } else if (/name/i.test(errorMsg)) {
               setError('signup-name', errorMsg);
+            } else if (/role/i.test(errorMsg)) {
+              setError('signup-role', errorMsg);
             } else if (/password/i.test(errorMsg)) {
               setError('signup-password', errorMsg);
             } else {

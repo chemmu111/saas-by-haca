@@ -6,7 +6,8 @@
   "main": "src/index.js",
   "scripts": {
     "dev": "node --env-file=.env --watch src/index.js",
-    "start": "node --env-file=.env src/index.js"
+    "start": "node --env-file=.env src/index.js",
+    "migrate:users": "node --env-file=.env src/scripts/migrateUsersAddRole.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
