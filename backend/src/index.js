@@ -109,31 +109,23 @@ app.use('/api/auth', authRouter);
 app.use('/api/clients', clientsRouter);
 app.use('/api/oauth', oauthRouter);
 
-// OAuth public routes (for direct access)
-app.get('/auth/instagram', (req, res) => {
-  const { name, email } = req.query;
-  const state = Buffer.from(JSON.stringify({ name: name || '', email: email || '' })).toString('base64');
-  const redirectUri = process.env.INSTAGRAM_REDIRECT_URI || 'http://localhost:5000/auth/instagram/callback';
-  const authUrl = `https://api.instagram.com/oauth/authorize?client_id=${process.env.INSTAGRAM_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=user_profile,user_media&response_type=code&state=${state}`;
-  res.redirect(authUrl);
+// OAuth public routes (for direct access) - these routes delegate to the router
+app.get('/auth/instagram', (req, res, next) => {
+  req.url = '/api/oauth/instagram';
+  oauthRouter.handle(req, res, next);
 });
 
 app.get('/auth/instagram/callback', (req, res, next) => {
-  // Create a new request object with modified path for router
   req.url = '/api/oauth/instagram/callback';
   oauthRouter.handle(req, res, next);
 });
 
-app.get('/auth/facebook', (req, res) => {
-  const { name, email } = req.query;
-  const state = Buffer.from(JSON.stringify({ name: name || '', email: email || '' })).toString('base64');
-  const redirectUri = process.env.FACEBOOK_REDIRECT_URI || 'http://localhost:5000/auth/facebook/callback';
-  const authUrl = `https://www.facebook.com/v20.0/dialog/oauth?client_id=${process.env.FACEBOOK_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=public_profile,email&response_type=code&state=${state}`;
-  res.redirect(authUrl);
+app.get('/auth/facebook', (req, res, next) => {
+  req.url = '/api/oauth/facebook';
+  oauthRouter.handle(req, res, next);
 });
 
 app.get('/auth/facebook/callback', (req, res, next) => {
-  // Create a new request object with modified path for router
   req.url = '/api/oauth/facebook/callback';
   oauthRouter.handle(req, res, next);
 });
