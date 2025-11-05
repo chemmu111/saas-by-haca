@@ -109,27 +109,6 @@ app.use('/api/auth', authRouter);
 app.use('/api/clients', clientsRouter);
 app.use('/api/oauth', oauthRouter);
 
-// OAuth public routes (for direct access) - these routes delegate to the router
-app.get('/auth/instagram', (req, res, next) => {
-  req.url = '/api/oauth/instagram';
-  oauthRouter.handle(req, res, next);
-});
-
-app.get('/auth/instagram/callback', (req, res, next) => {
-  req.url = '/api/oauth/instagram/callback';
-  oauthRouter.handle(req, res, next);
-});
-
-app.get('/auth/facebook', (req, res, next) => {
-  req.url = '/api/oauth/facebook';
-  oauthRouter.handle(req, res, next);
-});
-
-app.get('/auth/facebook/callback', (req, res, next) => {
-  req.url = '/api/oauth/facebook/callback';
-  oauthRouter.handle(req, res, next);
-});
-
 // Health
 app.get('/health', (req, res) => {
   res.json({ ok: true });

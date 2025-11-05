@@ -20,21 +20,55 @@ const Clients = () => {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const connected = urlParams.get('connected');
-    const errorParam = urlParams.get('error');
+    const platform = urlParams.get('platform');
+    const user_id = urlParams.get('user_id');
+    const name = urlParams.get('name');
+    const email = urlParams.get('email');
 
-    if (connected) {
-      // OAuth callback success - show success message
-      // The user can now add the client manually or we can fetch from OAuth
-      setError('');
-      // Clean URL
-      window.history.replaceState({}, '', '/dashboard/clients');
-      setShowForm(true);
-      // Optionally show success message
-    } else if (errorParam) {
-      // OAuth callback error
-      setError(`OAuth connection failed: ${errorParam}`);
-      // Clean URL
-      window.history.replaceState({}, '', '/dashboard/clients');
+    if (connected && platform && user_id) {
+      // OAuth callback detected - create client
+      const createClientFromOAuth = async () => {
+        try {
+          const token = localStorage.getItem('auth_token');
+          if (!token) {
+            window.location.href = '/login.html';
+            return;
+          }
+
+          // Note: We don't have accessToken here, but we can still create the client
+          // The accessToken would need to be stored in a session or passed securely
+          const response = await fetch('/api/clients', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              name: name || 'OAuth Client',
+              email: email || `${user_id}@${platform}.com`,
+              platform: platform,
+              socialMediaLink: `https://${platform}.com/${user_id}`
+            })
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            setClients(prev => [result.data, ...prev]);
+            window.dispatchEvent(new CustomEvent('clientAdded'));
+            // Clean URL
+            window.history.replaceState({}, '', '/dashboard/clients');
+            setShowForm(false);
+          } else {
+            setError(result.error || 'Failed to create client from OAuth');
+          }
+        } catch (err) {
+          console.error('Error creating client from OAuth:', err);
+          setError('Failed to create client. Please try again.');
+        }
+      };
+
+      createClientFromOAuth();
     }
   }, []);
 
@@ -190,10 +224,34 @@ const Clients = () => {
     setConnectingOAuth(true);
 
     try {
-      // Redirect directly to OAuth endpoint
-      const backendUrl = 'http://localhost:5000';
-      const oauthUrl = `${backendUrl}/auth/${platform}?name=${encodeURIComponent(formData.name)}&email=${encodeURIComponent(formData.email)}`;
-      window.location.href = oauthUrl;
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        window.location.href = '/login.html';
+        return;
+      }
+
+      const response = await fetch('/api/oauth/authorize', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          platform: platform,
+          name: formData.name,
+          email: formData.email
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success && result.authUrl) {
+        // Redirect to OAuth provider
+        window.location.href = result.authUrl;
+      } else {
+        setError(result.error || 'Failed to initiate OAuth connection');
+        setConnectingOAuth(false);
+      }
     } catch (err) {
       console.error('Error initiating OAuth:', err);
       setError('Failed to connect. Please try again.');
