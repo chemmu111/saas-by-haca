@@ -4,6 +4,8 @@ import helmet from 'helmet';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import authRouter from './routes/auth.js';
+import clientsRouter from './routes/clients.js';
+import oauthRouter from './routes/oauth.js';
 import { connectDB } from './database/connection.js';
 
 const app = express();
@@ -24,9 +26,22 @@ if (process.env.NODE_ENV !== 'production') {
         connectSrc: ["'self'", 'http://localhost:*', 'ws://localhost:*'],
       },
     },
+    permissionsPolicy: {
+      useDefaults: true,
+      features: {
+        'unload': ["'self'"],
+      },
+    },
   }));
 } else {
-  app.use(helmet());
+  app.use(helmet({
+    permissionsPolicy: {
+      useDefaults: true,
+      features: {
+        'unload': ["'self'"],
+      },
+    },
+  }));
 }
 app.use(express.json());
 
@@ -37,6 +52,9 @@ app.get('/.well-known/appspecific/com.chrome.devtools.json', (req, res) => {
 
 // Serve static website (login/signup)
 app.use(express.static(publicDir));
+
+// Serve dashboard assets
+app.use('/dashboard/assets', express.static(path.join(publicDir, 'dashboard', 'assets')));
 
 // Root → login page
 app.get('/', (req, res) => {
@@ -57,7 +75,7 @@ app.get('/admin-home.html', (req, res) => {
   res.sendFile(path.join(publicDir, 'admin-home.html'));
 });
 
-// Social Media Manager home page
+// Social Media Manager home page (legacy)
 app.get('/social-media-manager-home', (req, res) => {
   res.sendFile(path.join(publicDir, 'social-media-manager-home.html'));
 });
@@ -66,17 +84,59 @@ app.get('/social-media-manager-home.html', (req, res) => {
   res.sendFile(path.join(publicDir, 'social-media-manager-home.html'));
 });
 
-// Old /home routes - redirect to login (role-based routing handled by frontend)
+// Dashboard routes - React dashboard
+app.get('/dashboard', (req, res) => {
+  res.sendFile(path.join(publicDir, 'dashboard', 'index.html'));
+});
+
+app.get('/dashboard/*', (req, res) => {
+  // For any route under /dashboard, serve index.html for client-side routing
+  // Assets are handled by the static middleware above
+  res.sendFile(path.join(publicDir, 'dashboard', 'index.html'));
+});
+
+// Home route - redirect to dashboard for social media managers
 app.get('/home', (req, res) => {
-  res.redirect('/');
+  res.sendFile(path.join(publicDir, 'dashboard', 'index.html'));
 });
 
 app.get('/home.html', (req, res) => {
-  res.redirect('/');
+  res.sendFile(path.join(publicDir, 'dashboard', 'index.html'));
 });
 
 // Routes
 app.use('/api/auth', authRouter);
+app.use('/api/clients', clientsRouter);
+app.use('/api/oauth', oauthRouter);
+
+// OAuth public routes (for direct access)
+app.get('/auth/instagram', (req, res) => {
+  const { name, email } = req.query;
+  const state = Buffer.from(JSON.stringify({ name: name || '', email: email || '' })).toString('base64');
+  const redirectUri = process.env.INSTAGRAM_REDIRECT_URI || 'http://localhost:5000/auth/instagram/callback';
+  const authUrl = `https://api.instagram.com/oauth/authorize?client_id=${process.env.INSTAGRAM_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=user_profile,user_media&response_type=code&state=${state}`;
+  res.redirect(authUrl);
+});
+
+app.get('/auth/instagram/callback', (req, res, next) => {
+  // Create a new request object with modified path for router
+  req.url = '/api/oauth/instagram/callback';
+  oauthRouter.handle(req, res, next);
+});
+
+app.get('/auth/facebook', (req, res) => {
+  const { name, email } = req.query;
+  const state = Buffer.from(JSON.stringify({ name: name || '', email: email || '' })).toString('base64');
+  const redirectUri = process.env.FACEBOOK_REDIRECT_URI || 'http://localhost:5000/auth/facebook/callback';
+  const authUrl = `https://www.facebook.com/v20.0/dialog/oauth?client_id=${process.env.FACEBOOK_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=public_profile,email&response_type=code&state=${state}`;
+  res.redirect(authUrl);
+});
+
+app.get('/auth/facebook/callback', (req, res, next) => {
+  // Create a new request object with modified path for router
+  req.url = '/api/oauth/facebook/callback';
+  oauthRouter.handle(req, res, next);
+});
 
 // Health
 app.get('/health', (req, res) => {

@@ -33,6 +33,12 @@
         width: 100%;
         margin: 0;
       }
+      .input-icon {
+        display: none;
+      }
+      .input-wrapper input {
+        padding-left: 12px;
+      }
     </style>
   </head>
   <body>
@@ -44,7 +50,7 @@
             <div class="field-icon">
               <label for="login-email">Email</label>
               <div class="input-wrapper">
-                <span class="input-icon">👤</span>
+                <span class="input-icon"></span>
                 <input id="login-email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="Type Username" required />
               </div>
               <p class="error" data-error-for="login-email"></p>
@@ -53,9 +59,9 @@
             <div class="field-icon">
               <label for="login-password">Password</label>
               <div class="input-wrapper">
-                <span class="input-icon">🔑</span>
+                <span class="input-icon"></span>
                 <input id="login-password" name="password" type="password" autocomplete="current-password" placeholder="Enter Password" minlength="8" required />
-                <button type="button" class="toggle-password" data-toggle-password="login-password" aria-label="Toggle password visibility">👁️</button>
+                <button type="button" class="toggle-password" data-toggle-password="login-password" aria-label="Toggle password visibility"></button>
               </div>
               <p class="error" data-error-for="login-password"></p>
             </div>
@@ -83,7 +89,7 @@
             <div class="field-icon">
               <label for="verification-code">Verification Code</label>
               <div class="input-wrapper">
-                <span class="input-icon">🔐</span>
+                <span class="input-icon"></span>
                 <input id="verification-code" name="code" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="Enter 6-digit code" required />
               </div>
               <p class="error" data-error-for="verification-code"></p>

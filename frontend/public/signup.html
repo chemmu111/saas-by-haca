@@ -42,12 +42,11 @@
       input[type="password"],
       input[type="text"],
       select {
-        padding: 11px 12px 11px 42px;
+        padding: 11px 12px;
         font-size: 14px;
       }
       .input-icon {
-        font-size: 17px;
-        left: 13px;
+        display: none;
       }
       .btn-primary {
         padding: 13px;
@@ -74,7 +73,7 @@
             <div class="field-icon">
               <label for="signup-name">Full name</label>
               <div class="input-wrapper">
-                <span class="input-icon">👤</span>
+                <span class="input-icon"></span>
                 <input id="signup-name" name="name" type="text" autocomplete="name" placeholder="Type Full Name" minlength="2" required />
               </div>
               <p class="error" data-error-for="signup-name"></p>
@@ -83,7 +82,7 @@
             <div class="field-icon">
               <label for="signup-email">Email</label>
               <div class="input-wrapper">
-                <span class="input-icon">📧</span>
+                <span class="input-icon"></span>
                 <input id="signup-email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="Type Email" required />
               </div>
               <p class="error" data-error-for="signup-email"></p>
@@ -92,9 +91,9 @@
             <div class="field-icon">
               <label for="signup-password">Password</label>
               <div class="input-wrapper">
-                <span class="input-icon">🔑</span>
+                <span class="input-icon"></span>
                 <input id="signup-password" name="password" type="password" autocomplete="new-password" placeholder="Enter Password" minlength="8" required />
-                <button type="button" class="toggle-password" data-toggle-password="signup-password" aria-label="Toggle password visibility">👁️</button>
+                <button type="button" class="toggle-password" data-toggle-password="signup-password" aria-label="Toggle password visibility"></button>
               </div>
               <p class="error" data-error-for="signup-password"></p>
             </div>
@@ -102,9 +101,9 @@
             <div class="field-icon">
               <label for="signup-confirm">Confirm password</label>
               <div class="input-wrapper">
-                <span class="input-icon">🔑</span>
+                <span class="input-icon"></span>
                 <input id="signup-confirm" name="confirm" type="password" autocomplete="new-password" placeholder="Re-enter Password" minlength="8" required />
-                <button type="button" class="toggle-password" data-toggle-password="signup-confirm" aria-label="Toggle password visibility">👁️</button>
+                <button type="button" class="toggle-password" data-toggle-password="signup-confirm" aria-label="Toggle password visibility"></button>
               </div>
               <p class="error" data-error-for="signup-confirm"></p>
             </div>

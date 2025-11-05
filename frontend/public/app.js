@@ -36,10 +36,10 @@
     if (role === 'admin') {
       window.location.href = '/admin-home.html';
     } else if (role === 'social media manager') {
-      window.location.href = '/social-media-manager-home.html';
+      window.location.href = '/dashboard';
     } else {
       // Default fallback
-      window.location.href = '/social-media-manager-home.html';
+      window.location.href = '/dashboard';
     }
   }
 
