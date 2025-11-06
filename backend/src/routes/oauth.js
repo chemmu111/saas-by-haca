@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import Client from '../models/Client.js';
 import requireAuth from '../middleware/requireAuth.js';
 
@@ -9,7 +10,16 @@ router.get('/callback/:platform', requireAuth, async (req, res) => {
   try {
     const { platform } = req.params;
     const { code, state } = req.query;
-    const userId = req.user.sub;
+    const userIdString = req.user.sub || req.user.id || req.user._id;
+    
+    if (!userIdString) {
+      return res.redirect(`/dashboard/clients?error=invalid_user`);
+    }
+
+    // Convert string ID to ObjectId for MongoDB
+    const userId = mongoose.Types.ObjectId.isValid(userIdString) 
+      ? new mongoose.Types.ObjectId(userIdString)
+      : userIdString;
 
     // Extract client data from state (we'll encode it in the OAuth URL)
     let clientData = {};

@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import Client from '../models/Client.js';
 import requireAuth from '../middleware/requireAuth.js';
 
@@ -10,9 +11,29 @@ router.use(requireAuth);
 // GET /api/clients - Get all clients for the authenticated user
 router.get('/', async (req, res) => {
   try {
-    const clients = await Client.find({ createdBy: req.user.sub })
+    const userIdString = req.user.sub || req.user.id || req.user._id;
+    
+    if (!userIdString) {
+      console.error('No user ID found in token:', req.user);
+      return res.status(401).json({ success: false, error: 'Invalid user token' });
+    }
+
+    // Convert string ID to ObjectId for MongoDB query
+    const userId = mongoose.Types.ObjectId.isValid(userIdString) 
+      ? new mongoose.Types.ObjectId(userIdString)
+      : userIdString;
+
+    console.log('Fetching clients for user:', userId, '(original:', userIdString, ')'); // Debug log
+    
+    const clients = await Client.find({ createdBy: userId })
       .sort({ createdAt: -1 })
       .select('-createdBy -accessToken -refreshToken');
+    
+    console.log(`Found ${clients.length} clients for user ${userId}`); // Debug log
+    
+    // Also check if there are any clients in the database at all
+    const totalClients = await Client.countDocuments();
+    console.log(`Total clients in database: ${totalClients}`); // Debug log
     
     res.json({ success: true, data: clients, count: clients.length });
   } catch (error) {
@@ -42,13 +63,30 @@ router.post('/', async (req, res) => {
       });
     }
 
+    // Get user ID from token
+    const userIdString = req.user.sub || req.user.id || req.user._id;
+    
+    if (!userIdString) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid user token'
+      });
+    }
+
+    // Convert string ID to ObjectId for MongoDB
+    const userId = mongoose.Types.ObjectId.isValid(userIdString) 
+      ? new mongoose.Types.ObjectId(userIdString)
+      : userIdString;
+
+    console.log('Creating client for user:', userId, '(original:', userIdString, ')'); // Debug log
+
     // Create new client (manual entry)
     const client = new Client({
       name: name.trim(),
       email: email.trim().toLowerCase(),
       socialMediaLink: socialMediaLink ? socialMediaLink.trim() : '',
       platform: 'manual',
-      createdBy: req.user.sub
+      createdBy: userId
     });
 
     await client.save();
@@ -76,7 +114,18 @@ router.post('/', async (req, res) => {
 // GET /api/clients/count - Get client count for dashboard
 router.get('/count', async (req, res) => {
   try {
-    const count = await Client.countDocuments({ createdBy: req.user.sub });
+    const userIdString = req.user.sub || req.user.id || req.user._id;
+    
+    if (!userIdString) {
+      return res.status(401).json({ success: false, error: 'Invalid user token' });
+    }
+
+    // Convert string ID to ObjectId for MongoDB query
+    const userId = mongoose.Types.ObjectId.isValid(userIdString) 
+      ? new mongoose.Types.ObjectId(userIdString)
+      : userIdString;
+
+    const count = await Client.countDocuments({ createdBy: userId });
     res.json({ success: true, count });
   } catch (error) {
     console.error('Error fetching client count:', error);
