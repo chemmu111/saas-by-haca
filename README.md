@@ -17,6 +17,7 @@ social-media-management-platform/
 ├── backend/
 │   ├── src/            # Backend source code
 │   │   ├── database/   # Database connection & config
+
 │   │   ├── middleware/ # Express middleware
 │   │   ├── models/     # Database models
 │   │   ├── routes/     # API routes

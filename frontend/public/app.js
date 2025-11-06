@@ -94,6 +94,155 @@
     }, 3000);
   }
 
+  // Forgot Password Modal Functions
+  function initForgotPassword() {
+    var forgotLink = qs('.forgot-link');
+    var forgotModal = qs('#forgot-password-modal');
+    var closeModal = qs('#close-forgot-modal');
+    var backToLogin = qs('#back-to-login-from-forgot');
+    var forgotForm = qs('#forgot-password-form');
+    var forgotEmailInput = qs('#forgot-email');
+    var forgotSubmitBtn = qs('#forgot-submit-btn');
+    var forgotSuccessMsg = qs('#forgot-success-message');
+
+    if (!forgotLink || !forgotModal) return;
+
+    // Open modal
+    forgotLink.addEventListener('click', function(e) {
+      e.preventDefault();
+      if (forgotModal) {
+        forgotModal.classList.add('show');
+        if (forgotEmailInput) {
+          setTimeout(function() {
+            forgotEmailInput.focus();
+          }, 100);
+        }
+      }
+    });
+
+    // Close modal handlers
+    function closeForgotModal() {
+      if (forgotModal) {
+        forgotModal.classList.remove('show');
+        if (forgotForm) {
+          forgotForm.reset();
+        }
+        if (forgotSuccessMsg) {
+          forgotSuccessMsg.style.display = 'none';
+        }
+        setError('forgot-email', '');
+        if (forgotEmailInput) {
+          forgotEmailInput.style.borderColor = '';
+          forgotEmailInput.style.borderWidth = '';
+        }
+      }
+    }
+
+    if (closeModal) {
+      closeModal.addEventListener('click', closeForgotModal);
+    }
+
+    if (backToLogin) {
+      backToLogin.addEventListener('click', closeForgotModal);
+    }
+
+    // Close on overlay click
+    var modalOverlay = qs('.modal-overlay');
+    if (modalOverlay) {
+      modalOverlay.addEventListener('click', closeForgotModal);
+    }
+
+    // Close on Escape key
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && forgotModal && forgotModal.classList.contains('show')) {
+        closeForgotModal();
+      }
+    });
+
+    // Handle form submission
+    if (forgotForm) {
+      forgotForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        var email = forgotEmailInput ? forgotEmailInput.value.trim() : '';
+        
+        // Clear previous errors
+        setError('forgot-email', '');
+        if (forgotSuccessMsg) {
+          forgotSuccessMsg.style.display = 'none';
+        }
+
+        // Validate email
+        if (!email) {
+          setError('forgot-email', 'Email is required');
+          if (forgotEmailInput) {
+            forgotEmailInput.focus();
+          }
+          return;
+        }
+
+        if (!validateEmail(email)) {
+          setError('forgot-email', 'Please enter a valid email address');
+          if (forgotEmailInput) {
+            forgotEmailInput.focus();
+          }
+          return;
+        }
+
+        // Disable submit button
+        if (forgotSubmitBtn) {
+          forgotSubmitBtn.disabled = true;
+          forgotSubmitBtn.innerHTML = '<span>Sending...</span>';
+        }
+
+        try {
+          // Send request to backend
+          var response = await fetch('/api/auth/forgot-password', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email: email })
+          });
+
+          var result = await response.json();
+
+          if (response.ok && result.success) {
+            // Show success message
+            if (forgotSuccessMsg) {
+              forgotSuccessMsg.style.display = 'flex';
+            }
+            
+            // Show toast notification
+            showSuccessMessage('Email sent successfully');
+
+            // Reset form
+            if (forgotForm) {
+              forgotForm.reset();
+            }
+
+            // Auto-close modal after 3 seconds
+            setTimeout(function() {
+              closeForgotModal();
+            }, 3000);
+          } else {
+            // Show error
+            setError('forgot-email', result.error || 'Failed to send reset link. Please try again.');
+          }
+        } catch (err) {
+          console.error('Forgot password error:', err);
+          setError('forgot-email', 'Failed to send reset link. Please try again.');
+        } finally {
+          // Re-enable submit button
+          if (forgotSubmitBtn) {
+            forgotSubmitBtn.disabled = false;
+            forgotSubmitBtn.innerHTML = '<span>Send Reset Link</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"></path></svg>';
+          }
+        }
+      });
+    }
+  }
+
   function wirePasswordToggles() {
     qsa('[data-toggle-password]').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -107,7 +256,7 @@
 
   function clearErrorsOnInput() {
     // Clear errors when user starts typing
-    var inputs = qsa('#login-form input, #signup-form input');
+    var inputs = qsa('#login-form input, #signup-form input, #reset-password-form input');
     inputs.forEach(function(input) {
       input.addEventListener('input', function() {
         var inputId = input.id;
@@ -436,10 +585,145 @@
     }
   }
 
+  function initResetPassword() {
+    wirePasswordToggles();
+    clearErrorsOnInput();
+    
+    // Get token from URL
+    var urlParams = new URLSearchParams(window.location.search);
+    var token = urlParams.get('token');
+    
+    var resetForm = qs('#reset-password-form');
+    var resetPasswordInput = qs('#reset-password');
+    var resetConfirmInput = qs('#reset-confirm');
+    var resetSubmitBtn = qs('#reset-submit-btn');
+    var resetSuccessMsg = qs('#reset-success-message');
+    var tokenErrorMsg = qs('#token-error-message');
+    
+    // Check if token exists in URL
+    if (!token) {
+      if (tokenErrorMsg) {
+        tokenErrorMsg.style.display = 'flex';
+      }
+      if (resetForm) {
+        resetForm.style.display = 'none';
+      }
+      return;
+    }
+    
+    // Validate token when page loads (optional - can be done on submit too)
+    // For now, we'll validate on form submit
+    
+    if (!resetForm) return;
+    
+    resetForm.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      var password = resetPasswordInput ? resetPasswordInput.value : '';
+      var confirmPassword = resetConfirmInput ? resetConfirmInput.value : '';
+      
+      // Clear previous errors
+      setError('reset-password', '');
+      setError('reset-confirm', '');
+      if (resetSuccessMsg) {
+        resetSuccessMsg.style.display = 'none';
+      }
+      if (tokenErrorMsg) {
+        tokenErrorMsg.style.display = 'none';
+      }
+      
+      var valid = true;
+      
+      // Validate password
+      if (!password || password.length < 8) {
+        setError('reset-password', 'Password must be at least 8 characters');
+        valid = false;
+      }
+      
+      // Validate confirm password
+      if (!confirmPassword) {
+        setError('reset-confirm', 'Please confirm your password');
+        valid = false;
+      } else if (password !== confirmPassword) {
+        setError('reset-confirm', 'Passwords do not match');
+        valid = false;
+      }
+      
+      if (!valid) return;
+      
+      // Disable submit button
+      if (resetSubmitBtn) {
+        resetSubmitBtn.disabled = true;
+        resetSubmitBtn.innerHTML = '<span>Resetting...</span>';
+      }
+      
+      try {
+        // Send request to backend
+        var response = await fetch('/api/auth/reset-password', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ 
+            token: token, 
+            password: password 
+          })
+        });
+        
+        var result = await response.json();
+        
+        if (response.ok && result.success) {
+          // Show success message
+          if (resetSuccessMsg) {
+            resetSuccessMsg.style.display = 'flex';
+          }
+          
+          // Hide form
+          if (resetForm) {
+            resetForm.style.display = 'none';
+          }
+          
+          // Show toast notification
+          showSuccessMessage('Password reset successfully');
+          
+          // Redirect to login after 3 seconds
+          setTimeout(function() {
+            window.location.href = './login.html';
+          }, 3000);
+        } else {
+          // Show error message
+          var errorMsg = result.error || 'Failed to reset password. Please try again.';
+          
+          if (errorMsg.includes('Invalid') || errorMsg.includes('expired')) {
+            if (tokenErrorMsg) {
+              tokenErrorMsg.style.display = 'flex';
+            }
+            if (resetForm) {
+              resetForm.style.display = 'none';
+            }
+          } else {
+            setError('reset-password', errorMsg);
+          }
+        }
+      } catch (err) {
+        console.error('Reset password error:', err);
+        setError('reset-password', 'Failed to reset password. Please try again.');
+      } finally {
+        // Re-enable submit button
+        if (resetSubmitBtn) {
+          resetSubmitBtn.disabled = false;
+          resetSubmitBtn.innerHTML = '<span>Reset Password</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"></path></svg>';
+        }
+      }
+    });
+  }
+
   window.AuthPages = {
     initLogin: initLogin,
     initSignup: initSignup,
-    initVerification: initVerification
+    initVerification: initVerification,
+    initForgotPassword: initForgotPassword,
+    initResetPassword: initResetPassword
   };
 })();
 
@@ -455,6 +739,12 @@ window.addEventListener('DOMContentLoaded', function () {
     }
     if (document.querySelector('#verification-form')) {
       window.AuthPages && window.AuthPages.initVerification();
+    }
+    if (document.querySelector('#forgot-password-modal')) {
+      window.AuthPages && window.AuthPages.initForgotPassword();
+    }
+    if (document.querySelector('#reset-password-form')) {
+      window.AuthPages && window.AuthPages.initResetPassword();
     }
 
     // Logout button
