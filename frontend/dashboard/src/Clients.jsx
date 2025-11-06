@@ -94,8 +94,16 @@ const Clients = () => {
         return;
       }
 
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
       const result = await response.json();
+      console.log('Clients API Response:', result); // Debug log
+      
       if (result.success) {
+        console.log('Clients data:', result.data); // Debug log
         setClients(result.data || []);
       } else {
         setError(result.error || 'Failed to fetch clients');
