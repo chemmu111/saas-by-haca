@@ -6,6 +6,9 @@ import { fileURLToPath } from 'url';
 import authRouter from './routes/auth.js';
 import clientsRouter from './routes/clients.js';
 import oauthRouter from './routes/oauth.js';
+import accountsOAuthRouter from './routes/accountsOAuth.js';
+import accountsRouter from './routes/accounts.js';
+import postsRouter from './routes/posts.js';
 import { connectDB } from './database/connection.js';
 
 const app = express();
@@ -61,6 +64,15 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(publicDir, 'login.html'));
 });
 
+// Reset password page
+app.get('/reset-password', (req, res) => {
+  res.sendFile(path.join(publicDir, 'reset-password.html'));
+});
+
+app.get('/reset-password.html', (req, res) => {
+  res.sendFile(path.join(publicDir, 'reset-password.html'));
+});
+
 // Signup page route for convenience
 app.get('/signup', (req, res) => {
   res.sendFile(path.join(publicDir, 'signup.html'));
@@ -89,6 +101,14 @@ app.get('/dashboard', (req, res) => {
   res.sendFile(path.join(publicDir, 'dashboard', 'index.html'));
 });
 
+app.get('/dashboard/accounts', (req, res) => {
+  res.sendFile(path.join(publicDir, 'accounts.html'));
+});
+
+app.get('/dashboard/accounts.html', (req, res) => {
+  res.sendFile(path.join(publicDir, 'accounts.html'));
+});
+
 app.get('/dashboard/*', (req, res) => {
   // For any route under /dashboard, serve index.html for client-side routing
   // Assets are handled by the static middleware above
@@ -108,6 +128,9 @@ app.get('/home.html', (req, res) => {
 app.use('/api/auth', authRouter);
 app.use('/api/clients', clientsRouter);
 app.use('/api/oauth', oauthRouter);
+app.use('/api/accounts', accountsRouter);
+app.use('/oauth', accountsOAuthRouter);
+app.use('/api/posts', postsRouter);
 
 // Health
 app.get('/health', (req, res) => {

@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import User from '../models/User.js';
 import VerificationCode from '../models/VerificationCode.js';
-import { sendVerificationEmail } from '../services/emailService.js';
+import PasswordReset from '../models/PasswordReset.js';
+import { sendVerificationEmail, sendPasswordResetEmail } from '../services/emailService.js';
 
 const router = Router();
 
@@ -13,7 +15,7 @@ function isValidEmail(email) {
 
 function signToken(user) {
   const secret = process.env.JWT_SECRET || 'dev-secret';
-  return jwt.sign({ sub: user.id, email: user.email, role: user.role }, secret, { expiresIn: '7d' });
+  return jwt.sign({ sub: user.id, email: user.email, role: user.role, name: user.name }, secret, { expiresIn: '7d' });
 }
 
 router.post('/signup', async (req, res) => {
@@ -134,6 +136,127 @@ router.post('/verify-code', async (req, res) => {
     res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
   } catch (err) {
     console.error('Verification error', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/auth/forgot-password - Request password reset
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    
+    if (!email || !isValidEmail(email)) {
+      return res.status(400).json({ error: 'Valid email is required' });
+    }
+
+    // Find user by email
+    const user = await User.findOne({ email: email.toLowerCase() });
+    
+    // Always return success (security best practice - don't reveal if email exists)
+    if (!user) {
+      return res.json({ 
+        success: true, 
+        message: 'If an account with that email exists, a password reset link has been sent.' 
+      });
+    }
+
+    // Generate secure random token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    
+    // Set expiration to 1 hour from now
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 1);
+
+    // Delete any existing unused reset tokens for this user
+    await PasswordReset.deleteMany({ 
+      email: email.toLowerCase(), 
+      used: false 
+    });
+
+    // Save reset token
+    await PasswordReset.create({
+      email: email.toLowerCase(),
+      token: resetToken,
+      userId: user._id,
+      expiresAt: expiresAt
+    });
+
+    // Generate reset URL
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5001';
+    const resetUrl = `${frontendUrl}/reset-password.html?token=${resetToken}`;
+
+    // Send password reset email
+    try {
+      await sendPasswordResetEmail(user.email, resetToken, resetUrl);
+      return res.json({ 
+        success: true, 
+        message: 'If an account with that email exists, a password reset link has been sent.' 
+      });
+    } catch (emailError) {
+      console.error('Error sending password reset email:', emailError);
+      return res.status(500).json({ 
+        error: 'Failed to send password reset email. Please try again.' 
+      });
+    }
+  } catch (err) {
+    console.error('Forgot password error', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/auth/reset-password - Reset password with token
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, password } = req.body || {};
+    
+    if (!token) {
+      return res.status(400).json({ error: 'Reset token is required' });
+    }
+    
+    if (!password || password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+
+    // Find reset token
+    const passwordReset = await PasswordReset.findOne({
+      token: token,
+      used: false,
+      expiresAt: { $gt: new Date() }
+    });
+
+    if (!passwordReset) {
+      return res.status(401).json({ error: 'Invalid or expired reset token' });
+    }
+
+    // Get user
+    const user = await User.findById(passwordReset.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Hash new password
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // Update user password
+    user.passwordHash = passwordHash;
+    await user.save();
+
+    // Mark reset token as used
+    passwordReset.used = true;
+    await passwordReset.save();
+
+    // Delete all unused reset tokens for this user (security)
+    await PasswordReset.deleteMany({ 
+      email: user.email.toLowerCase(), 
+      used: false 
+    });
+
+    return res.json({ 
+      success: true, 
+      message: 'Password has been reset successfully. You can now login with your new password.' 
+    });
+  } catch (err) {
+    console.error('Reset password error', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
