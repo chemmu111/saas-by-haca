@@ -109,6 +109,14 @@ app.get('/dashboard/accounts.html', (req, res) => {
   res.sendFile(path.join(publicDir, 'accounts.html'));
 });
 
+app.get('/dashboard/create-post', (req, res) => {
+  res.sendFile(path.join(publicDir, 'create-post.html'));
+});
+
+app.get('/dashboard/create-post.html', (req, res) => {
+  res.sendFile(path.join(publicDir, 'create-post.html'));
+});
+
 app.get('/dashboard/*', (req, res) => {
   // For any route under /dashboard, serve index.html for client-side routing
   // Assets are handled by the static middleware above
