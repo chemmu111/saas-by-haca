@@ -2,6 +2,26 @@ import { useState, useEffect } from 'react';
 import { Users, Plus, Mail, Link as LinkIcon, User, X, Instagram, Facebook } from 'lucide-react';
 import Layout from './Layout.jsx';
 
+// Helper function to get backend URL
+const getBackendUrl = () => {
+  // In production, use the same origin
+  // In development, try to detect the backend port
+  if (window.location.port === '3000' || window.location.hostname === 'localhost') {
+    // Vite dev server or localhost - try backend ports 5000 first, then 5001
+    // Check localStorage for saved port
+    const savedPort = localStorage.getItem('backend_port');
+    if (savedPort) {
+      console.log('Using saved backend port:', savedPort);
+      return `http://localhost:${savedPort}`;
+    }
+    // Default to 5000 (backend standard port)
+    console.log('Using default backend port: 5000');
+    return 'http://localhost:5000';
+  }
+  // Production or already on backend server
+  return window.location.origin;
+};
+
 const Clients = () => {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -31,13 +51,15 @@ const Clients = () => {
         try {
           const token = localStorage.getItem('auth_token');
           if (!token) {
-            window.location.href = '/login.html';
+            const backendUrl = getBackendUrl();
+            window.location.href = `${backendUrl}/login.html`;
             return;
           }
 
           // Note: We don't have accessToken here, but we can still create the client
           // The accessToken would need to be stored in a session or passed securely
-          const response = await fetch('/api/clients', {
+          const backendUrl = getBackendUrl();
+          const response = await fetch(`${backendUrl}/api/clients`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -77,7 +99,8 @@ const Clients = () => {
     try {
       const token = localStorage.getItem('auth_token');
       if (!token) {
-        window.location.href = '/login.html';
+        const backendUrl = getBackendUrl();
+        window.location.href = `${backendUrl}/login.html`;
         return;
       }
 
@@ -166,7 +189,8 @@ const Clients = () => {
     try {
       const token = localStorage.getItem('auth_token');
       if (!token) {
-        window.location.href = '/login.html';
+        const backendUrl = getBackendUrl();
+        window.location.href = `${backendUrl}/login.html`;
         return;
       }
 
@@ -233,12 +257,16 @@ const Clients = () => {
 
     try {
       const token = localStorage.getItem('auth_token');
+      const backendUrl = getBackendUrl();
+      
       if (!token) {
-        window.location.href = '/login.html';
+        window.location.href = `${backendUrl}/login.html`;
         return;
       }
 
-      const response = await fetch('/api/oauth/authorize', {
+      console.log('🔗 Calling OAuth authorize:', `${backendUrl}/api/oauth/authorize`);
+      
+      const response = await fetch(`${backendUrl}/api/oauth/authorize`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -250,6 +278,14 @@ const Clients = () => {
           email: formData.email
         })
       });
+
+      console.log('📥 Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('❌ OAuth authorize error:', errorData);
+        throw new Error(errorData.error || errorData.details || `HTTP error! status: ${response.status}`);
+      }
 
       const result = await response.json();
 

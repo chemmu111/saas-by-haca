@@ -9,6 +9,8 @@ import oauthRouter from './routes/oauth.js';
 import accountsOAuthRouter from './routes/accountsOAuth.js';
 import accountsRouter from './routes/accounts.js';
 import postsRouter from './routes/posts.js';
+import webhooksRouter from './routes/webhooks.js';
+import instagramGraphAuthRouter from './routes/instagramGraphAuth.js';
 import { connectDB } from './database/connection.js';
 
 const app = express();
@@ -18,7 +20,14 @@ const __dirname = path.dirname(__filename);
 const publicDir = path.resolve(__dirname, '../../frontend/public');
 
 // Middleware
-app.use(cors({ origin: true, credentials: true }));
+// CORS configuration with cookie support for cross-origin requests
+const corsOptions = {
+  origin: true,
+  credentials: true,
+  // Cookie settings for cross-origin requests
+  exposedHeaders: ['Authorization'],
+};
+app.use(cors(corsOptions));
 // Security headers; relax CSP during local development to allow DevTools/connects
 if (process.env.NODE_ENV !== 'production') {
   app.use(helmet({
@@ -29,24 +38,27 @@ if (process.env.NODE_ENV !== 'production') {
         connectSrc: ["'self'", 'http://localhost:*', 'ws://localhost:*'],
       },
     },
-    permissionsPolicy: {
-      useDefaults: true,
-      features: {
-        'unload': ["'self'"],
-      },
-    },
+    // Remove unload restriction to prevent browser warnings
+    // This warning is often from Vite dev server or third-party libraries
+    permissionsPolicy: false,
   }));
 } else {
   app.use(helmet({
+    // In production, use default permissions policy but allow unload
     permissionsPolicy: {
       useDefaults: true,
       features: {
-        'unload': ["'self'"],
+        'unload': '*',
       },
     },
   }));
 }
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Serve uploaded files
+const uploadsDir = path.resolve(__dirname, '../uploads');
+app.use('/uploads', express.static(uploadsDir));
 
 // DevTools probe path: return 204 to avoid noisy 404s
 app.get('/.well-known/appspecific/com.chrome.devtools.json', (req, res) => {
@@ -131,6 +143,8 @@ app.use('/api/oauth', oauthRouter);
 app.use('/api/accounts', accountsRouter);
 app.use('/oauth', accountsOAuthRouter);
 app.use('/api/posts', postsRouter);
+app.use('/api/webhooks', webhooksRouter);
+app.use('/auth/instagram', instagramGraphAuthRouter);
 
 // Health
 app.get('/health', (req, res) => {
@@ -168,6 +182,14 @@ async function start() {
     
     // Connect to MongoDB database
     await connectDB(MONGODB_URI);
+    
+    // Start the post scheduler (processes scheduled posts)
+    try {
+      const { startScheduler } = await import('./services/postScheduler.js');
+      startScheduler();
+    } catch (error) {
+      console.error('Failed to start post scheduler:', error);
+    }
     
     // Start the server
     const basePort = parseInt(PORT, 10);

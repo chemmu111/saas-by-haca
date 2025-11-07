@@ -1,12 +1,77 @@
 import express from 'express';
+import multer from 'multer';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import Post from '../models/Post.js';
 import Client from '../models/Client.js';
 import requireAuth from '../middleware/requireAuth.js';
 
 const router = express.Router();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadPath = path.join(__dirname, '../../uploads');
+    cb(null, uploadPath);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: function (req, file, cb) {
+    const allowedTypes = /jpeg|jpg|png|gif|webp/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed (jpeg, jpg, png, gif, webp)'));
+    }
+  }
+});
 
 // All routes require authentication
 router.use(requireAuth);
+
+// POST /api/posts/upload - Upload an image file
+router.post('/upload', upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'No image file provided'
+      });
+    }
+
+    // Generate URL for the uploaded file
+    // In production, upload to cloud storage (S3, Cloudinary, etc.)
+    const fileUrl = `${process.env.API_URL || 'http://localhost:5000'}/uploads/${req.file.filename}`;
+
+    res.json({
+      success: true,
+      data: {
+        url: fileUrl,
+        filename: req.file.filename,
+        size: req.file.size,
+        mimetype: req.file.mimetype
+      }
+    });
+  } catch (error) {
+    console.error('Error uploading image:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to upload image'
+    });
+  }
+});
 
 // GET /api/posts - Get all posts for the authenticated user
 router.get('/', async (req, res) => {
@@ -95,13 +160,16 @@ router.post('/', async (req, res) => {
       location 
     } = req.body;
 
-    // Validation
-    if (!content || content.trim().length === 0) {
+    // Validation - content or caption is required
+    if ((!content || content.trim().length === 0) && (!caption || caption.trim().length === 0)) {
       return res.status(400).json({
         success: false,
-        error: 'Content is required'
+        error: 'Content or caption is required'
       });
     }
+    
+    // Use caption if content is not provided
+    const postContent = content || caption || '';
 
     if (!platform || !['instagram', 'facebook', 'both'].includes(platform)) {
       return res.status(400).json({
@@ -146,13 +214,13 @@ router.post('/', async (req, res) => {
 
     // Create new post
     const post = new Post({
-      content: content.trim(),
+      content: postContent.trim(),
       platform,
       client,
       status,
       scheduledTime: scheduledTime ? new Date(scheduledTime) : undefined,
       mediaUrls: mediaUrls || [],
-      caption: caption ? caption.trim() : '',
+      caption: caption ? caption.trim() : postContent.trim(),
       hashtags: hashtags || [],
       location: location ? location.trim() : '',
       createdBy: req.user.sub
@@ -376,6 +444,116 @@ router.get('/stats/count', async (req, res) => {
   } catch (error) {
     console.error('Error fetching post stats:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch post statistics' });
+  }
+});
+
+// POST /api/posts/:id/publish - Publish a post immediately
+router.post('/:id/publish', async (req, res) => {
+  try {
+    // Find post
+    const post = await Post.findOne({
+      _id: req.params.id,
+      createdBy: req.user.sub
+    }).populate('client');
+
+    if (!post) {
+      return res.status(404).json({
+        success: false,
+        error: 'Post not found'
+      });
+    }
+
+    // Check if post can be published
+    if (post.status === 'published') {
+      return res.status(400).json({
+        success: false,
+        error: 'Post is already published'
+      });
+    }
+
+    if (!post.mediaUrls || post.mediaUrls.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Post must have at least one image to publish'
+      });
+    }
+
+    const client = post.client;
+    if (!client) {
+      return res.status(404).json({
+        success: false,
+        error: 'Client not found for this post'
+      });
+    }
+
+    // Import posting service
+    const { publishPost } = await import('../services/postingService.js');
+
+    console.log('🚀 Publishing post:', post._id);
+    console.log('  Platform:', post.platform);
+    console.log('  Client:', client.name);
+
+    // Publish the post
+    const results = await publishPost(post, client);
+
+    // Update post status
+    const updateData = {
+      status: 'published',
+      publishedTime: new Date()
+    };
+
+    if (results.instagram) {
+      updateData.instagramPostId = results.instagram.postId;
+    }
+
+    if (results.facebook) {
+      updateData.facebookPostId = results.facebook.postId;
+    }
+
+    // If there were errors for all platforms, mark as failed
+    if (results.errors.length > 0) {
+      if ((post.platform === 'instagram' || post.platform === 'both') && !results.instagram) {
+        updateData.status = 'failed';
+        updateData.errorMessage = results.errors.map(e => e.error).join('; ');
+      } else if ((post.platform === 'facebook' || post.platform === 'both') && !results.facebook) {
+        updateData.status = 'failed';
+        updateData.errorMessage = results.errors.map(e => e.error).join('; ');
+      }
+    }
+
+    // Update post
+    Object.assign(post, updateData);
+    await post.save();
+
+    await post.populate('client', 'name email platform');
+
+    const postData = post.toObject();
+    delete postData.createdBy;
+
+    res.json({
+      success: true,
+      data: postData,
+      results
+    });
+  } catch (error) {
+    console.error('Error publishing post:', error);
+    
+    // Update post status to failed
+    try {
+      const post = await Post.findById(req.params.id);
+      if (post) {
+        post.status = 'failed';
+        post.errorMessage = error.message;
+        await post.save();
+      }
+    } catch (updateError) {
+      console.error('Error updating post status:', updateError);
+    }
+
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to publish post'
+    });
   }
 });
 

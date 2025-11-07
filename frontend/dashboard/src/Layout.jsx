@@ -36,9 +36,29 @@ const Layout = ({ children }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Helper function to get backend URL
+  const getBackendUrl = () => {
+    // In production, use the same origin
+    // In development, try to detect the backend port
+    if (window.location.port === '3000') {
+      // Vite dev server - try backend ports 5001 (common fallback) or 5000
+      // Check localStorage for saved port, otherwise default to 5001
+      const savedPort = localStorage.getItem('backend_port');
+      if (savedPort) {
+        return `http://localhost:${savedPort}`;
+      }
+      // Default to 5001 (common when 5000 is busy)
+      return 'http://localhost:5001';
+    }
+    // Production or already on backend server
+    return window.location.origin;
+  };
+
   const handleSignOut = () => {
     localStorage.removeItem('auth_token');
-    window.location.href = '/login.html';
+    // Redirect to login page (outside React Router) on backend server
+    const backendUrl = getBackendUrl();
+    window.location.href = `${backendUrl}/login.html`;
   };
 
   const menuItems = [
