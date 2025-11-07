@@ -11,6 +11,7 @@ import accountsRouter from './routes/accounts.js';
 import postsRouter from './routes/posts.js';
 import webhooksRouter from './routes/webhooks.js';
 import instagramGraphAuthRouter from './routes/instagramGraphAuth.js';
+import tagsRouter from './routes/tags.js';
 import { connectDB } from './database/connection.js';
 
 const app = express();
@@ -153,6 +154,7 @@ app.use('/oauth', accountsOAuthRouter);
 app.use('/api/posts', postsRouter);
 app.use('/api/webhooks', webhooksRouter);
 app.use('/auth/instagram', instagramGraphAuthRouter);
+app.use('/api/tags', tagsRouter);
 
 // Health
 app.get('/health', (req, res) => {

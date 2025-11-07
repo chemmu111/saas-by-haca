@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import Post from '../models/Post.js';
 import Client from '../models/Client.js';
 import requireAuth from '../middleware/requireAuth.js';
+import { processScheduledPosts } from '../services/postScheduler.js';
 
 const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -157,6 +158,7 @@ router.post('/', async (req, res) => {
       mediaUrls, 
       caption, 
       hashtags, 
+      tags,
       location 
     } = req.body;
 
@@ -222,6 +224,16 @@ router.post('/', async (req, res) => {
       mediaUrls: mediaUrls || [],
       caption: caption ? caption.trim() : postContent.trim(),
       hashtags: hashtags || [],
+      tags: Array.isArray(tags) ? tags.map(tag => {
+        // Handle both string tags (backward compatibility) and object tags
+        if (typeof tag === 'string') {
+          return { name: tag.trim(), color: '#8b5cf6' };
+        }
+        return {
+          name: tag.name ? tag.name.trim() : '',
+          color: tag.color || '#8b5cf6'
+        };
+      }).filter(tag => tag.name) : [],
       location: location ? location.trim() : '',
       createdBy: req.user.sub
     });
@@ -259,6 +271,7 @@ router.put('/:id', async (req, res) => {
       mediaUrls, 
       caption, 
       hashtags, 
+      tags,
       location,
       status 
     } = req.body;
@@ -354,6 +367,19 @@ router.put('/:id', async (req, res) => {
       post.hashtags = hashtags;
     }
 
+    if (tags !== undefined) {
+      // Handle both string tags (backward compatibility) and object tags
+      post.tags = Array.isArray(tags) ? tags.map(tag => {
+        if (typeof tag === 'string') {
+          return { name: tag.trim(), color: '#8b5cf6' };
+        }
+        return {
+          name: tag.name ? tag.name.trim() : '',
+          color: tag.color || '#8b5cf6'
+        };
+      }).filter(tag => tag.name) : [];
+    }
+
     if (location !== undefined) {
       post.location = location.trim();
     }
@@ -444,6 +470,24 @@ router.get('/stats/count', async (req, res) => {
   } catch (error) {
     console.error('Error fetching post stats:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch post statistics' });
+  }
+});
+
+// POST /api/posts/scheduler/trigger - Manually trigger the scheduler (for testing)
+router.post('/scheduler/trigger', async (req, res) => {
+  try {
+    console.log('🔧 Manual scheduler trigger requested');
+    await processScheduledPosts();
+    res.json({
+      success: true,
+      message: 'Scheduler triggered successfully. Check server logs for details.'
+    });
+  } catch (error) {
+    console.error('Error triggering scheduler:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to trigger scheduler'
+    });
   }
 });
 
