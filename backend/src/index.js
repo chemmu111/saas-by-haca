@@ -9,6 +9,7 @@ import oauthRouter from './routes/oauth.js';
 import accountsOAuthRouter from './routes/accountsOAuth.js';
 import accountsRouter from './routes/accounts.js';
 import postsRouter from './routes/posts.js';
+import tagsRouter from './routes/tags.js';
 import { connectDB } from './database/connection.js';
 
 const app = express();
@@ -139,6 +140,7 @@ app.use('/api/oauth', oauthRouter);
 app.use('/api/accounts', accountsRouter);
 app.use('/oauth', accountsOAuthRouter);
 app.use('/api/posts', postsRouter);
+app.use('/api/tags', tagsRouter);
 
 // Health
 app.get('/health', (req, res) => {

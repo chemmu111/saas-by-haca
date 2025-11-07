@@ -10,8 +10,33 @@
     },
     mediaFiles: [],
     caption: '',
-    postType: 'post'
+    postType: 'post',
+    tags: [], // Selected tags for this post
+    availableTags: [], // All created tags
+    selectedTagColor: '#8b5cf6'
   };
+
+  // Load available tags from localStorage
+  function loadAvailableTags() {
+    try {
+      const savedTags = localStorage.getItem('available_tags');
+      if (savedTags) {
+        state.availableTags = JSON.parse(savedTags);
+      }
+    } catch (error) {
+      console.error('Error loading tags:', error);
+      state.availableTags = [];
+    }
+  }
+
+  // Save available tags to localStorage
+  function saveAvailableTags() {
+    try {
+      localStorage.setItem('available_tags', JSON.stringify(state.availableTags));
+    } catch (error) {
+      console.error('Error saving tags:', error);
+    }
+  }
 
   // DOM elements
   const elements = {
@@ -41,8 +66,12 @@
     elements.instagramBtn = document.getElementById('platform-instagram');
     elements.twitterBtn = document.getElementById('platform-twitter');
     elements.postTypeToggle = document.getElementById('post-type-toggle');
+    elements.platformPostTypeWrapper = document.getElementById('platform-post-type-wrapper');
+    elements.platformIndicator = document.getElementById('platform-indicator');
+    elements.platformIndicatorIcon = document.getElementById('platform-indicator-icon');
     elements.postTypeSelection = document.getElementById('post-type-selection');
     elements.postTypeRadios = document.querySelectorAll('input[name="post-type"]');
+    elements.contentSection = document.getElementById('content-section');
     elements.captionInput = document.getElementById('post-caption');
     elements.charCount = document.getElementById('char-count');
     elements.uploadArea = document.getElementById('upload-area');
@@ -54,6 +83,21 @@
     elements.previewTitle = document.getElementById('preview-title');
     elements.previewContent = document.getElementById('preview-content');
     elements.integrationsBtn = document.getElementById('integrations-btn');
+    elements.toggleSelectBtn = document.getElementById('toggle-select-btn');
+    elements.tagsBtn = document.getElementById('tags-btn');
+    elements.tagsDropdown = document.getElementById('tags-dropdown');
+    elements.tagsSearchInput = document.getElementById('tags-search-input');
+    elements.tagsList = document.getElementById('tags-list');
+    elements.createTagBtn = document.getElementById('create-tag-btn');
+    elements.tagModalOverlay = document.getElementById('tag-modal-overlay');
+    elements.tagModalClose = document.getElementById('tag-modal-close');
+    elements.tagModalCancel = document.getElementById('tag-modal-cancel');
+    elements.tagModalSave = document.getElementById('tag-modal-save');
+    elements.tagNameInput = document.getElementById('tag-name-input');
+    elements.colorOptions = document.querySelectorAll('.color-option');
+    
+    // Load available tags
+    loadAvailableTags();
     
     setupEventListeners();
     updateUI();
@@ -70,10 +114,27 @@
 
   // Setup event listeners
   function setupEventListeners() {
-    // Platform selection
-    elements.facebookBtn.addEventListener('click', () => togglePlatform('facebook'));
-    elements.instagramBtn.addEventListener('click', () => togglePlatform('instagram'));
-    elements.twitterBtn.addEventListener('click', () => togglePlatform('twitter'));
+    // Platform selection - click and keyboard events
+    const platformButtons = [
+      { element: elements.facebookBtn, id: 'facebook' },
+      { element: elements.instagramBtn, id: 'instagram' },
+      { element: elements.twitterBtn, id: 'twitter' }
+    ];
+
+    platformButtons.forEach(({ element, id }) => {
+      if (element) {
+        // Click handler
+        element.addEventListener('click', () => togglePlatform(id));
+        
+        // Keyboard handler (Enter/Space)
+        element.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            togglePlatform(id);
+          }
+        });
+      }
+    });
 
     // Caption input
     elements.captionInput.addEventListener('input', (e) => {
@@ -128,12 +189,90 @@
     });
 
     // Post type selection
-    elements.postTypeRadios.forEach(radio => {
-      radio.addEventListener('change', (e) => {
-        state.postType = e.target.value;
-        updatePreview();
+    if (elements.postTypeRadios) {
+      elements.postTypeRadios.forEach(radio => {
+        radio.addEventListener('change', (e) => {
+          state.postType = e.target.value;
+          // Show content section when post type is selected
+          if (elements.contentSection) {
+            elements.contentSection.style.display = 'block';
+          }
+          updatePreview();
+        });
       });
+    }
+
+    // Toggle Select All button
+    if (elements.toggleSelectBtn) {
+      elements.toggleSelectBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleSelectAll();
+      });
+    }
+
+    // Tags button
+    if (elements.tagsBtn) {
+      elements.tagsBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleTagsDropdown();
+      });
+    }
+
+    // Tags search input
+    if (elements.tagsSearchInput) {
+      elements.tagsSearchInput.addEventListener('input', (e) => {
+        filterTags(e.target.value);
+      });
+    }
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+      if (elements.tagsDropdown && elements.tagsBtn) {
+        if (!elements.tagsDropdown.contains(e.target) && !elements.tagsBtn.contains(e.target)) {
+          if (elements.tagsDropdown.style.display === 'block') {
+            elements.tagsDropdown.style.display = 'none';
+          }
+        }
+      }
     });
+
+    // Create Tag button
+    if (elements.createTagBtn) {
+      elements.createTagBtn.addEventListener('click', openTagModal);
+    }
+
+    // Tag Modal
+    if (elements.tagModalClose) {
+      elements.tagModalClose.addEventListener('click', closeTagModal);
+    }
+
+    if (elements.tagModalCancel) {
+      elements.tagModalCancel.addEventListener('click', closeTagModal);
+    }
+
+    if (elements.tagModalSave) {
+      elements.tagModalSave.addEventListener('click', saveNewTag);
+    }
+
+    // Color options
+    if (elements.colorOptions) {
+      elements.colorOptions.forEach(option => {
+        option.addEventListener('click', (e) => {
+          const color = e.currentTarget.dataset.color;
+          selectTagColor(color);
+        });
+      });
+    }
+
+    // Close modal on overlay click
+    if (elements.tagModalOverlay) {
+      elements.tagModalOverlay.addEventListener('click', (e) => {
+        if (e.target === elements.tagModalOverlay) {
+          closeTagModal();
+        }
+      });
+    }
 
     // Connect button
     elements.connectBtn.addEventListener('click', handleConnect);
@@ -144,6 +283,7 @@
     state.selectedPlatforms[platform] = !state.selectedPlatforms[platform];
     updatePlatformUI();
     updatePostTypeSelection();
+    updateToggleButton();
     updatePreview();
     updateConnectButton();
     updatePlatformHint();
@@ -151,9 +291,27 @@
 
   // Update platform UI
   function updatePlatformUI() {
-    elements.facebookBtn.classList.toggle('active', state.selectedPlatforms.facebook);
-    elements.instagramBtn.classList.toggle('active', state.selectedPlatforms.instagram);
-    elements.twitterBtn.classList.toggle('active', state.selectedPlatforms.twitter);
+    if (elements.facebookBtn) {
+      if (state.selectedPlatforms.facebook) {
+        elements.facebookBtn.classList.add('active');
+      } else {
+        elements.facebookBtn.classList.remove('active');
+      }
+    }
+    if (elements.instagramBtn) {
+      if (state.selectedPlatforms.instagram) {
+        elements.instagramBtn.classList.add('active');
+      } else {
+        elements.instagramBtn.classList.remove('active');
+      }
+    }
+    if (elements.twitterBtn) {
+      if (state.selectedPlatforms.twitter) {
+        elements.twitterBtn.classList.add('active');
+      } else {
+        elements.twitterBtn.classList.remove('active');
+      }
+    }
   }
 
   // Update post type selection visibility
@@ -162,11 +320,349 @@
                         state.selectedPlatforms.instagram || 
                         state.selectedPlatforms.twitter;
     
-    if (hasSelection && elements.postTypeSelection) {
-      elements.postTypeSelection.style.display = 'block';
-    } else if (elements.postTypeSelection) {
-      elements.postTypeSelection.style.display = 'none';
+    if (hasSelection && elements.platformPostTypeWrapper) {
+      elements.platformPostTypeWrapper.style.display = 'flex';
+      updatePlatformIndicator();
+      // Show content section when post type is selected
+      if (elements.contentSection) {
+        elements.contentSection.style.display = 'block';
+      }
+    } else {
+      if (elements.platformPostTypeWrapper) {
+        elements.platformPostTypeWrapper.style.display = 'none';
+      }
+      if (elements.contentSection) {
+        elements.contentSection.style.display = 'none';
+      }
     }
+  }
+
+  // Update platform indicator icon
+  function updatePlatformIndicator() {
+    if (!elements.platformIndicatorIcon) return;
+    
+    let selectedPlatform = null;
+    if (state.selectedPlatforms.facebook) {
+      selectedPlatform = 'facebook';
+    } else if (state.selectedPlatforms.instagram) {
+      selectedPlatform = 'instagram';
+    } else if (state.selectedPlatforms.twitter) {
+      selectedPlatform = 'twitter';
+    }
+    
+    if (selectedPlatform) {
+      elements.platformIndicatorIcon.innerHTML = getPlatformIcon(selectedPlatform);
+      elements.platformIndicatorIcon.className = `platform-indicator-icon ${selectedPlatform}`;
+    }
+  }
+
+  // Get platform icon SVG
+  function getPlatformIcon(platform) {
+    const icons = {
+      facebook: `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+      </svg>`,
+      instagram: `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+      </svg>`,
+      twitter: `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/>
+      </svg>`
+    };
+    return icons[platform] || '';
+  }
+
+  // Toggle select all platforms
+  function toggleSelectAll() {
+    const allSelected = state.selectedPlatforms.facebook && 
+                       state.selectedPlatforms.instagram && 
+                       state.selectedPlatforms.twitter;
+    
+    if (allSelected) {
+      // Unselect all
+      state.selectedPlatforms.facebook = false;
+      state.selectedPlatforms.instagram = false;
+      state.selectedPlatforms.twitter = false;
+    } else {
+      // Select all
+      state.selectedPlatforms.facebook = true;
+      state.selectedPlatforms.instagram = true;
+      state.selectedPlatforms.twitter = true;
+    }
+    
+    updatePlatformUI();
+    updatePostTypeSelection();
+    updateToggleButton();
+    updatePreview();
+    updateConnectButton();
+    updatePlatformHint();
+  }
+
+  // Update toggle button text and style
+  function updateToggleButton() {
+    if (!elements.toggleSelectBtn) return;
+    
+    const allSelected = state.selectedPlatforms.facebook && 
+                       state.selectedPlatforms.instagram && 
+                       state.selectedPlatforms.twitter;
+    
+    if (allSelected) {
+      elements.toggleSelectBtn.textContent = 'Unselect All';
+      elements.toggleSelectBtn.classList.add('unselect-mode');
+    } else {
+      elements.toggleSelectBtn.textContent = 'Select All';
+      elements.toggleSelectBtn.classList.remove('unselect-mode');
+    }
+  }
+
+
+  // Toggle tags dropdown
+  function toggleTagsDropdown() {
+    if (!elements.tagsDropdown) return;
+    
+    const isVisible = elements.tagsDropdown.style.display === 'block';
+    elements.tagsDropdown.style.display = isVisible ? 'none' : 'block';
+    
+    if (!isVisible) {
+      updateTagsList();
+      if (elements.tagsSearchInput) {
+        elements.tagsSearchInput.focus();
+      }
+    }
+  }
+
+  // Filter tags based on search
+  function filterTags(searchTerm) {
+    updateTagsList(searchTerm);
+  }
+
+  // Update tags list in dropdown
+  function updateTagsList(searchTerm = '') {
+    if (!elements.tagsList) return;
+    
+    let filteredTags = state.availableTags;
+    
+    if (searchTerm.trim()) {
+      const search = searchTerm.toLowerCase();
+      filteredTags = state.availableTags.filter(tag => 
+        tag.name.toLowerCase().includes(search)
+      );
+    }
+    
+    if (filteredTags.length === 0) {
+      elements.tagsList.innerHTML = `
+        <div class="tags-empty">
+          <p class="tags-empty-text">No tags found</p>
+        </div>
+      `;
+      return;
+    }
+    
+    elements.tagsList.innerHTML = filteredTags.map(tag => {
+      const tagName = tag.name;
+      const tagColor = tag.color || '#8b5cf6';
+      const isSelected = state.tags.some(t => {
+        const name = typeof t === 'string' ? t : t.name;
+        return name === tagName;
+      });
+      
+      return `
+        <label class="tag-list-item">
+          <input 
+            type="checkbox" 
+            class="tag-checkbox" 
+            data-tag-name="${escapeHtml(tagName)}"
+            ${isSelected ? 'checked' : ''}
+          />
+          <span class="tag-color-dot" style="background-color: ${tagColor};"></span>
+          <span class="tag-chip" style="background-color: ${tagColor}; color: #ffffff; border-color: ${tagColor};">
+            ${escapeHtml(tagName)}
+          </span>
+        </label>
+      `;
+    }).join('');
+    
+    // Add checkbox listeners
+    elements.tagsList.querySelectorAll('.tag-checkbox').forEach(checkbox => {
+      checkbox.addEventListener('change', (e) => {
+        const tagName = e.target.dataset.tagName;
+        if (e.target.checked) {
+          selectTag(tagName);
+        } else {
+          removeTag(tagName);
+        }
+      });
+    });
+  }
+
+  // Select tag
+  function selectTag(tagName) {
+    const tag = state.availableTags.find(t => t.name === tagName);
+    if (!tag) return;
+    
+    // Check if already selected
+    const isSelected = state.tags.some(t => {
+      const name = typeof t === 'string' ? t : t.name;
+      return name === tagName;
+    });
+    
+    if (!isSelected) {
+      state.tags.push({
+        name: tag.name,
+        color: tag.color
+      });
+      updateTagsList(elements.tagsSearchInput ? elements.tagsSearchInput.value : '');
+    }
+  }
+
+  // Add tag (simple string tag) - legacy function
+  function addTag(tagInput) {
+    if (!tagInput || !tagInput.trim()) return;
+    
+    const tags = tagInput.split(',').map(t => t.trim()).filter(t => t.length > 0);
+    
+    tags.forEach(tagName => {
+      if (tagName && !state.tags.find(t => (typeof t === 'string' ? t : t.name) === tagName)) {
+        // Add as simple string for backward compatibility
+        state.tags.push(tagName);
+      }
+    });
+    
+    updateTagsList(elements.tagsSearchInput ? elements.tagsSearchInput.value : '');
+  }
+
+  // Remove tag
+  function removeTag(tagName) {
+    state.tags = state.tags.filter(t => {
+      if (typeof t === 'string') {
+        return t !== tagName;
+      }
+      return t.name !== tagName;
+    });
+    updateTagsList(elements.tagsSearchInput ? elements.tagsSearchInput.value : '');
+  }
+
+  // Update tags display (legacy - for simple input tags)
+  function updateTagsDisplay() {
+    if (!elements.tagsDisplay) return;
+    
+    if (state.tags.length === 0) {
+      elements.tagsDisplay.innerHTML = '';
+      return;
+    }
+    
+    elements.tagsDisplay.innerHTML = state.tags.map(tag => {
+      const tagName = typeof tag === 'string' ? tag : tag.name;
+      const tagColor = typeof tag === 'string' ? '#8b5cf6' : (tag.color || '#8b5cf6');
+      
+      return `
+        <span class="tag-item" style="background-color: ${tagColor}; color: #ffffff; border-color: ${tagColor};">
+          <span class="tag-text">${escapeHtml(tagName)}</span>
+          <button type="button" class="tag-remove" data-tag="${escapeHtml(tagName)}" aria-label="Remove tag">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </span>
+      `;
+    }).join('');
+    
+    // Add remove listeners
+    elements.tagsDisplay.querySelectorAll('.tag-remove').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const tag = e.target.closest('.tag-remove').dataset.tag;
+        removeTag(tag);
+      });
+    });
+  }
+
+
+  // Open tag modal
+  function openTagModal() {
+    if (!elements.tagModalOverlay) return;
+    elements.tagModalOverlay.style.display = 'flex';
+    if (elements.tagNameInput) {
+      elements.tagNameInput.value = '';
+      elements.tagNameInput.focus();
+    }
+    // Reset to default color
+    selectTagColor('#8b5cf6');
+  }
+
+  // Close tag modal
+  function closeTagModal() {
+    if (!elements.tagModalOverlay) return;
+    elements.tagModalOverlay.style.display = 'none';
+    if (elements.tagNameInput) {
+      elements.tagNameInput.value = '';
+    }
+  }
+
+  // Select tag color
+  function selectTagColor(color) {
+    state.selectedTagColor = color;
+    
+    // Update color options UI
+    if (elements.colorOptions) {
+      elements.colorOptions.forEach(option => {
+        const optionColor = option.dataset.color;
+        const checkmark = option.querySelector('svg');
+        
+        if (optionColor === color) {
+          option.classList.add('selected');
+          if (!checkmark) {
+            option.innerHTML = `
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            `;
+          }
+        } else {
+          option.classList.remove('selected');
+          if (checkmark && optionColor !== '#8b5cf6') {
+            option.innerHTML = '';
+          }
+        }
+      });
+    }
+  }
+
+  // Save new tag
+  function saveNewTag() {
+    if (!elements.tagNameInput) return;
+    
+    const tagName = elements.tagNameInput.value.trim();
+    
+    if (!tagName) {
+      alert('Please enter a tag name');
+      return;
+    }
+    
+    // Check if tag already exists in available tags
+    const tagExists = state.availableTags.find(t => 
+      t.name.toLowerCase() === tagName.toLowerCase()
+    );
+    
+    if (tagExists) {
+      alert('This tag already exists');
+      return;
+    }
+    
+    // Add to available tags
+    const newTag = {
+      name: tagName,
+      color: state.selectedTagColor
+    };
+    
+    state.availableTags.push(newTag);
+    saveAvailableTags();
+    
+    // Also add to selected tags for this post
+    state.tags.push(newTag);
+    
+    updateTagsList(elements.tagsSearchInput ? elements.tagsSearchInput.value : '');
+    closeTagModal();
   }
 
   // Update character count
@@ -361,15 +857,18 @@
     }
   }
 
+
   // Update all UI elements
   function updateUI() {
     updatePlatformUI();
     updatePostTypeSelection();
+    updateToggleButton();
     updateCharCount();
     updateMediaPreview();
     updatePreview();
     updateConnectButton();
     updatePlatformHint();
+    updateTagsList();
   }
 
   // Handle connect button click
@@ -394,6 +893,13 @@
     const postData = {
       platforms: Object.keys(state.selectedPlatforms).filter(p => state.selectedPlatforms[p]),
       caption: state.caption,
+      tags: state.tags.map(tag => {
+        // Convert string tags to object format
+        if (typeof tag === 'string') {
+          return { name: tag, color: '#8b5cf6' };
+        }
+        return tag;
+      }),
       mediaFiles: state.mediaFiles.map(m => ({
         name: m.file.name,
         type: m.type,

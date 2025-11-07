@@ -23,6 +23,10 @@ const postSchema = new mongoose.Schema(
     mediaUrls: [{ type: String }], // Array of image/video URLs
     caption: { type: String, trim: true },
     hashtags: [{ type: String }], // Array of hashtags
+    tags: [{
+      name: { type: String, trim: true, required: true },
+      color: { type: String, trim: true, default: '#8b5cf6' }
+    }], // Array of tags with colors
     location: { type: String, trim: true },
     createdBy: { 
       type: mongoose.Schema.Types.ObjectId, 

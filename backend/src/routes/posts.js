@@ -92,6 +92,7 @@ router.post('/', async (req, res) => {
       mediaUrls, 
       caption, 
       hashtags, 
+      tags,
       location 
     } = req.body;
 
@@ -154,6 +155,16 @@ router.post('/', async (req, res) => {
       mediaUrls: mediaUrls || [],
       caption: caption ? caption.trim() : '',
       hashtags: hashtags || [],
+      tags: Array.isArray(tags) ? tags.map(tag => {
+        // Handle both string tags (backward compatibility) and object tags
+        if (typeof tag === 'string') {
+          return { name: tag.trim(), color: '#8b5cf6' };
+        }
+        return {
+          name: tag.name ? tag.name.trim() : '',
+          color: tag.color || '#8b5cf6'
+        };
+      }).filter(tag => tag.name) : [],
       location: location ? location.trim() : '',
       createdBy: req.user.sub
     });
@@ -191,6 +202,7 @@ router.put('/:id', async (req, res) => {
       mediaUrls, 
       caption, 
       hashtags, 
+      tags,
       location,
       status 
     } = req.body;
@@ -284,6 +296,19 @@ router.put('/:id', async (req, res) => {
 
     if (hashtags !== undefined) {
       post.hashtags = hashtags;
+    }
+
+    if (tags !== undefined) {
+      // Handle both string tags (backward compatibility) and object tags
+      post.tags = Array.isArray(tags) ? tags.map(tag => {
+        if (typeof tag === 'string') {
+          return { name: tag.trim(), color: '#8b5cf6' };
+        }
+        return {
+          name: tag.name ? tag.name.trim() : '',
+          color: tag.color || '#8b5cf6'
+        };
+      }).filter(tag => tag.name) : [];
     }
 
     if (location !== undefined) {
