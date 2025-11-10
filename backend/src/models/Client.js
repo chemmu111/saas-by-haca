@@ -18,6 +18,9 @@ const clientSchema = new mongoose.Schema(
     pageAccessToken: { type: String, trim: true }, // Long-lived Page Access Token for publishing
     igUserId: { type: String, trim: true }, // Instagram Business Account ID
     longLivedUserToken: { type: String, trim: true }, // Long-lived user token (60 days)
+    // Follower metrics (from Instagram/Facebook APIs)
+    followerCount: { type: Number, default: 0 }, // Current follower count
+    followerCountLastUpdated: { type: Date }, // When follower count was last fetched
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
   },
   { timestamps: true }

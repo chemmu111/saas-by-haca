@@ -155,7 +155,7 @@ const Layout = ({ children }) => {
         )}
 
         {/* Page Content */}
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto bg-gray-50">
           {children}
         </main>
 

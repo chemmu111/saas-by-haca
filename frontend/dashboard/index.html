@@ -11,7 +11,17 @@
     <title>Social Media Manager Dashboard</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Fallback if React doesn't load -->
+      <div style="padding: 20px; font-family: Arial; background: #f0f0f0; min-height: 100vh;">
+        <h1>Loading Dashboard...</h1>
+        <p>If this message persists, check the browser console for errors.</p>
+      </div>
+    </div>
+    <script>
+      // Test if JavaScript is running
+      console.log('Dashboard HTML loaded');
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

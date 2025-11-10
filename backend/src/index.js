@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
 import authRouter from './routes/auth.js';
 import clientsRouter from './routes/clients.js';
 import oauthRouter from './routes/oauth.js';
@@ -12,6 +13,8 @@ import postsRouter from './routes/posts.js';
 import webhooksRouter from './routes/webhooks.js';
 import instagramGraphAuthRouter from './routes/instagramGraphAuth.js';
 import tagsRouter from './routes/tags.js';
+import analyticsRouter from './routes/analytics.js';
+import reportsRouter from './routes/reports.js';
 import { connectDB } from './database/connection.js';
 
 const app = express();
@@ -60,6 +63,69 @@ app.use(express.urlencoded({ extended: true }));
 // Serve uploaded files
 const uploadsDir = path.resolve(__dirname, '../uploads');
 app.use('/uploads', express.static(uploadsDir));
+
+// Public media proxy route for Instagram/Facebook API
+// This route serves images and videos with proper headers so APIs can fetch them
+// even when using ngrok or other tunneling services
+app.get('/api/images/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join(uploadsDir, filename);
+  
+  // Security: prevent directory traversal
+  if (!path.resolve(filePath).startsWith(path.resolve(uploadsDir))) {
+    return res.status(400).json({ error: 'Invalid file path' });
+  }
+  
+  // Check if file exists
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'File not found' });
+  }
+  
+  // Determine MIME type based on file extension
+  const ext = path.extname(filename).toLowerCase().slice(1);
+  const mimeTypes = {
+    // Images
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'png': 'image/png',
+    'gif': 'image/gif',
+    'webp': 'image/webp',
+    'svg': 'image/svg+xml',
+    // Videos
+    'mp4': 'video/mp4',
+    'mov': 'video/quicktime',
+    'avi': 'video/x-msvideo',
+    'mkv': 'video/x-matroska',
+    'webm': 'video/webm',
+    'm4v': 'video/x-m4v',
+    // Audio
+    'mp3': 'audio/mpeg',
+    'wav': 'audio/wav',
+    'ogg': 'audio/ogg',
+    'm4a': 'audio/m4a',
+    'aac': 'audio/aac',
+    'flac': 'audio/flac'
+  };
+  const contentType = mimeTypes[ext] || 'application/octet-stream';
+  
+  // Set proper headers for media serving
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+  res.setHeader('Access-Control-Allow-Origin', '*'); // Allow external APIs to fetch
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Accept-Ranges', 'bytes'); // Support range requests for videos
+  
+  // For images, also set Content-Length if possible for better compatibility
+  try {
+    const stats = fs.statSync(filePath);
+    res.setHeader('Content-Length', stats.size);
+  } catch (err) {
+    // If we can't get stats, continue without Content-Length
+  }
+  
+  // Send the file
+  res.sendFile(filePath);
+});
 
 // DevTools probe path: return 204 to avoid noisy 404s
 app.get('/.well-known/appspecific/com.chrome.devtools.json', (req, res) => {
@@ -155,6 +221,8 @@ app.use('/api/posts', postsRouter);
 app.use('/api/webhooks', webhooksRouter);
 app.use('/auth/instagram', instagramGraphAuthRouter);
 app.use('/api/tags', tagsRouter);
+app.use('/api/analytics', analyticsRouter);
+app.use('/api/reports', reportsRouter);
 
 // Health
 app.get('/health', (req, res) => {

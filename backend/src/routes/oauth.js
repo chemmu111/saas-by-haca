@@ -23,7 +23,34 @@ router.get('/callback/:platform', async (req, res) => {
     console.log('  Headers:', JSON.stringify(req.headers));
     
     const { platform } = req.params;
-    const { code, state } = req.query;
+    const { code, state, error, error_description, error_reason } = req.query;
+
+    // Check for OAuth errors from Facebook/Instagram
+    if (error) {
+      console.error('❌ OAuth error received from provider');
+      console.error('  Error:', error);
+      console.error('  Error description:', error_description);
+      console.error('  Error reason:', error_reason);
+      
+      let errorParam = 'oauth_error';
+      if (error === 'access_denied') {
+        errorParam = 'oauth_cancelled';
+      }
+      
+      // Build redirect URL with error parameters
+      let redirectUrl = `/dashboard/clients?error=${errorParam}`;
+      if (error_description) {
+        // Encode error description to pass it to frontend
+        const encodedError = encodeURIComponent(error_description);
+        redirectUrl += `&error_description=${encodedError}`;
+      }
+      if (error_reason) {
+        const encodedReason = encodeURIComponent(error_reason);
+        redirectUrl += `&error_reason=${encodedReason}`;
+      }
+      
+      return res.redirect(redirectUrl);
+    }
 
     if (!code) {
       console.error('❌ No authorization code received');

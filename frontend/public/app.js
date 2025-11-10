@@ -758,7 +758,12 @@ window.addEventListener('DOMContentLoaded', function () {
 
     // Get token with a small delay to ensure localStorage is accessible
     setTimeout(function() {
-      var token = getToken();
+      var token;
+      try { 
+        token = localStorage.getItem('auth_token'); 
+      } catch (_) { 
+        token = null; 
+      }
       
       // Redirect authenticated users away from login to role-specific home
       if (document.querySelector('#login-form') && token) {

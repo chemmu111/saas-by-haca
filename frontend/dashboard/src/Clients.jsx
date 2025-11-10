@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Plus, Mail, Link as LinkIcon, User, X, Instagram, Facebook } from 'lucide-react';
+import { Users, Plus, Mail, Link as LinkIcon, User, X, Instagram, Facebook, Undo2 } from 'lucide-react';
 import Layout from './Layout.jsx';
 
 // Helper function to get backend URL
@@ -35,6 +35,8 @@ const Clients = () => {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [connectingOAuth, setConnectingOAuth] = useState(false);
+  const [lastChange, setLastChange] = useState(null); // Track last change for undo
+  const [undoing, setUndoing] = useState(false);
 
   // Handle OAuth callback
   useEffect(() => {
@@ -77,6 +79,7 @@ const Clients = () => {
 
           if (result.success) {
             setClients(prev => [result.data, ...prev]);
+            setLastChange({ type: 'add', client: result.data });
             window.dispatchEvent(new CustomEvent('clientAdded'));
             // Clean URL
             window.history.replaceState({}, '', '/dashboard/clients');
@@ -157,16 +160,43 @@ const Clients = () => {
       window.history.replaceState({}, '', '/dashboard/clients');
     } else if (errorParam) {
       let errorMessage = 'Failed to connect account';
+      let errorDetails = '';
+      
       if (errorParam === 'oauth_cancelled') {
         errorMessage = 'OAuth connection was cancelled';
+      } else if (errorParam === 'oauth_error') {
+        errorMessage = 'OAuth connection failed';
       } else if (errorParam === 'invalid_platform') {
         errorMessage = 'Invalid platform selected';
       } else if (errorParam.includes('instagram')) {
         errorMessage = 'Instagram connection failed. Please try again.';
+        if (errorParam === 'instagram_no_pages') {
+          errorMessage = 'No Facebook Pages found';
+          errorDetails = 'You must have a Facebook Page connected to your Instagram Business account.';
+        }
       } else if (errorParam.includes('facebook')) {
         errorMessage = 'Facebook connection failed. Please try again.';
+        errorDetails = 'This may be due to Facebook app configuration. Please check your Facebook app settings or try using Manual Entry instead.';
       }
-      setError(errorMessage);
+      
+      // Check for Facebook-specific error messages in URL
+      const errorDescription = urlParams.get('error_description');
+      const errorReason = urlParams.get('error_reason');
+      
+      if (errorDescription) {
+        if (errorDescription.includes('unavailable') || errorDescription.includes('updating additional details')) {
+          errorMessage = 'Facebook Login is currently unavailable';
+          errorDetails = 'Your Facebook app may need additional configuration or review. Please check your Facebook App Dashboard or use Manual Entry to add the client instead.';
+        } else {
+          errorDetails = errorDescription;
+        }
+      }
+      
+      if (errorReason && !errorDetails) {
+        errorDetails = errorReason;
+      }
+      
+      setError(errorMessage + (errorDetails ? ` - ${errorDetails}` : ''));
       // Clean URL
       window.history.replaceState({}, '', '/dashboard/clients');
     }
@@ -208,6 +238,7 @@ const Clients = () => {
       if (result.success) {
         // Add new client to the list immediately
         setClients(prev => [result.data, ...prev]);
+        setLastChange({ type: 'add', client: result.data });
         // Reset form
         setFormData({ name: '', email: '', socialMediaLink: '' });
         setShowForm(false);
@@ -239,6 +270,50 @@ const Clients = () => {
       platform: platform,
       socialMediaLink: platform === 'manual' ? prev.socialMediaLink : ''
     }));
+  };
+
+  const handleUndo = async () => {
+    if (!lastChange || undoing) return;
+
+    setUndoing(true);
+    setError('');
+
+    try {
+      if (lastChange.type === 'add') {
+        // Delete the client that was just added
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+          const backendUrl = getBackendUrl();
+          window.location.href = `${backendUrl}/login.html`;
+          return;
+        }
+
+        const backendUrl = getBackendUrl();
+        const response = await fetch(`${backendUrl}/api/clients/${lastChange.client._id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          // Remove client from local state
+          setClients(prev => prev.filter(client => client._id !== lastChange.client._id));
+          setLastChange(null);
+          // Notify dashboard to refresh client count
+          window.dispatchEvent(new CustomEvent('clientRemoved'));
+        } else {
+          const result = await response.json();
+          setError(result.error || 'Failed to undo. Please try again.');
+        }
+      }
+    } catch (err) {
+      console.error('Error undoing change:', err);
+      setError('Failed to undo. Please try again.');
+    } finally {
+      setUndoing(false);
+    }
   };
 
   const handleOAuthConnect = async (platform) => {
@@ -315,19 +390,54 @@ const Clients = () => {
             </h1>
             <p className="text-gray-600 mt-2">Manage your social media clients</p>
           </div>
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus size={20} />
-            Add Client
-          </button>
+          <div className="flex items-center gap-3">
+            {lastChange && (
+              <button
+                onClick={handleUndo}
+                disabled={undoing}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Undo last change"
+              >
+                <Undo2 size={20} />
+                {undoing ? 'Undoing...' : 'Undo'}
+              </button>
+            )}
+            <button
+              onClick={() => setShowForm(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus size={20} />
+              Add Client
+            </button>
+          </div>
         </div>
 
         {/* Error Message */}
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-            {error}
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0">
+                <X className="text-red-600 mt-0.5" size={20} />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-red-800 font-semibold mb-1">Error</h3>
+                <p className="text-red-700 text-sm whitespace-pre-line">{error}</p>
+                {error.includes('Facebook') && (
+                  <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                    <p className="text-yellow-800 text-xs">
+                      <strong>Tip:</strong> You can still add the client using "Manual Entry" instead of connecting via Facebook OAuth.
+                    </p>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => setError('')}
+                className="flex-shrink-0 text-red-400 hover:text-red-600 transition-colors"
+                aria-label="Dismiss error"
+              >
+                <X size={18} />
+              </button>
+            </div>
           </div>
         )}
 
@@ -465,9 +575,18 @@ const Clients = () => {
                       </p>
                     )}
                     {formData.name && formData.email && /.+@.+\..+/.test(formData.email) && (
-                      <p className="mt-2 text-xs text-gray-500">
-                        You'll be redirected to {formData.platform === 'instagram' ? 'Instagram' : 'Facebook'} to authorize access
-                      </p>
+                      <>
+                        <p className="mt-2 text-xs text-gray-500">
+                          You'll be redirected to {formData.platform === 'instagram' ? 'Instagram' : 'Facebook'} to authorize access
+                        </p>
+                        {formData.platform === 'facebook' && (
+                          <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
+                            <p className="text-yellow-800">
+                              <strong>Note:</strong> If you encounter "Facebook Login is currently unavailable", your Facebook app may need additional configuration. You can use "Manual Entry" instead.
+                            </p>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}

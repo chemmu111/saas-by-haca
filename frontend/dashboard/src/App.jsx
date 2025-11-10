@@ -1,8 +1,11 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import ErrorBoundary from './ErrorBoundary.jsx';
 import Dashboard from './Dashboard.jsx';
 import Clients from './Clients.jsx';
 import Posts from './Posts.jsx';
+import Analytics from './Analytics.jsx';
+import Reports from './Reports.jsx';
 
 // Helper function to get backend URL
 const getBackendUrl = () => {
@@ -39,25 +42,31 @@ const AuthGuard = ({ children }) => {
 };
 
 const App = () => {
+  console.log('App component rendering, current path:', window.location.pathname);
+  
   return (
-    <BrowserRouter
-      future={{
-        v7_startTransition: true,
-        v7_relativeSplatPath: true,
-      }}
-    >
-      <AuthGuard>
-        <Routes>
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/dashboard/clients" element={<Clients />} />
-          <Route path="/dashboard/posts" element={<Posts />} />
-          <Route path="/clients" element={<Clients />} />
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          {/* Catch-all route - redirect unmatched routes to dashboard */}
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
-      </AuthGuard>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
+        <AuthGuard>
+          <Routes>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/dashboard/clients" element={<Clients />} />
+            <Route path="/dashboard/posts" element={<Posts />} />
+            <Route path="/dashboard/analytics" element={<Analytics />} />
+            <Route path="/dashboard/reports" element={<Reports />} />
+            <Route path="/clients" element={<Clients />} />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            {/* Catch-all route - redirect unmatched routes to dashboard */}
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </AuthGuard>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 };
 
