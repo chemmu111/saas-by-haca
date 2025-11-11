@@ -72,7 +72,7 @@ if (allGood && hasProvider) {
   console.log('  ✅ All required variables are set!');
   console.log('\n🚀 Next steps:');
   console.log('  1. Make sure your backend server is running: npm run dev');
-  console.log('  2. Visit /dashboard/accounts to connect accounts');
+  console.log('  2. Visit /dashboard/clients to connect accounts');
   console.log('  3. Add redirect URIs in provider dashboards:');
   const redirectBase = process.env.OAUTH_REDIRECT_BASE || 'http://localhost:5000';
   console.log(`     - Meta: ${redirectBase}/oauth/callback/meta`);

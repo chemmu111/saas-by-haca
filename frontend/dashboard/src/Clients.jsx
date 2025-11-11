@@ -173,6 +173,15 @@ const Clients = () => {
         if (errorParam === 'instagram_no_pages') {
           errorMessage = 'No Facebook Pages found';
           errorDetails = 'You must have a Facebook Page connected to your Instagram Business account.';
+        } else if (errorParam === 'instagram_permission_error') {
+          errorMessage = 'Instagram Permission Error';
+          // Use error_description if available, otherwise provide generic message
+          const errorDescription = urlParams.get('error_description');
+          if (errorDescription) {
+            errorDetails = decodeURIComponent(errorDescription);
+          } else {
+            errorDetails = 'The Facebook app does not have permission to access Instagram. This usually means the app is in Development Mode or permissions are not approved. Please check Facebook App Dashboard settings.';
+          }
         }
       } else if (errorParam.includes('facebook')) {
         errorMessage = 'Facebook connection failed. Please try again.';

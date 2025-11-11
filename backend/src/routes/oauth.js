@@ -237,9 +237,12 @@ router.get('/callback/:platform', async (req, res) => {
         }
 
         // Step 3: Get user's Facebook Pages
+        // Request pages with all necessary permissions for Instagram publishing
         console.log('📱 Step 3: Fetching user\'s Facebook Pages...');
         console.log('  Using access token:', accessToken ? 'Yes (length: ' + accessToken.length + ')' : 'No');
-        const pagesUrl = `https://graph.facebook.com/v18.0/me/accounts?access_token=${accessToken}`;
+        // Request pages with fields including access_token and permissions
+        // The access_token returned here should have the permissions requested in the OAuth scopes
+        const pagesUrl = `https://graph.facebook.com/v18.0/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${accessToken}`;
         console.log('  Pages URL (masked):', pagesUrl.replace(/access_token=[^&]+/, 'access_token=***'));
         
         let pagesResponse;
@@ -418,9 +421,38 @@ router.get('/callback/:platform', async (req, res) => {
             console.error('  ❌ Failed to fetch IG info:');
             console.error('    Status:', igInfoResponse.status);
             console.error('    Error:', errorData);
+            
+            // Check for permission errors (error code 10)
+            try {
+              const errorJson = JSON.parse(errorData);
+              if (errorJson.error && (errorJson.error.code === 10 || 
+                  (errorJson.error.type === 'OAuthException' && errorJson.error.code === 10))) {
+                console.error('  ❌ PERMISSION ERROR DETECTED DURING OAUTH');
+                console.error('    Error Code:', errorJson.error.code);
+                console.error('    Error Type:', errorJson.error.type);
+                console.error('    Error Message:', errorJson.error.message);
+                console.error('    This usually means:');
+                console.error('    1. App is in Development Mode and user is not a test user');
+                console.error('    2. Permissions (pages_manage_posts, instagram_content_publish) not approved');
+                console.error('    3. App needs Facebook review for production use');
+                
+                const appId = clientId;
+                const errorDescription = `Permission denied (Error #10). The app may be in Development Mode or permissions are not approved. Please: 1) Add yourself as a test user in Facebook App Dashboard (Roles → Test Users), 2) Request review for pages_manage_posts and instagram_content_publish permissions, or 3) Switch app to Live mode after approval. App Dashboard: https://developers.facebook.com/apps/${appId}/app-review/permissions/`;
+                
+                return res.redirect(`/dashboard/clients?error=instagram_permission_error&error_description=${encodeURIComponent(errorDescription)}&app_id=${appId}`);
+              }
+            } catch (parseErr) {
+              // Not a JSON error, continue with generic error
+            }
+            
             throw new Error(`Failed to fetch IG info: ${igInfoResponse.status}`);
           }
         } catch (e) {
+          // Check if it's a permission error that was already handled
+          if (e.message && e.message.includes('Permission denied')) {
+            throw e; // Re-throw to be caught by outer catch
+          }
+          
           console.error('⚠️ Error fetching Instagram info:', e.message);
           console.error('  Error stack:', e.stack);
           console.error('  Will use IG User ID as fallback');
@@ -732,11 +764,19 @@ router.post('/authorize', requireAuth, async (req, res) => {
       }
       
       // Instagram Business API scopes (via Facebook OAuth)
+      // Required permissions for Instagram publishing:
+      // - pages_manage_posts: Required to publish content to Instagram via Page
+      // - instagram_content_publish: Required to publish to Instagram
+      // - pages_show_list: Required to list user's Facebook Pages
+      // - pages_read_engagement: Required to read page engagement metrics
+      // - instagram_basic: Required for basic Instagram account info
+      // - business_management: Required for managing business assets
       const scopes = [
         'instagram_basic',
         'instagram_content_publish',
         'pages_show_list',
         'pages_read_engagement',
+        'pages_manage_posts',
         'instagram_manage_insights',
         'instagram_manage_comments',
         'business_management'

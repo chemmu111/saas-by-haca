@@ -931,5 +931,149 @@ router.post('/:id/publish', async (req, res) => {
   }
 });
 
+// GET /api/posts/clients/:clientId/permissions - Check Instagram permissions for a client
+router.get('/clients/:clientId/permissions', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    
+    // Verify client belongs to the user
+    const client = await Client.findOne({
+      _id: clientId,
+      createdBy: req.user.sub
+    });
+
+    if (!client) {
+      return res.status(404).json({
+        success: false,
+        error: 'Client not found'
+      });
+    }
+
+    if (client.platform !== 'instagram' && client.platform !== 'manual') {
+      return res.status(400).json({
+        success: false,
+        error: 'Client is not an Instagram account'
+      });
+    }
+
+    if (!client.igUserId || !client.pageAccessToken) {
+      return res.status(400).json({
+        success: false,
+        error: 'Instagram credentials not found. Please reconnect the account.',
+        needsReauth: true
+      });
+    }
+
+    // Check permissions by trying to access Instagram Business Account
+    const diagnostics = {
+      hasCredentials: true,
+      canAccessInstagram: null,
+      canAccessPage: null,
+      errors: [],
+      recommendations: []
+    };
+
+    try {
+      // Test Instagram Business Account access
+      const igTestUrl = `https://graph.facebook.com/v18.0/${client.igUserId}?fields=id,username&access_token=${client.pageAccessToken}`;
+      const igTestResponse = await fetch(igTestUrl);
+      
+      if (igTestResponse.ok) {
+        const igData = await igTestResponse.json();
+        diagnostics.canAccessInstagram = true;
+        diagnostics.instagramUsername = igData.username;
+      } else {
+        diagnostics.canAccessInstagram = false;
+        const errorData = await igTestResponse.text();
+        let errorJson;
+        try {
+          errorJson = JSON.parse(errorData);
+        } catch (e) {
+          errorJson = null;
+        }
+        
+        if (errorJson?.error?.code === 10) {
+          diagnostics.errors.push({
+            type: 'permission_denied',
+            message: 'Cannot access Instagram Business Account. Permission denied.',
+            code: 10
+          });
+          diagnostics.recommendations.push('The app may be in Development Mode. Add yourself as a test user or request permission review.');
+          diagnostics.recommendations.push('Request review for pages_manage_posts and instagram_content_publish permissions.');
+          diagnostics.recommendations.push('Re-authenticate the Instagram account after permissions are approved.');
+        } else {
+          diagnostics.errors.push({
+            type: 'api_error',
+            message: errorJson?.error?.message || 'Unknown error',
+            code: errorJson?.error?.code
+          });
+        }
+      }
+
+      // Test Page access if pageId is available
+      if (client.pageId) {
+        const pageTestUrl = `https://graph.facebook.com/v18.0/${client.pageId}?fields=id,name&access_token=${client.pageAccessToken}`;
+        const pageTestResponse = await fetch(pageTestUrl);
+        
+        if (pageTestResponse.ok) {
+          const pageData = await pageTestResponse.json();
+          diagnostics.canAccessPage = true;
+          diagnostics.pageName = pageData.name;
+        } else {
+          diagnostics.canAccessPage = false;
+          const errorData = await pageTestResponse.text();
+          let errorJson;
+          try {
+            errorJson = JSON.parse(errorData);
+          } catch (e) {
+            errorJson = null;
+          }
+          
+          if (errorJson?.error?.code === 10) {
+            diagnostics.errors.push({
+              type: 'permission_denied',
+              message: 'Cannot access Facebook Page. Permission denied.',
+              code: 10
+            });
+          }
+        }
+      }
+    } catch (error) {
+      diagnostics.errors.push({
+        type: 'network_error',
+        message: error.message
+      });
+    }
+
+    // Determine overall status
+    if (diagnostics.canAccessInstagram === true && (diagnostics.canAccessPage === true || !client.pageId)) {
+      diagnostics.status = 'ok';
+      diagnostics.message = 'All permissions verified successfully';
+    } else if (diagnostics.canAccessInstagram === false) {
+      diagnostics.status = 'error';
+      diagnostics.message = 'Permission error detected. Please check Facebook App settings.';
+    } else {
+      diagnostics.status = 'warning';
+      diagnostics.message = 'Could not verify all permissions';
+    }
+
+    // Add Facebook App Dashboard link
+    const appId = process.env.FACEBOOK_CLIENT_ID || process.env.INSTAGRAM_CLIENT_ID || 'YOUR_APP_ID';
+    diagnostics.appDashboardUrl = `https://developers.facebook.com/apps/${appId}/app-review/permissions/`;
+    diagnostics.appId = appId;
+
+    res.json({
+      success: true,
+      data: diagnostics
+    });
+  } catch (error) {
+    console.error('Error checking permissions:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to check permissions'
+    });
+  }
+});
+
 export default router;
 

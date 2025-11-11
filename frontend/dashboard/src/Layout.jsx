@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X, LogOut, LayoutDashboard, Users, FileText, TrendingUp, FileCheck, Link2 } from 'lucide-react';
+import { Menu, X, LogOut, LayoutDashboard, Users, FileText, TrendingUp, FileCheck } from 'lucide-react';
 
 const Layout = ({ children }) => {
   const [userName, setUserName] = useState('User');
@@ -64,7 +64,6 @@ const Layout = ({ children }) => {
   const menuItems = [
     { icon: LayoutDashboard, label: 'Overview', path: '/dashboard' },
     { icon: Users, label: 'Clients', path: '/dashboard/clients' },
-    { icon: Link2, label: 'Accounts', path: '/dashboard/accounts', external: true },
     { icon: FileText, label: 'Posts', path: '/dashboard/posts' },
     { icon: TrendingUp, label: 'Analytics', path: '/dashboard/analytics' },
     { icon: FileCheck, label: 'Reports', path: '/dashboard/reports' },
@@ -73,10 +72,6 @@ const Layout = ({ children }) => {
   const isActive = (path) => {
     if (path === '/dashboard') {
       return location.pathname === '/dashboard' || location.pathname === '/';
-    }
-    // Check if current path matches or is accounts page
-    if (path === '/dashboard/accounts') {
-      return location.pathname === '/dashboard/accounts' || window.location.pathname === '/dashboard/accounts';
     }
     return location.pathname.startsWith(path);
   };

@@ -2,6 +2,162 @@
  * Service for posting to Instagram and Facebook
  */
 
+import sharp from 'sharp';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const uploadsDir = path.resolve(__dirname, '../../uploads');
+
+/**
+ * Process image for Instagram: resize/crop to valid aspect ratio if needed
+ * Instagram requirements: aspect ratio between 0.8 and 1.91
+ * Default safe size: 1080x1080 (square, ratio 1.0)
+ * @param {string} mediaUrl - Original image URL
+ * @param {string} postType - Type of post: 'post', 'story', or 'reel'
+ * @returns {Promise<string>} - Processed image URL (or original if no processing needed)
+ */
+async function processImageForInstagram(mediaUrl, postType = 'post') {
+  try {
+    // Validate and normalize postType
+    const validPostTypes = ['post', 'story', 'reel'];
+    postType = validPostTypes.includes(postType) ? postType : 'post';
+    
+    // Only process images, not videos
+    const isVideo = /\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(mediaUrl) || 
+                    mediaUrl.includes('/video');
+    if (isVideo) {
+      return mediaUrl; // Return original URL for videos
+    }
+
+    // Extract filename from URL
+    let filename = null;
+    try {
+      const url = new URL(mediaUrl);
+      if (url.pathname.startsWith('/uploads/')) {
+        filename = url.pathname.split('/uploads/')[1];
+      } else if (url.pathname.startsWith('/api/images/')) {
+        filename = url.pathname.split('/api/images/')[1];
+      } else if (url.pathname.includes('/uploads/')) {
+        const parts = url.pathname.split('/uploads/');
+        if (parts.length > 1) {
+          filename = parts[1].split('/').pop();
+        }
+      }
+    } catch (urlError) {
+      // If URL parsing fails, try to extract filename from path
+      const pathParts = mediaUrl.split('/');
+      filename = pathParts[pathParts.length - 1];
+    }
+
+    if (!filename) {
+      console.warn('  ⚠️ Could not extract filename from media URL, skipping image processing');
+      return mediaUrl;
+    }
+
+    // Get file path
+    const filePath = path.join(uploadsDir, filename);
+    
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      console.warn(`  ⚠️ Image file not found: ${filePath}, skipping processing`);
+      return mediaUrl;
+    }
+
+    // Check if file is an image
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+    const fileExt = path.extname(filename).toLowerCase();
+    if (!imageExtensions.includes(fileExt)) {
+      console.log('  ℹ️ File is not an image, skipping processing');
+      return mediaUrl;
+    }
+
+    console.log('  🖼️ Processing image for Instagram...');
+    console.log('    File:', filename);
+    console.log('    Post type:', postType);
+
+    // Read image metadata
+    const metadata = await sharp(filePath).metadata();
+    const width = metadata.width;
+    const height = metadata.height;
+    const aspectRatio = width / height;
+
+    console.log('    Original dimensions:', `${width}x${height}`);
+    console.log('    Aspect ratio:', aspectRatio.toFixed(2));
+
+    // Instagram aspect ratio requirements
+    const minRatio = 0.8;
+    const maxRatio = 1.91;
+    const isRatioValid = aspectRatio >= minRatio && aspectRatio <= maxRatio;
+
+    // For stories and reels, require 9:16 aspect ratio (0.5625)
+    if (postType === 'story' || postType === 'reel') {
+      const storyRatio = 9 / 16; // 0.5625
+      const tolerance = 0.01; // Small tolerance for floating point comparison
+      const isStoryRatio = Math.abs(aspectRatio - storyRatio) < tolerance;
+      
+      if (!isStoryRatio) {
+        console.log('    ⚠️ Story/Reel requires 9:16 aspect ratio, resizing to 1080x1920');
+        // Resize to 9:16 (1080x1920) for stories/reels
+        // Replace file extension with .jpg for processed image
+        const baseName = path.parse(filename).name;
+        const processedFilename = `instagram-processed-${Date.now()}-${baseName}.jpg`;
+        const processedFilePath = path.join(uploadsDir, processedFilename);
+        
+        await sharp(filePath)
+          .resize(1080, 1920, {
+            fit: 'cover', // Crop to fit
+            position: 'center' // Center the crop
+          })
+          .jpeg({ quality: 90 }) // Convert to JPEG with high quality
+          .toFile(processedFilePath);
+        
+        console.log('    ✅ Image processed for story/reel:', processedFilename);
+        
+        // Return new URL
+        const baseUrl = process.env.API_URL || 'http://localhost:5000';
+        return `${baseUrl}/api/images/${processedFilename}`;
+      }
+    } else if (!isRatioValid) {
+      // For regular posts, check if ratio is within 0.8-1.91
+      console.log('    ⚠️ Aspect ratio outside valid range (0.8-1.91), resizing to 1080x1080 (square)');
+      
+      // Resize to square (1080x1080) - safe default within valid range
+      // Replace file extension with .jpg for processed image
+      const baseName = path.parse(filename).name;
+      const processedFilename = `instagram-processed-${Date.now()}-${baseName}.jpg`;
+      const processedFilePath = path.join(uploadsDir, processedFilename);
+      
+      await sharp(filePath)
+        .resize(1080, 1080, {
+          fit: 'cover', // Crop to fit
+          position: 'center' // Center the crop
+        })
+        .jpeg({ quality: 90 }) // Convert to JPEG with high quality
+        .toFile(processedFilePath);
+      
+      console.log('    ✅ Image processed for Instagram post:', processedFilename);
+      console.log('    New dimensions: 1080x1080 (aspect ratio: 1.0)');
+      
+      // Return new URL
+      const baseUrl = process.env.API_URL || 'http://localhost:5000';
+      return `${baseUrl}/api/images/${processedFilename}`;
+    } else {
+      console.log('    ✅ Image aspect ratio is valid, no processing needed');
+    }
+
+    // Return original URL if no processing was needed
+    return mediaUrl;
+  } catch (error) {
+    console.error('  ❌ Error processing image for Instagram:', error.message);
+    console.error('    Returning original URL');
+    // If processing fails, return original URL to avoid breaking the flow
+    return mediaUrl;
+  }
+}
+
 /**
  * Convert image URL to a publicly accessible format
  * Handles ngrok and local server URLs by converting them to use the proxy route
@@ -27,8 +183,34 @@ function getPublicImageUrl(imageUrl) {
         filename = parts[1].split('/').pop(); // Get last segment
       }
     } else if (url.pathname.startsWith('/api/images/')) {
-      // Already using the proxy route, just ensure HTTPS
+      // Already using the proxy route
       filename = url.pathname.split('/api/images/')[1];
+      
+      // If URL is already using the proxy route, check if we need to update the base URL
+      // Get the base URL - prefer API_URL env variable, fallback to origin
+      let baseUrl = process.env.API_URL || url.origin;
+      
+      // Ensure baseUrl doesn't end with a slash
+      baseUrl = baseUrl.replace(/\/$/, '');
+      
+      // Force HTTPS if we're using ngrok or a public domain
+      // Instagram REQUIRES HTTPS for all media URLs (especially reels and stories)
+      if (!baseUrl.startsWith('https://') && !baseUrl.startsWith('http://localhost')) {
+        // If not localhost and not HTTPS, try to use HTTPS
+        baseUrl = baseUrl.replace('http://', 'https://');
+      }
+      
+      // If the URL already has the correct base URL and protocol, return it as-is
+      if (url.origin === baseUrl || (url.origin.replace('http://', 'https://') === baseUrl)) {
+        // URL is already properly formatted, just ensure HTTPS for non-localhost
+        if (baseUrl.startsWith('https://') || baseUrl.startsWith('http://localhost')) {
+          return imageUrl;
+        }
+      }
+      
+      // Reconstruct URL with correct base URL
+      const publicUrl = `${baseUrl}/api/images/${filename}`;
+      return publicUrl;
     }
     
     if (filename) {
@@ -89,6 +271,86 @@ function getPublicImageUrl(imageUrl) {
 }
 
 /**
+ * Verify Page Access Token has required permissions for Instagram publishing
+ * @param {string} pageAccessToken - Page Access Token
+ * @param {string} igUserId - Instagram Business Account ID
+ * @param {string} pageId - Facebook Page ID (optional)
+ * @returns {Promise<Object>} - Permission verification result
+ */
+async function verifyPagePermissions(pageAccessToken, igUserId, pageId = null) {
+  try {
+    // First, try to access the Instagram Business Account directly
+    // This is the most direct test of permissions
+    const igTestUrl = `https://graph.facebook.com/v18.0/${igUserId}?fields=id,username&access_token=${pageAccessToken}`;
+    const igTestResponse = await fetch(igTestUrl);
+    
+    if (!igTestResponse.ok) {
+      const igErrorData = await igTestResponse.text();
+      let igErrorJson;
+      try {
+        igErrorJson = JSON.parse(igErrorData);
+      } catch (e) {
+        igErrorJson = null;
+      }
+      
+      // Check for permission errors (error code 10)
+      if (igErrorJson?.error?.code === 10 || 
+          (igErrorJson?.error?.type === 'OAuthException' && igErrorJson?.error?.code === 10)) {
+        return {
+          hasPermissions: false,
+          error: igErrorJson.error.message || 'Permission denied',
+          errorCode: igErrorJson.error.code,
+          errorType: igErrorJson.error.type,
+          errorSubcode: igErrorJson.error.error_subcode
+        };
+      }
+      
+      // Other errors might not be permission-related, log but don't fail
+      console.warn('  ⚠️ Instagram API returned error (not permission):', igErrorJson?.error?.message);
+    } else {
+      const igData = await igTestResponse.json();
+      console.log('  ✅ Instagram Business Account accessible:', igData.username || igData.id);
+    }
+    
+    // If pageId is available, also test page access
+    if (pageId) {
+      const pageTestUrl = `https://graph.facebook.com/v18.0/${pageId}?fields=id,name&access_token=${pageAccessToken}`;
+      const pageTestResponse = await fetch(pageTestUrl);
+      
+      if (!pageTestResponse.ok) {
+        const pageErrorData = await pageTestResponse.text();
+        let pageErrorJson;
+        try {
+          pageErrorJson = JSON.parse(pageErrorData);
+        } catch (e) {
+          pageErrorJson = null;
+        }
+        
+        if (pageErrorJson?.error?.code === 10) {
+          return {
+            hasPermissions: false,
+            error: 'Cannot access Facebook Page. Permission denied.',
+            errorCode: 10,
+            errorType: 'OAuthException'
+          };
+        }
+      }
+    }
+    
+    return {
+      hasPermissions: true
+    };
+  } catch (error) {
+    console.warn('  ⚠️ Could not verify permissions:', error.message);
+    // Return unknown status - don't block posting if verification fails
+    return {
+      hasPermissions: null,
+      error: error.message
+    };
+  }
+}
+
+/**
  * Post a photo/video to Instagram using Instagram Business API
  * Supports regular posts, stories, and reels
  * @param {string} mediaUrl - URL of the image/video to post
@@ -99,20 +361,68 @@ function getPublicImageUrl(imageUrl) {
  */
 export async function postToInstagram(mediaUrl, caption, client, postType = 'post') {
   try {
+    // Validate and normalize postType
+    const validPostTypes = ['post', 'story', 'reel'];
+    postType = validPostTypes.includes(postType) ? postType : 'post';
+    
     console.log(`📸 Posting ${postType} to Instagram...`);
     console.log('  Original Media URL:', mediaUrl);
     
+    // Verify credentials first
+    if (!client.igUserId || !client.pageAccessToken) {
+      throw new Error('Instagram credentials not found. Client must be connected via OAuth.');
+    }
+    
+    // Verify permissions before attempting to post
+    console.log('  🔍 Verifying Page Access Token permissions...');
+    const permissionCheck = await verifyPagePermissions(client.pageAccessToken, client.igUserId, client.pageId);
+    
+    if (permissionCheck.hasPermissions === false) {
+      // Build helpful error message with Facebook App Dashboard link
+      const appId = process.env.FACEBOOK_CLIENT_ID || process.env.INSTAGRAM_CLIENT_ID || 'YOUR_APP_ID';
+      const appDashboardUrl = `https://developers.facebook.com/apps/${appId}/app-review/permissions/`;
+      
+      const permissionError = new Error(`Instagram API Permission Error: Application does not have permission for this action.\n\n` +
+        `This error typically occurs when:\n` +
+        `1. The app is in Development Mode and needs to be switched to Live Mode\n` +
+        `2. The required permissions (pages_manage_posts, instagram_content_publish) are not approved\n` +
+        `3. The user needs to be added as a test user or the app needs Facebook review\n` +
+        `4. The Page Access Token doesn't have the required permissions\n\n` +
+        `Solutions:\n` +
+        `1. Go to Facebook App Dashboard: https://developers.facebook.com/apps/\n` +
+        `2. Select your app (App ID: ${appId})\n` +
+        `3. Go to App Review → Permissions and Features\n` +
+        `4. Request review for: pages_manage_posts, instagram_content_publish\n` +
+        `5. Add test users (if in Development Mode): Roles → Test Users\n` +
+        `6. Switch app from Development to Live mode (after approval)\n` +
+        `7. Re-authenticate the Instagram account after app is live\n` +
+        `8. Ensure the Facebook Page is connected to Instagram Business Account\n\n` +
+        `Direct link to Permissions: ${appDashboardUrl}\n\n` +
+        `Original error: ${permissionCheck.error || 'Permission denied'}`);
+      permissionError.isPermissionError = true;
+      permissionError.errorCode = permissionCheck.errorCode;
+      permissionError.errorSubcode = permissionCheck.errorSubcode;
+      throw permissionError;
+    }
+    
+    if (permissionCheck.hasPermissions === true) {
+      console.log('  ✅ Page Access Token permissions verified');
+    } else {
+      console.log('  ⚠️ Could not verify permissions, proceeding anyway...');
+    }
+    
+    // Process image for Instagram (resize/crop to valid aspect ratio if needed)
+    // This should be done BEFORE converting to public URL
+    const processedMediaUrl = await processImageForInstagram(mediaUrl, postType);
+    console.log('  Processed Media URL:', processedMediaUrl);
+    
     // Convert to publicly accessible URL if needed
-    const publicMediaUrl = getPublicImageUrl(mediaUrl);
+    const publicMediaUrl = getPublicImageUrl(processedMediaUrl);
     console.log('  Using Media URL:', publicMediaUrl);
     console.log('  Caption:', caption ? caption.substring(0, 50) + '...' : 'No caption');
     console.log('  Post Type:', postType);
     console.log('  IG User ID:', client.igUserId);
     console.log('  Page Access Token:', client.pageAccessToken ? 'Yes' : 'No');
-
-    if (!client.igUserId || !client.pageAccessToken) {
-      throw new Error('Instagram credentials not found. Client must be connected via OAuth.');
-    }
 
     if (!publicMediaUrl) {
       throw new Error('Media URL is required');
@@ -268,6 +578,24 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
         const errorJson = JSON.parse(errorData);
         if (errorJson.error) {
           const error = errorJson.error;
+          
+          // Check for permission errors (error code 10)
+          if (error.code === 10 || error.type === 'OAuthException') {
+            errorMessage = `Instagram API Permission Error: Application does not have permission for this action.\n\n`;
+            errorMessage += `This error typically occurs when:\n`;
+            errorMessage += `1. The app is in Development Mode and needs to be switched to Live Mode\n`;
+            errorMessage += `2. The required permissions (pages_manage_posts, instagram_content_publish) are not approved\n`;
+            errorMessage += `3. The user needs to be added as a test user or the app needs Facebook review\n`;
+            errorMessage += `4. The Page Access Token doesn't have the required permissions\n\n`;
+            errorMessage += `Solutions:\n`;
+            errorMessage += `- Go to Facebook App Dashboard → App Review → Permissions and Features\n`;
+            errorMessage += `- Request review for: pages_manage_posts, instagram_content_publish\n`;
+            errorMessage += `- Switch app from Development to Live mode (if approved)\n`;
+            errorMessage += `- Re-authenticate the Instagram account after app is live\n`;
+            errorMessage += `- Ensure the Facebook Page is connected to Instagram Business Account\n\n`;
+            errorMessage += `Original error: ${error.message || errorData}`;
+            throw new Error(errorMessage);
+          }
           
           // Check for specific error codes
           if (error.code === 9004 || error.error_subcode === 2207052) {
@@ -508,6 +836,27 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
         errorJson = null;
       }
       
+      // Check for permission errors (error code 10) first
+      const isPermissionError = errorJson?.error?.code === 10 || 
+                               (errorJson?.error?.type === 'OAuthException' && errorJson?.error?.code === 10);
+      
+      if (isPermissionError) {
+        let permissionErrorMessage = `Instagram API Permission Error: Application does not have permission for this action.\n\n`;
+        permissionErrorMessage += `This error typically occurs when:\n`;
+        permissionErrorMessage += `1. The app is in Development Mode and needs to be switched to Live Mode\n`;
+        permissionErrorMessage += `2. The required permissions (pages_manage_posts, instagram_content_publish) are not approved\n`;
+        permissionErrorMessage += `3. The user needs to be added as a test user or the app needs Facebook review\n`;
+        permissionErrorMessage += `4. The Page Access Token doesn't have the required permissions\n\n`;
+        permissionErrorMessage += `Solutions:\n`;
+        permissionErrorMessage += `- Go to Facebook App Dashboard → App Review → Permissions and Features\n`;
+        permissionErrorMessage += `- Request review for: pages_manage_posts, instagram_content_publish\n`;
+        permissionErrorMessage += `- Switch app from Development to Live mode (if approved)\n`;
+        permissionErrorMessage += `- Re-authenticate the Instagram account after app is live\n`;
+        permissionErrorMessage += `- Ensure the Facebook Page is connected to Instagram Business Account\n\n`;
+        permissionErrorMessage += `Original error: ${errorJson?.error?.message || errorText}`;
+        throw new Error(permissionErrorMessage);
+      }
+      
       const isMediaNotReady = errorJson?.error?.code === 9007 || 
                              errorJson?.error?.error_subcode === 2207027 ||
                              (errorJson?.error?.message && errorJson.error.message.includes('Media ID is not available')) ||
@@ -697,9 +1046,12 @@ export async function publishPost(post, client) {
     // Post to Instagram if platform includes instagram
     if (post.platform === 'instagram' || post.platform === 'both') {
       if (client.platform === 'instagram' || client.platform === 'manual') {
+        // Get post type from post object (default to 'post')
+        // Validate postType is one of: 'post', 'story', 'reel'
+        const validPostTypes = ['post', 'story', 'reel'];
+        const postType = validPostTypes.includes(post.postType) ? post.postType : 'post';
+        
         try {
-          // Get post type from post object (default to 'post')
-          const postType = post.postType || 'post';
           results.instagram = await postToInstagram(imageUrl, caption, client, postType);
           console.log(`✅ Instagram ${postType} successful`);
         } catch (error) {
@@ -710,7 +1062,7 @@ export async function publishPost(post, client) {
             error: error.message,
             isAspectRatioError: error.isAspectRatioError || false,
             mediaUrl: error.mediaUrl || imageUrl,
-            postType: error.postType || postType
+            postType: error.postType || postType || 'post'
           };
           results.errors.push(errorObj);
         }

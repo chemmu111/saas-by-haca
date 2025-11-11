@@ -32,31 +32,42 @@ const corsOptions = {
   exposedHeaders: ['Authorization'],
 };
 app.use(cors(corsOptions));
-// Security headers; relax CSP during local development to allow DevTools/connects
-if (process.env.NODE_ENV !== 'production') {
-  app.use(helmet({
-    contentSecurityPolicy: {
-      useDefaults: true,
-      directives: {
-        defaultSrc: ["'self'"],
-        connectSrc: ["'self'", 'http://localhost:*', 'ws://localhost:*'],
-      },
-    },
-    // Remove unload restriction to prevent browser warnings
-    // This warning is often from Vite dev server or third-party libraries
-    permissionsPolicy: false,
-  }));
-} else {
-  app.use(helmet({
-    // In production, use default permissions policy but allow unload
-    permissionsPolicy: {
-      useDefaults: true,
-      features: {
-        'unload': '*',
-      },
-    },
-  }));
+// Security headers with CSP configuration
+// Build connectSrc based on environment
+const connectSrc = process.env.NODE_ENV !== 'production'
+  ? ["'self'", 'http://localhost:*', 'ws://localhost:*', 'https://*']
+  : ["'self'", 'https://*'];
+
+// Build CSP directives
+const cspDirectives = {
+  defaultSrc: ["'self'"],
+  scriptSrc: ["'self'", "'unsafe-inline'"],
+  styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+  imgSrc: ["'self'", 'data:', 'blob:', '*'],
+  fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+  connectSrc: connectSrc,
+  objectSrc: ["'none'"],
+};
+
+// Only upgrade insecure requests in production
+if (process.env.NODE_ENV === 'production') {
+  cspDirectives.upgradeInsecureRequests = [];
 }
+
+const helmetConfig = {
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: cspDirectives,
+  },
+  permissionsPolicy: {
+    useDefaults: true,
+    features: {
+      'unload': '*',
+    },
+  },
+};
+
+app.use(helmet(helmetConfig));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -180,13 +191,6 @@ app.get('/dashboard', (req, res) => {
   res.sendFile(path.join(publicDir, 'dashboard', 'index.html'));
 });
 
-app.get('/dashboard/accounts', (req, res) => {
-  res.sendFile(path.join(publicDir, 'accounts.html'));
-});
-
-app.get('/dashboard/accounts.html', (req, res) => {
-  res.sendFile(path.join(publicDir, 'accounts.html'));
-});
 
 app.get('/dashboard/create-post', (req, res) => {
   res.sendFile(path.join(publicDir, 'create-post.html'));
