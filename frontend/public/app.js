@@ -270,6 +270,23 @@
   function initLogin() {
     wirePasswordToggles();
     clearErrorsOnInput();
+    
+    // Check for session expired error in URL
+    try {
+      var urlParams = new URLSearchParams(window.location.search);
+      var errorParam = urlParams.get('error');
+      if (errorParam === 'session_expired') {
+        var sessionExpiredMsg = qs('#session-expired-message');
+        if (sessionExpiredMsg) {
+          sessionExpiredMsg.style.display = 'block';
+          // Clean URL without reloading
+          window.history.replaceState({}, '', window.location.pathname);
+        }
+      }
+    } catch (e) {
+      console.error('Error checking URL params:', e);
+    }
+    
     var form = qs('#login-form');
     if (!form) return;
     form.addEventListener('submit', function (e) {

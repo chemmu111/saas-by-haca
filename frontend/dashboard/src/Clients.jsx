@@ -4,8 +4,13 @@ import Layout from './Layout.jsx';
 
 // Helper function to get backend URL
 const getBackendUrl = () => {
-  // In production, use the same origin
-  // In development, try to detect the backend port
+  // If accessing via ngrok or any domain, use the same origin
+  if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    console.log('Using current origin for backend:', window.location.origin);
+    return window.location.origin;
+  }
+  
+  // In development on localhost, try to detect the backend port
   if (window.location.port === '3000' || window.location.hostname === 'localhost') {
     // Vite dev server or localhost - try backend ports 5000 first, then 5001
     // Check localStorage for saved port
@@ -18,8 +23,21 @@ const getBackendUrl = () => {
     console.log('Using default backend port: 5000');
     return 'http://localhost:5000';
   }
-  // Production or already on backend server
+  // Fallback to current origin
   return window.location.origin;
+};
+
+// Helper function to handle authentication errors
+const handleAuthError = (response, errorData) => {
+  if (response.status === 401 || errorData?.code === 'TOKEN_EXPIRED' || errorData?.code === 'INVALID_TOKEN' || errorData?.code === 'NO_TOKEN') {
+    console.log('🔄 Authentication error detected, redirecting to login...');
+    localStorage.removeItem('auth_token');
+    const backendUrl = getBackendUrl();
+    const currentPath = window.location.pathname;
+    window.location.href = `${backendUrl}/login.html?redirect=${encodeURIComponent(currentPath)}&error=session_expired`;
+    return true;
+  }
+  return false;
 };
 
 const Clients = () => {
@@ -114,15 +132,13 @@ const Clients = () => {
         }
       });
 
-      if (response.status === 401) {
-        localStorage.removeItem('auth_token');
-        window.location.href = '/login.html';
-        return;
-      }
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        // Handle authentication errors
+        if (handleAuthError(response, errorData)) {
+          return;
+        }
+        throw new Error(errorData.message || errorData.error || `HTTP error! status: ${response.status}`);
       }
 
       const result = await response.json();
@@ -368,7 +384,13 @@ const Clients = () => {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         console.error('❌ OAuth authorize error:', errorData);
-        throw new Error(errorData.error || errorData.details || `HTTP error! status: ${response.status}`);
+        
+        // Handle authentication errors - redirect to login
+        if (handleAuthError(response, errorData)) {
+          return;
+        }
+        
+        throw new Error(errorData.message || errorData.error || errorData.details || `HTTP error! status: ${response.status}`);
       }
 
       const result = await response.json();
