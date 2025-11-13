@@ -45,14 +45,26 @@ router.post('/signup', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body || {};
+    console.log('🔐 Login attempt:', { email, passwordLength: password?.length });
+    
     if (!email || !isValidEmail(email)) return res.status(400).json({ error: 'Valid email is required' });
     if (!password) return res.status(400).json({ error: 'Password is required' });
 
     const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!user) {
+      console.log('❌ User not found:', email);
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    console.log('✅ User found:', user.email);
 
     const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!ok) {
+      console.log('❌ Password mismatch for:', email);
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    console.log('✅ Password correct for:', email);
 
     // Ensure role exists (for existing users without role field)
     if (!user.role) {
