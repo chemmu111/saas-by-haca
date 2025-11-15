@@ -28,7 +28,7 @@ export async function fetchFacebookPostMetrics(fbPostId, pageAccessToken) {
       return null;
     }
 
-    const url = `https://graph.facebook.com/v18.0/${fbPostId}?fields=likes.summary(true),comments.summary(true),shares,reactions.summary(true)&access_token=${pageAccessToken}`;
+    const url = `https://graph.facebook.com/v22.0/${fbPostId}?fields=likes.summary(true),comments.summary(true),shares,reactions.summary(true)&access_token=${pageAccessToken}`;
     
     const response = await fetch(url);
     if (!response.ok) {
@@ -70,7 +70,7 @@ export async function fetchFacebookFollowerCount(pageId, pageAccessToken) {
       return null;
     }
 
-    const url = `https://graph.facebook.com/v18.0/${pageId}?fields=fan_count&access_token=${pageAccessToken}`;
+    const url = `https://graph.facebook.com/v22.0/${pageId}?fields=fan_count&access_token=${pageAccessToken}`;
     
     const response = await fetch(url);
     if (!response.ok) {

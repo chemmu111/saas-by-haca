@@ -133,7 +133,7 @@ router.get('/callback/:platform', async (req, res) => {
         console.log('  Redirect URI:', redirectUri);
         console.log('  Client ID:', clientId ? clientId.substring(0, 10) + '...' : 'Missing');
         
-        const tokenUrl = `https://graph.facebook.com/v18.0/oauth/access_token?client_id=${clientId}&client_secret=${clientSecret}&redirect_uri=${encodeURIComponent(redirectUri)}&code=${code}`;
+        const tokenUrl = `https://graph.facebook.com/v22.0/oauth/access_token?client_id=${clientId}&client_secret=${clientSecret}&redirect_uri=${encodeURIComponent(redirectUri)}&code=${code}`;
         console.log('  Token URL (masked):', tokenUrl.replace(/client_secret=[^&]+/, 'client_secret=***').replace(/code=[^&]+/, 'code=***'));
         
         let tokenResponse;
@@ -192,7 +192,7 @@ router.get('/callback/:platform', async (req, res) => {
 
         // Step 2: Exchange short-lived token for long-lived user token (60 days)
         console.log('📱 Step 2: Exchanging for long-lived user token...');
-        const longLivedTokenUrl = `https://graph.facebook.com/v18.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${clientId}&client_secret=${clientSecret}&fb_exchange_token=${shortLivedToken}`;
+        const longLivedTokenUrl = `https://graph.facebook.com/v22.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${clientId}&client_secret=${clientSecret}&fb_exchange_token=${shortLivedToken}`;
         console.log('  Long-lived token URL (masked):', longLivedTokenUrl.replace(/client_secret=[^&]+/, 'client_secret=***').replace(/fb_exchange_token=[^&]+/, 'fb_exchange_token=***'));
         
         let longLivedResponse;
@@ -242,7 +242,7 @@ router.get('/callback/:platform', async (req, res) => {
         console.log('  Using access token:', accessToken ? 'Yes (length: ' + accessToken.length + ')' : 'No');
         // Request pages with fields including access_token and permissions
         // The access_token returned here should have the permissions requested in the OAuth scopes
-        const pagesUrl = `https://graph.facebook.com/v18.0/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${accessToken}`;
+        const pagesUrl = `https://graph.facebook.com/v22.0/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${accessToken}`;
         console.log('  Pages URL (masked):', pagesUrl.replace(/access_token=[^&]+/, 'access_token=***'));
         
         let pagesResponse;
@@ -308,7 +308,7 @@ router.get('/callback/:platform', async (req, res) => {
           console.log(`  Checking page ${pagesChecked}/${pages.length}: ${page.id}`);
           console.log('    Page has access token:', page.access_token ? 'Yes' : 'No');
           
-          const pageInfoUrl = `https://graph.facebook.com/v18.0/${page.id}?fields=instagram_business_account,name&access_token=${page.access_token}`;
+          const pageInfoUrl = `https://graph.facebook.com/v22.0/${page.id}?fields=instagram_business_account,name&access_token=${page.access_token}`;
           console.log('    Page info URL (masked):', pageInfoUrl.replace(/access_token=[^&]+/, 'access_token=***'));
           
           let pageInfoResponse;
@@ -377,7 +377,7 @@ router.get('/callback/:platform', async (req, res) => {
         console.log('  Page Access Token:', pageAccessToken ? 'Yes (length: ' + pageAccessToken.length + ')' : 'No');
         
         try {
-          const igInfoUrl = `https://graph.facebook.com/v18.0/${igUserId}?fields=id,username&access_token=${pageAccessToken}`;
+          const igInfoUrl = `https://graph.facebook.com/v22.0/${igUserId}?fields=id,username&access_token=${pageAccessToken}`;
           console.log('  IG Info URL (masked):', igInfoUrl.replace(/access_token=[^&]+/, 'access_token=***'));
           
           let igInfoResponse;
@@ -506,7 +506,7 @@ router.get('/callback/:platform', async (req, res) => {
         console.log('  Authorization code received:', code ? 'Yes (length: ' + code.length + ')' : 'No');
         console.log('  Client ID:', facebookClientId ? facebookClientId.substring(0, 10) + '...' : 'Missing');
         
-        const tokenUrl = `https://graph.facebook.com/v18.0/oauth/access_token?client_id=${facebookClientId}&client_secret=${facebookClientSecret}&redirect_uri=${encodeURIComponent(redirectUri)}&code=${code}`;
+        const tokenUrl = `https://graph.facebook.com/v22.0/oauth/access_token?client_id=${facebookClientId}&client_secret=${facebookClientSecret}&redirect_uri=${encodeURIComponent(redirectUri)}&code=${code}`;
         console.log('  Token URL (masked):', tokenUrl.replace(/client_secret=[^&]+/, 'client_secret=***').replace(/code=[^&]+/, 'code=***'));
         
         let tokenResponse;
@@ -568,7 +568,7 @@ router.get('/callback/:platform', async (req, res) => {
         console.log('  Using access token:', accessToken ? 'Yes (length: ' + accessToken.length + ')' : 'No');
         
         try {
-          const userInfoUrl = `https://graph.facebook.com/v18.0/me?access_token=${accessToken}&fields=id,name,email`;
+          const userInfoUrl = `https://graph.facebook.com/v22.0/me?access_token=${accessToken}&fields=id,name,email`;
           console.log('  User info URL (masked):', userInfoUrl.replace(/access_token=[^&]+/, 'access_token=***'));
           
           let userResponse;
@@ -789,8 +789,8 @@ router.post('/authorize', requireAuth, async (req, res) => {
       console.log('  API URL:', process.env.API_URL || 'http://localhost:5001');
       console.log('  Scopes:', scopes);
       
-      // Use Facebook OAuth endpoint for Instagram Business API
-      authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${facebookAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&response_type=code&state=${state}`;
+      // Use Facebook OAuth endpoint for Instagram Business API (v22.0)
+      authUrl = `https://www.facebook.com/v22.0/dialog/oauth?client_id=${facebookAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&response_type=code&state=${state}`;
       console.log('Instagram Business API OAuth URL generated:', authUrl.replace(/client_id=[^&]+/, 'client_id=***'));
       console.log('⚠️  Make sure this redirect URI is configured in Instagram Business API settings:', redirectUri);
     } else if (platform === 'facebook') {
@@ -802,7 +802,7 @@ router.post('/authorize', requireAuth, async (req, res) => {
           error: 'Facebook OAuth not configured. Please set FACEBOOK_CLIENT_ID in .env file.' 
         });
       }
-      authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${facebookClientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=email,public_profile&response_type=code&state=${state}`;
+      authUrl = `https://www.facebook.com/v22.0/dialog/oauth?client_id=${facebookClientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=email,public_profile&response_type=code&state=${state}`;
     }
 
     if (!authUrl) {

@@ -18,8 +18,8 @@ export function getProviderConfig(provider) {
       return {
         clientId: process.env.META_APP_ID,
         clientSecret: process.env.META_APP_SECRET,
-        authUrl: 'https://www.facebook.com/v18.0/dialog/oauth',
-        tokenUrl: 'https://graph.facebook.com/v18.0/oauth/access_token',
+        authUrl: 'https://www.facebook.com/v22.0/dialog/oauth',
+        tokenUrl: 'https://graph.facebook.com/v22.0/oauth/access_token',
         redirectUri,
         scopes: [
           'instagram_basic',
@@ -169,7 +169,7 @@ export async function fetchUserProfile(provider, accessToken) {
     switch (provider) {
       case 'meta':
         // Fetch user info
-        const userResponse = await axios.get('https://graph.facebook.com/v18.0/me', {
+        const userResponse = await axios.get('https://graph.facebook.com/v22.0/me', {
           params: {
             fields: 'id,name',
             access_token: accessToken
@@ -179,7 +179,7 @@ export async function fetchUserProfile(provider, accessToken) {
         // Fetch pages
         let pages = [];
         try {
-          const pagesResponse = await axios.get('https://graph.facebook.com/v18.0/me/accounts', {
+          const pagesResponse = await axios.get('https://graph.facebook.com/v22.0/me/accounts', {
             params: {
               access_token: accessToken
             }
@@ -259,7 +259,7 @@ export async function refreshAccessToken(provider, refreshToken) {
     switch (provider) {
       case 'meta':
         // Meta long-lived token exchange
-        response = await axios.get('https://graph.facebook.com/v18.0/oauth/access_token', {
+        response = await axios.get('https://graph.facebook.com/v22.0/oauth/access_token', {
           params: {
             grant_type: 'fb_exchange_token',
             client_id: config.clientId,

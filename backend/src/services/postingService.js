@@ -259,7 +259,7 @@ async function verifyPagePermissions(pageAccessToken, igUserId, pageId = null) {
   try {
     // First, try to access the Instagram Business Account directly
     // This is the most direct test of permissions
-    const igTestUrl = `https://graph.facebook.com/v18.0/${igUserId}?fields=id,username&access_token=${pageAccessToken}`;
+    const igTestUrl = `https://graph.facebook.com/v22.0/${igUserId}?fields=id,username&access_token=${pageAccessToken}`;
     const igTestResponse = await fetch(igTestUrl);
     
     if (!igTestResponse.ok) {
@@ -292,7 +292,7 @@ async function verifyPagePermissions(pageAccessToken, igUserId, pageId = null) {
     
     // If pageId is available, also test page access
     if (pageId) {
-      const pageTestUrl = `https://graph.facebook.com/v18.0/${pageId}?fields=id,name&access_token=${pageAccessToken}`;
+      const pageTestUrl = `https://graph.facebook.com/v22.0/${pageId}?fields=id,name&access_token=${pageAccessToken}`;
       const pageTestResponse = await fetch(pageTestUrl);
       
       if (!pageTestResponse.ok) {
@@ -518,7 +518,7 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
     console.log('');
     console.log('  📦 STEP 1: Creating Instagram Media Container');
     console.log('  ' + '-'.repeat(58));
-    const containerUrl = `https://graph.facebook.com/v18.0/${client.igUserId}/media`;
+    const containerUrl = `https://graph.facebook.com/v22.0/${client.igUserId}/media`;
     
     const containerParams = new URLSearchParams();
     
@@ -729,7 +729,7 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
           await new Promise(resolve => setTimeout(resolve, waitTime));
         }
         
-        const statusUrl = `https://graph.facebook.com/v18.0/${creationId}?fields=status_code,status&access_token=${client.pageAccessToken}`;
+        const statusUrl = `https://graph.facebook.com/v22.0/${creationId}?fields=status_code,status&access_token=${client.pageAccessToken}`;
         const statusResponse = await fetch(statusUrl);
         
         if (statusResponse.ok) {
@@ -784,7 +784,7 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
       if (attempts >= maxAttempts) {
         // Get final status one more time
         try {
-          const finalStatusUrl = `https://graph.facebook.com/v18.0/${creationId}?fields=status_code,status&access_token=${client.pageAccessToken}`;
+          const finalStatusUrl = `https://graph.facebook.com/v22.0/${creationId}?fields=status_code,status&access_token=${client.pageAccessToken}`;
           const finalStatusResponse = await fetch(finalStatusUrl);
           if (finalStatusResponse.ok) {
             const finalStatusData = await finalStatusResponse.json();
@@ -810,7 +810,7 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
     console.log(`  Step ${stepNumber}: Publishing Instagram ${postType}...`);
     
     // All post types (posts, stories, reels) use the media_publish endpoint
-    const publishUrl = `https://graph.facebook.com/v18.0/${client.igUserId}/media_publish`;
+    const publishUrl = `https://graph.facebook.com/v22.0/${client.igUserId}/media_publish`;
     
     const publishParams = new URLSearchParams();
     publishParams.append('creation_id', creationId);
@@ -1008,7 +1008,7 @@ export async function postToFacebook(imageUrl, message, client) {
     }
 
     // Post photo to Facebook Page
-    const postUrl = `https://graph.facebook.com/v18.0/${pageId}/photos`;
+    const postUrl = `https://graph.facebook.com/v22.0/${pageId}/photos`;
     
     const postParams = new URLSearchParams();
     postParams.append('url', publicImageUrl);

@@ -21,8 +21,8 @@ router.get('/login', (req, res) => {
     });
   }
 
-  // Generate authorization URL using Facebook OAuth endpoint
-  const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent(SCOPES)}&response_type=code`;
+  // Generate authorization URL using Facebook OAuth endpoint (v22.0)
+  const authUrl = `https://www.facebook.com/v22.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent(SCOPES)}&response_type=code`;
 
   console.log('📱 Instagram Graph API OAuth - Redirecting to Facebook OAuth');
   console.log('  App ID:', FB_APP_ID);
@@ -68,7 +68,7 @@ router.get('/callback', async (req, res) => {
     console.log('  Redirect URI:', REDIRECT_URI);
 
     // Exchange code for access token using Facebook Graph API
-    const tokenUrl = `https://graph.facebook.com/v18.0/oauth/access_token?client_id=${FB_APP_ID}&client_secret=${FB_APP_SECRET}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&code=${code}`;
+    const tokenUrl = `https://graph.facebook.com/v22.0/oauth/access_token?client_id=${FB_APP_ID}&client_secret=${FB_APP_SECRET}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&code=${code}`;
 
     console.log('  Token URL:', tokenUrl.replace(/client_secret=[^&]+/, 'client_secret=***'));
 
@@ -104,7 +104,7 @@ router.get('/callback', async (req, res) => {
         note: 'This is a short-lived token (typically 1 hour). You need to exchange it for a long-lived token.'
       },
       exchangeForLongLived: {
-        endpoint: 'https://graph.facebook.com/v18.0/oauth/access_token',
+        endpoint: 'https://graph.facebook.com/v22.0/oauth/access_token',
         method: 'GET',
         params: {
           grant_type: 'fb_exchange_token',

@@ -29,7 +29,7 @@ export async function fetchInstagramPostMetrics(igPostId, pageAccessToken, media
     let detectedMediaType = mediaType;
     if (!mediaType || mediaType === 'IMAGE') {
       try {
-        const url = `https://graph.facebook.com/v18.0/${igPostId}?fields=like_count,comments_count,media_type&access_token=${pageAccessToken}`;
+        const url = `https://graph.facebook.com/v22.0/${igPostId}?fields=like_count,comments_count,media_type&access_token=${pageAccessToken}`;
         const response = await fetch(url);
         
         if (response.ok) {
@@ -90,7 +90,7 @@ export async function fetchInstagramFollowerCount(igUserId, pageAccessToken) {
     }
 
     // Use insights API to get follower count
-    const url = `https://graph.facebook.com/v18.0/${igUserId}/insights?metric=follower_count&period=day&access_token=${pageAccessToken}`;
+    const url = `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=follower_count&period=day&access_token=${pageAccessToken}`;
     
     const response = await fetch(url);
     if (!response.ok) {
