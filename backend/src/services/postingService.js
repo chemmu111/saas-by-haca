@@ -116,9 +116,11 @@ async function processImageForInstagram(mediaUrl, postType = 'post') {
         
         console.log('    ✅ Image processed for story/reel:', processedFilename);
         
-        // Return new URL
+        // Return new URL using /uploads route
         const baseUrl = process.env.API_URL || 'http://localhost:5000';
-        return `${baseUrl}/api/images/${processedFilename}`;
+        const processedUrl = `${baseUrl}/uploads/${processedFilename}`;
+        console.log('    📤 Processed image URL:', processedUrl);
+        return processedUrl;
       }
     } else if (!isRatioValid) {
       // For regular posts, check if ratio is within 0.8-1.91
@@ -141,9 +143,11 @@ async function processImageForInstagram(mediaUrl, postType = 'post') {
       console.log('    ✅ Image processed for Instagram post:', processedFilename);
       console.log('    New dimensions: 1080x1080 (aspect ratio: 1.0)');
       
-      // Return new URL
+      // Return new URL using /uploads route
       const baseUrl = process.env.API_URL || 'http://localhost:5000';
-      return `${baseUrl}/api/images/${processedFilename}`;
+      const processedUrl = `${baseUrl}/uploads/${processedFilename}`;
+      console.log('    📤 Processed image URL:', processedUrl);
+      return processedUrl;
     } else {
       console.log('    ✅ Image aspect ratio is valid, no processing needed');
     }
@@ -183,34 +187,8 @@ function getPublicImageUrl(imageUrl) {
         filename = parts[1].split('/').pop(); // Get last segment
       }
     } else if (url.pathname.startsWith('/api/images/')) {
-      // Already using the proxy route
+      // Convert from /api/images/ to /uploads/
       filename = url.pathname.split('/api/images/')[1];
-      
-      // If URL is already using the proxy route, check if we need to update the base URL
-      // Get the base URL - prefer API_URL env variable, fallback to origin
-      let baseUrl = process.env.API_URL || url.origin;
-      
-      // Ensure baseUrl doesn't end with a slash
-      baseUrl = baseUrl.replace(/\/$/, '');
-      
-      // Force HTTPS if we're using ngrok or a public domain
-      // Instagram REQUIRES HTTPS for all media URLs (especially reels and stories)
-      if (!baseUrl.startsWith('https://') && !baseUrl.startsWith('http://localhost')) {
-        // If not localhost and not HTTPS, try to use HTTPS
-        baseUrl = baseUrl.replace('http://', 'https://');
-      }
-      
-      // If the URL already has the correct base URL and protocol, return it as-is
-      if (url.origin === baseUrl || (url.origin.replace('http://', 'https://') === baseUrl)) {
-        // URL is already properly formatted, just ensure HTTPS for non-localhost
-        if (baseUrl.startsWith('https://') || baseUrl.startsWith('http://localhost')) {
-          return imageUrl;
-        }
-      }
-      
-      // Reconstruct URL with correct base URL
-      const publicUrl = `${baseUrl}/api/images/${filename}`;
-      return publicUrl;
     }
     
     if (filename) {
@@ -236,9 +214,9 @@ function getPublicImageUrl(imageUrl) {
         console.warn('    Please use ngrok or a public HTTPS URL.');
       }
       
-      // Construct public URL using the proxy route
-      // This route serves both images and videos with proper headers
-      const publicUrl = `${baseUrl}/api/images/${filename}`;
+      // Use /uploads/ route (simpler and direct)
+      // Instagram can fetch files directly from this static route
+      const publicUrl = `${baseUrl}/uploads/${filename}`;
       
       console.log('  🔄 Converting media URL for Instagram:');
       console.log('    Original:', imageUrl);
@@ -247,7 +225,7 @@ function getPublicImageUrl(imageUrl) {
       console.log('    Public URL:', publicUrl);
       console.log('    Protocol:', new URL(publicUrl).protocol);
       
-      // Verify the URL is accessible (basic check)
+      // Verify the URL uses HTTPS
       if (!publicUrl.startsWith('https://') && !publicUrl.startsWith('http://localhost')) {
         console.warn('  ⚠️ WARNING: URL does not use HTTPS. Instagram may reject this.');
       }
@@ -365,8 +343,13 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
     const validPostTypes = ['post', 'story', 'reel'];
     postType = validPostTypes.includes(postType) ? postType : 'post';
     
-    console.log(`📸 Posting ${postType} to Instagram...`);
+    console.log('');
+    console.log('='.repeat(60));
+    console.log(`📸 INSTAGRAM ${postType.toUpperCase()} UPLOAD STARTED`);
+    console.log('='.repeat(60));
+    console.log('  Post Type:', postType);
     console.log('  Original Media URL:', mediaUrl);
+    console.log('  Caption:', caption ? caption.substring(0, 50) + '...' : 'None');
     
     // Verify credentials first
     if (!client.igUserId || !client.pageAccessToken) {
@@ -441,54 +424,74 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
     // Verify the media URL is accessible before sending to Instagram
     // This helps catch issues early and ensures Instagram can fetch the file
     try {
-      console.log('  Verifying media URL is accessible...');
+      console.log('  📡 Verifying media URL is publicly accessible...');
+      console.log('  URL to verify:', publicMediaUrl);
       
       // Try HEAD first, fallback to GET if HEAD is not supported
       let verifyResponse;
       try {
+        const startTime = Date.now();
         verifyResponse = await fetch(publicMediaUrl, { 
           method: 'HEAD', 
           redirect: 'follow',
           headers: {
             'User-Agent': 'Mozilla/5.0 (compatible; InstagramBot/1.0)'
-          }
+          },
+          timeout: 10000 // 10 second timeout
         });
+        const duration = Date.now() - startTime;
+        console.log(`  Response received in ${duration}ms`);
       } catch (headError) {
         // If HEAD fails, try GET with range request (just first few bytes)
-        console.log('  HEAD request failed, trying GET with range...');
+        console.log('  ⚠️  HEAD request failed, trying GET with range...');
+        console.log('  Error:', headError.message);
         verifyResponse = await fetch(publicMediaUrl, {
           method: 'GET',
           headers: {
             'Range': 'bytes=0-1023', // Just get first 1KB
             'User-Agent': 'Mozilla/5.0 (compatible; InstagramBot/1.0)'
           },
-          redirect: 'follow'
+          redirect: 'follow',
+          timeout: 10000
         });
       }
       
       if (!verifyResponse.ok && verifyResponse.status !== 206 && verifyResponse.status !== 405) {
         // 206 is Partial Content (OK for range requests), 405 is Method Not Allowed (OK)
-        console.warn(`  ⚠️ Warning: Media URL returned status ${verifyResponse.status}.`);
-        console.warn(`  Instagram may not be able to access this file.`);
+        console.error(`  ❌ ERROR: Media URL returned status ${verifyResponse.status}`);
+        console.error(`  URL: ${publicMediaUrl}`);
         
-        // Check if it's a ngrok browser warning
-        if (verifyResponse.status === 403 || verifyResponse.status === 401) {
-          console.error(`  ❌ ERROR: The media URL appears to be blocked (possibly by ngrok browser warning).`);
-          console.error(`  Instagram requires direct access to media files without authentication or browser warnings.`);
-          throw new Error('Media URL is not publicly accessible. If using ngrok, ensure browser warnings are disabled or use a direct public URL.');
+        // Handle specific error codes
+        if (verifyResponse.status === 404) {
+          console.error(`  File not found on server!`);
+          console.error(`  This means:`);
+          console.error(`  1. The file wasn't uploaded correctly`);
+          console.error(`  2. The file path is wrong`);
+          console.error(`  3. The static file serving is not configured`);
+          throw new Error(`Media file not found (404). File may not exist at: ${publicMediaUrl}`);
+        } else if (verifyResponse.status === 403 || verifyResponse.status === 401) {
+          console.error(`  The media URL appears to be blocked or requires authentication.`);
+          console.error(`  Instagram requires direct, public access without authentication.`);
+          throw new Error('Media URL is not publicly accessible. If using ngrok, ensure browser warnings are disabled.');
+        } else {
+          console.warn(`  Instagram may not be able to access this file.`);
         }
       } else {
-        console.log('  ✅ Media URL is accessible');
+        console.log('  ✅ Media URL is accessible (HTTP', verifyResponse.status + ')');
         const contentType = verifyResponse.headers.get('content-type');
         if (contentType) {
-          console.log(`  Content-Type: ${contentType}`);
+          console.log(`  ✅ Content-Type: ${contentType}`);
           // Verify content type matches file type
           if (isVideo && !contentType.startsWith('video/')) {
-            console.warn(`  ⚠️ Warning: File extension suggests video but Content-Type is ${contentType}`);
+            console.error(`  ❌ CRITICAL: File is video but Content-Type is ${contentType}`);
+            console.error(`  Instagram will reject this. Fix your server's MIME type configuration.`);
+            throw new Error(`Wrong Content-Type for video: ${contentType}. Expected video/mp4 or similar.`);
           } else if (!isVideo && !contentType.startsWith('image/')) {
-            console.warn(`  ⚠️ Warning: File extension suggests image but Content-Type is ${contentType}`);
+            console.warn(`  ⚠️  Warning: File extension suggests image but Content-Type is ${contentType}`);
             console.warn(`  This might cause Instagram to reject the file.`);
           }
+        } else {
+          console.warn(`  ⚠️  No Content-Type header returned!`);
         }
         
         // Check Content-Length for images (Instagram has size limits)
@@ -512,7 +515,9 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
     }
 
     // Step 1: Create Instagram media container
-    console.log(`  Step 1: Creating Instagram ${postType} container...`);
+    console.log('');
+    console.log('  📦 STEP 1: Creating Instagram Media Container');
+    console.log('  ' + '-'.repeat(58));
     const containerUrl = `https://graph.facebook.com/v18.0/${client.igUserId}/media`;
     
     const containerParams = new URLSearchParams();
@@ -523,13 +528,23 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
       // Stories can be images or videos
       // Stories have specific requirements: max 15 seconds for video, 9:16 aspect ratio
       if (isVideo) {
+        console.log('  📹 Story Type: VIDEO');
+        console.log('  Requirements:');
+        console.log('    - Max duration: 15 seconds');
+        console.log('    - Aspect ratio: 9:16 (vertical)');
+        console.log('    - Format: MP4');
         containerParams.append('media_type', 'STORIES');
         containerParams.append('video_url', publicMediaUrl);
         // Stories don't support captions in the container creation
       } else {
+        console.log('  🖼️  Story Type: IMAGE');
+        console.log('  Requirements:');
+        console.log('    - Aspect ratio: 9:16 (vertical, 1080x1920px)');
+        console.log('    - Format: JPG/PNG');
         containerParams.append('media_type', 'STORIES');
         containerParams.append('image_url', publicMediaUrl);
       }
+      console.log('  ⚠️  Note: Stories do not support captions');
     } else if (postType === 'reel') {
       // Reels must be videos (max 90 seconds, 9:16 aspect ratio recommended)
       containerParams.append('media_type', 'REELS');
@@ -682,7 +697,10 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
       throw new Error('No creation ID returned from Instagram');
     }
 
-    console.log('  ✅ Container created:', creationId);
+    console.log('');
+    console.log('  ✅ Container Created Successfully!');
+    console.log('  Container ID:', creationId);
+    console.log('  Media Type:', postType === 'story' ? 'STORIES' : postType === 'reel' ? 'REELS' : 'POST');
 
     // For videos (including reels and video posts), we need to check status before publishing
     // Stories (both images and videos) also need status checking - Instagram processes them
@@ -914,18 +932,28 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
     }
     const postId = publishData.id;
 
-    console.log(`  ✅ Instagram ${postType} published!`);
+    console.log('');
+    console.log('  🎉 Instagram', postType.toUpperCase(), 'Published Successfully!');
     console.log('  Post ID:', postId);
 
     // Generate appropriate URL based on post type
     let url;
     if (postType === 'story') {
       url = `https://instagram.com/stories/${client.igUserId}/${postId}`;
+      console.log('  📱 Story URL:', url);
+      console.log('  ⏰ Note: Stories expire after 24 hours');
     } else if (postType === 'reel') {
       url = `https://instagram.com/reel/${postId}`;
+      console.log('  🎥 Reel URL:', url);
     } else {
       url = `https://instagram.com/p/${postId}`;
+      console.log('  📸 Post URL:', url);
     }
+
+    console.log('='.repeat(60));
+    console.log(`✅ INSTAGRAM ${postType.toUpperCase()} UPLOAD COMPLETED`);
+    console.log('='.repeat(60));
+    console.log('');
 
     return {
       success: true,
@@ -935,7 +963,12 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
       url: url
     };
   } catch (error) {
-    console.error('❌ Error posting to Instagram:', error.message);
+    console.log('');
+    console.log('='.repeat(60));
+    console.error(`❌ INSTAGRAM ${postType.toUpperCase()} UPLOAD FAILED`);
+    console.log('='.repeat(60));
+    console.error('Error:', error.message);
+    console.log('');
     throw error;
   }
 }

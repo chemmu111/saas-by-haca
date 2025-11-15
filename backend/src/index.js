@@ -44,6 +44,8 @@ const cspDirectives = {
   scriptSrc: ["'self'", "'unsafe-inline'"],
   styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
   imgSrc: ["'self'", 'data:', 'blob:', '*'],
+  mediaSrc: ["'self'", 'data:', 'blob:', '*', 'https://*.ngrok-free.dev', 'https://*.ngrok.io'],
+  videoSrc: ["'self'", 'data:', 'blob:', '*', 'https://*.ngrok-free.dev', 'https://*.ngrok.io'],
   fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
   connectSrc: connectSrc,
   objectSrc: ["'none'"],
@@ -68,74 +70,54 @@ const helmetConfig = {
 };
 
 app.use(helmet(helmetConfig));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Increase body parser limits for large file uploads and JSON payloads
+app.use(express.json({ limit: '200mb' }));
+app.use(express.urlencoded({ extended: true, limit: '200mb' }));
 
-// Serve uploaded files
+// Serve uploaded files statically
 const uploadsDir = path.resolve(__dirname, '../uploads');
-app.use('/uploads', express.static(uploadsDir));
 
-// Public media proxy route for Instagram/Facebook API
-// This route serves images and videos with proper headers so APIs can fetch them
-// even when using ngrok or other tunneling services
+// Add middleware to set proper headers for all static files
+app.use('/uploads', (req, res, next) => {
+  // Set CORS and caching headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, max-age=31536000');
+  res.setHeader('Accept-Ranges', 'bytes');
+  
+  // Log file requests for debugging
+  console.log(`📂 Uploads request: ${req.path}`);
+  
+  next();
+}, express.static(uploadsDir, {
+  // Enable proper MIME types
+  setHeaders: (res, filePath) => {
+    const ext = path.extname(filePath).toLowerCase();
+    
+    // Ensure correct Content-Type for videos (critical for Instagram)
+    if (ext === '.mp4') {
+      res.setHeader('Content-Type', 'video/mp4');
+    } else if (ext === '.mov') {
+      res.setHeader('Content-Type', 'video/quicktime');
+    } else if (ext === '.webm') {
+      res.setHeader('Content-Type', 'video/webm');
+    } else if (ext === '.avi') {
+      res.setHeader('Content-Type', 'video/x-msvideo');
+    }
+    
+    // Log what we're serving
+    console.log(`   ✅ Serving: ${path.basename(filePath)} (${res.getHeader('Content-Type')})`);
+  }
+}));
+
+// DEPRECATED: Redirect /api/images to /uploads for backward compatibility
+// Instagram should use /uploads directly
 app.get('/api/images/:filename', (req, res) => {
   const filename = req.params.filename;
-  const filePath = path.join(uploadsDir, filename);
+  console.log(`⚠️  DEPRECATED: /api/images/${filename} - Redirecting to /uploads/${filename}`);
+  console.log('   Please update URLs to use /uploads directly');
   
-  // Security: prevent directory traversal
-  if (!path.resolve(filePath).startsWith(path.resolve(uploadsDir))) {
-    return res.status(400).json({ error: 'Invalid file path' });
-  }
-  
-  // Check if file exists
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ error: 'File not found' });
-  }
-  
-  // Determine MIME type based on file extension
-  const ext = path.extname(filename).toLowerCase().slice(1);
-  const mimeTypes = {
-    // Images
-    'jpg': 'image/jpeg',
-    'jpeg': 'image/jpeg',
-    'png': 'image/png',
-    'gif': 'image/gif',
-    'webp': 'image/webp',
-    'svg': 'image/svg+xml',
-    // Videos
-    'mp4': 'video/mp4',
-    'mov': 'video/quicktime',
-    'avi': 'video/x-msvideo',
-    'mkv': 'video/x-matroska',
-    'webm': 'video/webm',
-    'm4v': 'video/x-m4v',
-    // Audio
-    'mp3': 'audio/mpeg',
-    'wav': 'audio/wav',
-    'ogg': 'audio/ogg',
-    'm4a': 'audio/m4a',
-    'aac': 'audio/aac',
-    'flac': 'audio/flac'
-  };
-  const contentType = mimeTypes[ext] || 'application/octet-stream';
-  
-  // Set proper headers for media serving
-  res.setHeader('Content-Type', contentType);
-  res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
-  res.setHeader('Access-Control-Allow-Origin', '*'); // Allow external APIs to fetch
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Accept-Ranges', 'bytes'); // Support range requests for videos
-  
-  // For images, also set Content-Length if possible for better compatibility
-  try {
-    const stats = fs.statSync(filePath);
-    res.setHeader('Content-Length', stats.size);
-  } catch (err) {
-    // If we can't get stats, continue without Content-Length
-  }
-  
-  // Send the file
-  res.sendFile(filePath);
+  // Permanent redirect to /uploads
+  res.redirect(301, `/uploads/${filename}`);
 });
 
 // DevTools probe path: return 204 to avoid noisy 404s
@@ -228,32 +210,29 @@ app.use('/api/tags', tagsRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/reports', reportsRouter);
 
+// Global error handler - ensures all errors return JSON
+app.use((error, req, res, next) => {
+  console.error('Unhandled error:', error);
+
+  // If response was already sent, don't send again
+  if (res.headersSent) {
+    return next(error);
+  }
+
+  // Return JSON error response
+  res.status(500).json({
+    success: false,
+    error: error.message || 'Internal server error'
+  });
+});
+
 // Health
 app.get('/health', (req, res) => {
   res.json({ ok: true });
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = 5000; // Fixed port - do not change
 const MONGODB_URI = process.env.MONGODB_URI;
-
-function listenWithFallback(app, startPort, remainingAttempts = 10) {
-  return new Promise((resolve, reject) => {
-    const server = app.listen(startPort, () => {
-      resolve({ server, port: startPort });
-    });
-    server.on('error', (err) => {
-      if ((err && (err.code === 'EADDRINUSE' || err.code === 'EACCES')) && remainingAttempts > 0) {
-        const nextPort = Number(startPort) + 1;
-        console.warn(`Port ${startPort} unavailable (${err.code}). Trying ${nextPort}...`);
-        setTimeout(() => {
-          listenWithFallback(app, nextPort, remainingAttempts - 1).then(resolve).catch(reject);
-        }, 50);
-      } else {
-        reject(err);
-      }
-    });
-  });
-}
 
 async function start() {
   try {
@@ -273,10 +252,22 @@ async function start() {
       console.error('Failed to start post scheduler:', error);
     }
     
-    // Start the server
-    const basePort = parseInt(PORT, 10);
-    const { port: boundPort } = await listenWithFallback(app, basePort, 15);
-    console.log(`🚀 API listening on http://localhost:${boundPort}`);
+    // Start the server on port 5000 only
+    const server = app.listen(PORT, () => {
+      console.log(`🚀 API listening on http://localhost:${PORT}`);
+    }).on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.error(`❌ Port ${PORT} is already in use. Please free up port ${PORT} and try again.`);
+        process.exit(1);
+      } else {
+        throw err;
+      }
+    });
+
+    // Configure server for long-running uploads and keep-alive
+    server.timeout = 15 * 60 * 1000; // 15 minutes
+    server.keepAliveTimeout = 10 * 60 * 1000; // 10 minutes
+    server.headersTimeout = 15 * 60 * 1000; // 15 minutes
   } catch (err) {
     console.error('Failed to start server:', err);
     process.exit(1);

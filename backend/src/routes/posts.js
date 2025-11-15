@@ -56,7 +56,11 @@ const allowedMimeTypes = {
 
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit (for videos)
+  limits: {
+    fileSize: 100 * 1024 * 1024, // 100MB limit (for videos)
+    // Add timeout for large file uploads (10 minutes)
+    timeout: 10 * 60 * 1000
+  },
   fileFilter: function (req, file, cb) {
     const ext = path.extname(file.originalname).toLowerCase().slice(1);
     const isImage = allowedImageTypes.test(ext);
@@ -245,29 +249,114 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /api/posts - Create a new post
+// POST /api/posts - Create a new post or save as draft
 router.post('/', async (req, res) => {
+  let responseSent = false;
+
+  // Helper function to send response only once
+  const sendResponse = (statusCode, data) => {
+    if (responseSent) return;
+    responseSent = true;
+    res.status(statusCode).json(data);
+  };
+
   try {
-    const { 
-      content, 
-      platform, 
-      client, 
-      scheduledTime, 
-      mediaUrls, 
+    const { draft } = req.query;
+    const isDraft = draft === 'true';
+
+    const {
+      content,
+      platform,
+      client,
+      scheduledTime,
+      mediaUrls,
       musicUrl,
       musicTitle,
       musicArtist,
-      caption, 
-      hashtags, 
+      caption,
+      hashtags,
       tags,
       location,
       postType,
+      format,
       publishImmediately
     } = req.body;
 
+    // Handle draft saving (simplified validation)
+    if (isDraft) {
+      // Validation for drafts (more lenient than published posts)
+      if (!client) {
+        return sendResponse(400, {
+          success: false,
+          error: 'Client is required for drafts'
+        });
+      }
+
+      // Verify client belongs to the user
+      const clientDoc = await Client.findOne({
+        _id: client,
+        createdBy: req.user.sub
+      });
+
+      if (!clientDoc) {
+        return sendResponse(404, {
+          success: false,
+          error: 'Client not found'
+        });
+      }
+
+      // Validate platform
+      if (!platform || !['instagram', 'facebook', 'both'].includes(platform)) {
+        return sendResponse(400, {
+          success: false,
+          error: 'Platform must be instagram, facebook, or both'
+        });
+      }
+
+      // Create draft post
+      const post = new Post({
+        content: caption || content || '',
+        platform,
+        client,
+        status: 'draft',
+        mediaUrls: mediaUrls || [],
+        musicUrl: musicUrl ? musicUrl.trim() : undefined,
+        musicTitle: musicTitle ? musicTitle.trim() : undefined,
+        musicArtist: musicArtist ? musicArtist.trim() : undefined,
+        caption: caption ? caption.trim() : content ? content.trim() : '',
+        hashtags: hashtags || [],
+        tags: Array.isArray(tags) ? tags.map(tag => {
+          if (typeof tag === 'string') {
+            return { name: tag.trim(), color: '#8b5cf6' };
+          }
+          return {
+            name: tag.name ? tag.name.trim() : '',
+            color: tag.color || '#8b5cf6'
+          };
+        }).filter(tag => tag.name) : [],
+        location: location ? location.trim() : '',
+        postType: postType || 'post',
+        format: format || 'square',
+        createdBy: req.user.sub
+      });
+
+      await post.save();
+
+      // Populate client before returning
+      await post.populate('client', 'name email platform');
+
+      // Return draft post without createdBy field
+      const postData = post.toObject();
+      delete postData.createdBy;
+
+      return sendResponse(201, { success: true, data: postData, message: 'Draft saved successfully' });
+    }
+
+    // Continue with normal post creation logic
+
     // Validation - content or caption is required
     if ((!content || content.trim().length === 0) && (!caption || caption.trim().length === 0)) {
-      return res.status(400).json({
+      return sendResponse(400, {
         success: false,
         error: 'Content or caption is required'
       });
@@ -277,14 +366,14 @@ router.post('/', async (req, res) => {
     const postContent = content || caption || '';
 
     if (!platform || !['instagram', 'facebook', 'both'].includes(platform)) {
-      return res.status(400).json({
+      return sendResponse(400, {
         success: false,
         error: 'Platform must be instagram, facebook, or both'
       });
     }
 
     if (!client) {
-      return res.status(400).json({
+      return sendResponse(400, {
         success: false,
         error: 'Client is required'
       });
@@ -297,7 +386,7 @@ router.post('/', async (req, res) => {
     });
 
     if (!clientDoc) {
-      return res.status(404).json({
+      return sendResponse(404, {
         success: false,
         error: 'Client not found'
       });
@@ -310,7 +399,7 @@ router.post('/', async (req, res) => {
       if (scheduled > new Date()) {
         status = 'scheduled';
       } else {
-        return res.status(400).json({
+        return sendResponse(400, {
           success: false,
           error: 'Scheduled time must be in the future'
         });
@@ -324,9 +413,25 @@ router.post('/', async (req, res) => {
     // Validate postType if provided
     const validPostTypes = ['post', 'story', 'reel'];
     if (postType && !validPostTypes.includes(postType)) {
-      return res.status(400).json({
+      return sendResponse(400, {
         success: false,
         error: `Invalid postType. Must be one of: ${validPostTypes.join(', ')}`
+      });
+    }
+
+    // Validate format if provided
+    const validFormats = ['square', 'portrait', 'landscape', 'reel', 'story', 'carousel-square', 'carousel-vertical'];
+    let finalFormat = format || 'square';
+    
+    // Auto-set format based on postType if not provided or invalid
+    if (postType === 'reel') {
+      finalFormat = 'reel';
+    } else if (postType === 'story') {
+      finalFormat = 'story';
+    } else if (format && !validFormats.includes(format)) {
+      return sendResponse(400, {
+        success: false,
+        error: `Invalid format. Must be one of: ${validFormats.join(', ')}`
       });
     }
 
@@ -355,6 +460,7 @@ router.post('/', async (req, res) => {
       }).filter(tag => tag.name) : [],
       location: location ? location.trim() : '',
       postType: postType || 'post',
+      format: finalFormat,
       createdBy: req.user.sub
     });
 
@@ -365,12 +471,28 @@ router.post('/', async (req, res) => {
 
     // If publishImmediately is true, publish the post now
     if (publishImmediately && !scheduledTime) {
+      console.log('');
+      console.log('='.repeat(60));
+      console.log('🚀 PUBLISH IMMEDIATELY: Post created, publishing now');
+      console.log('='.repeat(60));
+      console.log('  Post ID:', post._id);
+      console.log('  Post Type:', post.postType || 'post');
+      console.log('  Platform:', post.platform);
+      console.log('  Media URLs:', post.mediaUrls);
+      console.log('');
+      
       try {
         const { publishPost } = await import('../services/postingService.js');
         const clientDoc = await Client.findById(client);
-        
+
         if (clientDoc) {
-          const publishResults = await publishPost(post.toObject(), clientDoc.toObject());
+          // Add timeout for publishing to prevent hanging (10 minutes)
+          const publishPromise = publishPost(post.toObject(), clientDoc.toObject());
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Publishing timeout')), 10 * 60 * 1000)
+          );
+
+          const publishResults = await Promise.race([publishPromise, timeoutPromise]);
           
           // Update post status based on publishing results
           let finalStatus = 'published';
@@ -435,8 +557,8 @@ router.post('/', async (req, res) => {
           if (aspectRatioError) {
             const postData = post.toObject();
             delete postData.createdBy;
-            return res.status(201).json({ 
-              success: true, 
+            return sendResponse(201, {
+              success: true,
               data: postData,
               aspectRatioError: {
                 isAspectRatioError: true,
@@ -458,8 +580,8 @@ router.post('/', async (req, res) => {
         if (publishError.isAspectRatioError) {
           const postData = post.toObject();
           delete postData.createdBy;
-          return res.status(201).json({ 
-            success: true, 
+          return sendResponse(201, {
+            success: true,
             data: postData,
             aspectRatioError: {
               isAspectRatioError: true,
@@ -476,16 +598,24 @@ router.post('/', async (req, res) => {
     const postData = post.toObject();
     delete postData.createdBy;
 
-    res.status(201).json({ success: true, data: postData });
+    sendResponse(201, { success: true, data: postData });
   } catch (error) {
     console.error('Error creating post:', error);
-    if (error.name === 'CastError') {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid client ID'
-      });
+    if (!responseSent) {
+      if (error.name === 'CastError') {
+        return sendResponse(400, {
+          success: false,
+          error: 'Invalid client ID'
+        });
+      }
+      sendResponse(500, { success: false, error: error.message || 'Failed to create post' });
     }
-    res.status(500).json({ success: false, error: 'Failed to create post' });
+  }
+
+  // Final safety check - ensure response is always sent
+  if (!responseSent) {
+    console.error('Response was never sent in create post route - sending fallback error');
+    sendResponse(500, { success: false, error: 'Internal server error - response not sent' });
   }
 });
 
@@ -505,7 +635,9 @@ router.put('/:id', async (req, res) => {
       hashtags, 
       tags,
       location,
-      status 
+      status,
+      postType,
+      format 
     } = req.body;
 
     // Find post
@@ -521,11 +653,42 @@ router.put('/:id', async (req, res) => {
       });
     }
 
-    // Only allow updating draft or scheduled posts
+    // Log edit attempt
+    console.log(`✏️ Editing post ${post._id} (status: ${post.status})`);
+
+    // For published posts, only allow editing caption, hashtags, and tags (metadata)
     if (post.status === 'published') {
-      return res.status(400).json({
-        success: false,
-        error: 'Cannot update published posts'
+      console.log('  ⚠️ Post is published - limited editing allowed');
+      
+      // Only update metadata fields for published posts
+      if (caption !== undefined) {
+        post.caption = caption.trim();
+      }
+      if (hashtags !== undefined) {
+        post.hashtags = hashtags;
+      }
+      if (tags !== undefined) {
+        post.tags = Array.isArray(tags) ? tags.map(tag => {
+          if (typeof tag === 'string') {
+            return { name: tag.trim(), color: '#8b5cf6' };
+          }
+          return {
+            name: tag.name ? tag.name.trim() : '',
+            color: tag.color || '#8b5cf6'
+          };
+        }).filter(tag => tag.name) : [];
+      }
+      
+      await post.save();
+      await post.populate('client', 'name email platform');
+      
+      const postData = post.toObject();
+      delete postData.createdBy;
+      
+      return res.json({ 
+        success: true, 
+        data: postData,
+        message: 'Published post metadata updated (Instagram does not allow editing media after publish)' 
       });
     }
 
@@ -632,14 +795,45 @@ router.put('/:id', async (req, res) => {
       post.status = status;
     }
 
+    // Update postType (post/story/reel)
+    if (postType !== undefined) {
+      if (!['post', 'story', 'reel'].includes(postType)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Post type must be post, story, or reel'
+        });
+      }
+      post.postType = postType;
+      console.log(`  📝 Post type updated to: ${postType}`);
+    }
+
+    // Update format (square/portrait/landscape/reel/story/carousel-square/carousel-vertical)
+    if (format !== undefined) {
+      const validFormats = ['square', 'portrait', 'landscape', 'reel', 'story', 'carousel-square', 'carousel-vertical'];
+      if (!validFormats.includes(format)) {
+        return res.status(400).json({
+          success: false,
+          error: `Format must be one of: ${validFormats.join(', ')}`
+        });
+      }
+      post.format = format;
+      console.log(`  📐 Format updated to: ${format}`);
+    }
+
     await post.save();
     await post.populate('client', 'name email platform');
+
+    console.log(`  ✅ Post ${post._id} updated successfully`);
 
     // Return post without createdBy field
     const postData = post.toObject();
     delete postData.createdBy;
 
-    res.json({ success: true, data: postData });
+    res.json({ 
+      success: true, 
+      data: postData,
+      message: 'Post updated successfully'
+    });
   } catch (error) {
     console.error('Error updating post:', error);
     if (error.name === 'CastError') {
@@ -667,17 +861,26 @@ router.delete('/:id', async (req, res) => {
       });
     }
 
-    // Only allow deleting draft or scheduled posts
-    if (post.status === 'published') {
-      return res.status(400).json({
-        success: false,
-        error: 'Cannot delete published posts'
-      });
-    }
+    console.log(`🗑️ Deleting post ${post._id} (status: ${post.status})`);
 
+    // Delete the post from database
+    // Note: If the post is scheduled, the scheduler will simply skip it (post no longer exists)
+    // If published, we remove it from our database (Instagram post remains on their platform)
     await Post.deleteOne({ _id: req.params.id });
 
-    res.json({ success: true, message: 'Post deleted successfully' });
+    const statusMessage = post.status === 'published' 
+      ? 'Post deleted from database (Instagram post remains on platform)'
+      : post.status === 'scheduled'
+      ? 'Scheduled post deleted and will not be published'
+      : 'Draft post deleted';
+
+    console.log(`  ✅ ${statusMessage}`);
+
+    res.json({ 
+      success: true, 
+      message: 'Post deleted successfully',
+      info: statusMessage
+    });
   } catch (error) {
     console.error('Error deleting post:', error);
     if (error.name === 'CastError') {
@@ -777,9 +980,17 @@ router.post('/:id/publish', async (req, res) => {
     // Import posting service
     const { publishPost } = await import('../services/postingService.js');
 
-    console.log('🚀 Publishing post:', post._id);
+    console.log('');
+    console.log('='.repeat(60));
+    console.log('🚀 POST NOW: Publishing post immediately');
+    console.log('='.repeat(60));
+    console.log('  Post ID:', post._id);
+    console.log('  Post Type:', post.postType || 'post');
     console.log('  Platform:', post.platform);
     console.log('  Client:', client.name);
+    console.log('  Media URLs:', post.mediaUrls);
+    console.log('  Caption:', post.caption ? post.caption.substring(0, 50) + '...' : 'None');
+    console.log('');
 
     // Publish the post
     const results = await publishPost(post, client);

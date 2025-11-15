@@ -36,6 +36,11 @@ const postSchema = new mongoose.Schema(
       enum: ['post', 'story', 'reel'],
       default: 'post'
     },
+    format: {
+      type: String,
+      enum: ['square', 'portrait', 'landscape', 'reel', 'story', 'carousel-square', 'carousel-vertical'],
+      default: 'square'
+    },
     createdBy: { 
       type: mongoose.Schema.Types.ObjectId, 
       ref: 'User', 

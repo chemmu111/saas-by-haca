@@ -1,39 +1,22 @@
 /**
  * Service to fetch real engagement metrics and follower counts from Instagram/Facebook APIs
+ * 
+ * This service acts as a wrapper/aggregator for Instagram and Facebook metrics.
+ * Instagram-specific functions are now in instagramPostMetricsService.js
  */
+
+// Import Instagram functions from dedicated service
+import { 
+  fetchInstagramPostMetrics as fetchIGPostMetrics,
+  fetchInstagramFollowerCount as fetchIGFollowerCount
+} from './instagramPostMetricsService.js';
 
 /**
  * Fetch engagement metrics for a post from Instagram Graph API
+ * Re-exports from instagramPostMetricsService.js for backward compatibility
  */
-export async function fetchInstagramPostMetrics(igPostId, pageAccessToken) {
-  try {
-    if (!igPostId || !pageAccessToken) {
-      return null;
-    }
-
-    const url = `https://graph.facebook.com/v18.0/${igPostId}?fields=like_count,comments_count,shares_count,saved,impressions,reach&access_token=${pageAccessToken}`;
-    
-    const response = await fetch(url);
-    if (!response.ok) {
-      console.error('Error fetching Instagram post metrics:', response.status, response.statusText);
-      return null;
-    }
-
-    const data = await response.json();
-    
-    return {
-      likes: data.like_count || 0,
-      comments: data.comments_count || 0,
-      shares: data.shares_count || 0,
-      saves: data.saved || 0,
-      views: data.impressions || data.reach || 0,
-      reach: data.reach || 0,
-      impressions: data.impressions || 0
-    };
-  } catch (error) {
-    console.error('Error fetching Instagram post metrics:', error);
-    return null;
-  }
+export async function fetchInstagramPostMetrics(igPostId, pageAccessToken, mediaType = 'IMAGE') {
+  return await fetchIGPostMetrics(igPostId, pageAccessToken, mediaType);
 }
 
 /**
@@ -72,27 +55,10 @@ export async function fetchFacebookPostMetrics(fbPostId, pageAccessToken) {
 
 /**
  * Fetch follower count for Instagram Business Account
+ * Re-exports from instagramPostMetricsService.js for backward compatibility
  */
 export async function fetchInstagramFollowerCount(igUserId, pageAccessToken) {
-  try {
-    if (!igUserId || !pageAccessToken) {
-      return null;
-    }
-
-    const url = `https://graph.facebook.com/v18.0/${igUserId}?fields=followers_count&access_token=${pageAccessToken}`;
-    
-    const response = await fetch(url);
-    if (!response.ok) {
-      console.error('Error fetching Instagram follower count:', response.status, response.statusText);
-      return null;
-    }
-
-    const data = await response.json();
-    return data.followers_count || 0;
-  } catch (error) {
-    console.error('Error fetching Instagram follower count:', error);
-    return null;
-  }
+  return await fetchIGFollowerCount(igUserId, pageAccessToken);
 }
 
 /**
