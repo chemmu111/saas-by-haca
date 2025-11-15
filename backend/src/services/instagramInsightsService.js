@@ -81,7 +81,7 @@ function createSuccessResponse(data) {
  */
 async function fetchFollowerCount(igUserId, pageAccessToken) {
   try {
-    const url = `https://graph.facebook.com/v18.0/${igUserId}/insights?metric=follower_count&period=day&access_token=${pageAccessToken}`;
+    const url = `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=follower_count&period=day&access_token=${pageAccessToken}`;
     const response = await fetch(url);
     
     if (!response.ok) {
@@ -115,7 +115,7 @@ async function fetchFollowerCount(igUserId, pageAccessToken) {
  */
 async function fetchProfileViews(igUserId, pageAccessToken) {
   try {
-    const url = `https://graph.facebook.com/v18.0/${igUserId}/insights?metric=profile_views&metric_type=total_value&period=day&access_token=${pageAccessToken}`;
+    const url = `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=profile_views&metric_type=total_value&period=day&access_token=${pageAccessToken}`;
     const response = await fetch(url);
     
     if (!response.ok) {
@@ -149,7 +149,7 @@ async function fetchProfileViews(igUserId, pageAccessToken) {
  */
 async function fetchReachTrend(igUserId, pageAccessToken) {
   try {
-    const url = `https://graph.facebook.com/v18.0/${igUserId}/insights?metric=reach&period=day&access_token=${pageAccessToken}`;
+    const url = `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=reach&period=day&access_token=${pageAccessToken}`;
     const response = await fetch(url);
     
     if (!response.ok) {
@@ -242,7 +242,7 @@ export async function fetchAccountInsightsTrend(igUserId, pageAccessToken) {
 
     // Daily trends: reach and follower_count CAN be combined
     const metrics = 'reach,follower_count';
-    const url = `https://graph.facebook.com/v18.0/${igUserId}/insights?metric=${metrics}&period=day&access_token=${pageAccessToken}`;
+    const url = `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=${metrics}&period=day&access_token=${pageAccessToken}`;
 
     const response = await fetch(url);
     if (!response.ok) {
@@ -333,7 +333,7 @@ export async function fetchMediaInsights(mediaId, pageAccessToken, mediaType = '
       metrics = 'likes,comments,saved,shares';
     }
 
-    const url = `https://graph.facebook.com/v18.0/${mediaId}/insights?metric=${metrics}&access_token=${pageAccessToken}`;
+    const url = `https://graph.facebook.com/v22.0/${mediaId}/insights?metric=${metrics}&access_token=${pageAccessToken}`;
 
     const response = await fetch(url);
     if (!response.ok) {
@@ -413,7 +413,7 @@ export async function fetchInstagramMedia(igUserId, pageAccessToken, limit = 25)
     }
 
     const fields = 'id,media_type,thumbnail_url,caption,permalink,timestamp,like_count,comments_count';
-    const url = `https://graph.facebook.com/v18.0/${igUserId}/media?fields=${fields}&limit=${limit}&access_token=${pageAccessToken}`;
+    const url = `https://graph.facebook.com/v22.0/${igUserId}/media?fields=${fields}&limit=${limit}&access_token=${pageAccessToken}`;
 
     const response = await fetch(url);
     if (!response.ok) {

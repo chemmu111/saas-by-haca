@@ -8,6 +8,7 @@ import User from '../models/User.js';
 import requireAuth from '../middleware/requireAuth.js';
 import { processScheduledPosts } from '../services/postScheduler.js';
 import { sendInstagramAspectRatioErrorEmail } from '../services/emailService.js';
+import { getClientPermissions, createPost, updatePost, validatePostData } from '../controllers/postsController.js';
 
 const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -1142,8 +1143,28 @@ router.post('/:id/publish', async (req, res) => {
   }
 });
 
-// GET /api/posts/clients/:clientId/permissions - Check Instagram permissions for a client
+// GET /api/posts/clients/:clientId/permissions - Check client permissions for posting
 router.get('/clients/:clientId/permissions', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const result = await getClientPermissions(clientId, req.user.sub);
+    
+    if (result.success) {
+      return res.json(result);
+    } else {
+      return res.status(404).json(result);
+    }
+  } catch (error) {
+    console.error('Error fetching client permissions:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch client permissions'
+    });
+  }
+});
+
+// OLD PERMISSIONS ENDPOINT (keeping for backward compatibility)
+router.get('/clients/:clientId/permissions-old', async (req, res) => {
   try {
     const { clientId } = req.params;
     
@@ -1186,7 +1207,7 @@ router.get('/clients/:clientId/permissions', async (req, res) => {
 
     try {
       // Test Instagram Business Account access
-      const igTestUrl = `https://graph.facebook.com/v18.0/${client.igUserId}?fields=id,username&access_token=${client.pageAccessToken}`;
+      const igTestUrl = `https://graph.facebook.com/v22.0/${client.igUserId}?fields=id,username&access_token=${client.pageAccessToken}`;
       const igTestResponse = await fetch(igTestUrl);
       
       if (igTestResponse.ok) {
@@ -1223,7 +1244,7 @@ router.get('/clients/:clientId/permissions', async (req, res) => {
 
       // Test Page access if pageId is available
       if (client.pageId) {
-        const pageTestUrl = `https://graph.facebook.com/v18.0/${client.pageId}?fields=id,name&access_token=${client.pageAccessToken}`;
+        const pageTestUrl = `https://graph.facebook.com/v22.0/${client.pageId}?fields=id,name&access_token=${client.pageAccessToken}`;
         const pageTestResponse = await fetch(pageTestUrl);
         
         if (pageTestResponse.ok) {

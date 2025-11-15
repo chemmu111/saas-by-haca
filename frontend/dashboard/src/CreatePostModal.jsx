@@ -1,18 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import {
-  X, Upload, Image as ImageIcon, Video, Hash, Calendar, Clock, Send,
+  X, Upload, Image, Video, Hash, Calendar, Clock, Send,
   AlertCircle, CheckCircle, Loader, Sparkles, Crop, RotateCw,
   Instagram, Facebook, Eye, ExternalLink, Save, Trash2, Plus,
-  Zap, MessageCircle, Music, Sticker, Lightbulb
+  Zap, MessageCircle, Music, Sticker, Lightbulb, Info
 } from 'lucide-react';
 
 // Import our custom hooks
-import { useMediaDetection } from './hooks/useMediaDetection';
-import { usePlatformValidation } from './hooks/usePlatformValidation';
-import { useAIHashtags } from './hooks/useAIHashtags';
-import { useScheduling } from './hooks/useScheduling';
-import { usePostPublishing } from './hooks/usePostPublishing';
-import { useImageCrop } from './hooks/useImageCrop';
+import { useMediaDetector } from './hooks/useMediaDetector';
+import { useClientCapabilities } from './hooks/useClientCapabilities';
 
 const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
   // Get backend URL helper
@@ -59,15 +55,11 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
   const musicInputRef = useRef(null);
 
   // Custom hooks
-  const { mediaInfo, validationErrors, validateForPostType } = useMediaDetection(
+  const { mediaInfo, validationErrors, validateForPostType } = useMediaDetector(
     formData.mediaFiles.map(m => m.file).filter(Boolean)
   );
-  const { clientPermissions, getAvailablePlatforms, getAvailablePostTypes, validateSelection } =
-    usePlatformValidation(formData.clientId, formData.platform, formData.postType);
-  const { suggestions: hashtagSuggestions, loading: hashtagsLoading, generateHashtags } = useAIHashtags();
-  const { validateScheduledTime, formatScheduledTime, getSuggestedTimes } = useScheduling();
-  const { publishing, publishResult, publishPost, getPostInsights, openPostUrl } = usePostPublishing();
-  const { cropData, croppedImage, canvasRef, initializeCrop, applyCrop, autoCropToRatio, resetCrop } = useImageCrop();
+  const { clientPermissions, availablePlatforms, availablePostTypes, validateSelection } =
+    useClientCapabilities(formData.clientId, formData.platform, formData.postType);
 
   // Show toast notification
   const showToast = (message, type = 'success') => {
@@ -401,14 +393,15 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
         format: formData.format,
         caption: formData.caption,
         hashtags: formData.hashtags,
-        mediaUrls: mediaUrls,
-        status: 'draft'
+        mediaUrls: mediaUrls
       };
 
       const token = localStorage.getItem('auth_token');
       const backendUrl = getBackendUrl();
 
-      const response = await fetch(`${backendUrl}/api/posts`, {
+      // Use draft query parameter for draft saving
+      const url = `${backendUrl}/api/posts?draft=true`;
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
