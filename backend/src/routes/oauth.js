@@ -107,7 +107,7 @@ router.get('/callback/:platform', async (req, res) => {
       console.log('📱 Starting Instagram Business API OAuth flow...');
       
       // Instagram Business API OAuth flow via Facebook Graph API
-      const redirectUri = `${process.env.API_URL || 'http://localhost:5001'}/api/oauth/callback/instagram`;
+      const redirectUri = `${process.env.API_URL || 'http://localhost:5001'}/auth/instagram/callback`;
       console.log('  Redirect URI:', redirectUri);
       
       // For Instagram Business API, use Facebook App ID (can also use INSTAGRAM_CLIENT_ID if it's set to Facebook App ID)
@@ -484,7 +484,7 @@ router.get('/callback/:platform', async (req, res) => {
       console.log('📘 Starting Facebook OAuth flow...');
       
       // Facebook OAuth flow
-      const redirectUri = `${process.env.API_URL || 'http://localhost:5001'}/api/oauth/callback/facebook`;
+      const redirectUri = `${process.env.API_URL || 'http://localhost:5001'}/auth/facebook/callback`;
       console.log('  Redirect URI:', redirectUri);
       
       const facebookClientId = process.env.FACEBOOK_CLIENT_ID || '';
@@ -747,7 +747,10 @@ router.post('/authorize', requireAuth, async (req, res) => {
       email, 
       userId: userId.toString() 
     })).toString('base64');
-    const redirectUri = `${process.env.API_URL || 'http://localhost:5001'}/api/oauth/callback/${platform}`;
+    // Build redirect URI based on platform
+    const redirectUri = platform === 'instagram' 
+      ? `${process.env.API_URL || 'http://localhost:5001'}/auth/instagram/callback`
+      : `${process.env.API_URL || 'http://localhost:5001'}/auth/facebook/callback`;
 
     let authUrl;
 
@@ -789,8 +792,8 @@ router.post('/authorize', requireAuth, async (req, res) => {
       console.log('  API URL:', process.env.API_URL || 'http://localhost:5001');
       console.log('  Scopes:', scopes);
       
-      // Use Facebook OAuth endpoint for Instagram Business API (v22.0)
-      authUrl = `https://www.facebook.com/v22.0/dialog/oauth?client_id=${facebookAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&response_type=code&state=${state}`;
+      // Use Facebook OAuth endpoint for Instagram Business API (v18.0)
+      authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${facebookAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&response_type=code&state=${state}`;
       console.log('Instagram Business API OAuth URL generated:', authUrl.replace(/client_id=[^&]+/, 'client_id=***'));
       console.log('⚠️  Make sure this redirect URI is configured in Instagram Business API settings:', redirectUri);
     } else if (platform === 'facebook') {
@@ -802,7 +805,7 @@ router.post('/authorize', requireAuth, async (req, res) => {
           error: 'Facebook OAuth not configured. Please set FACEBOOK_CLIENT_ID in .env file.' 
         });
       }
-      authUrl = `https://www.facebook.com/v22.0/dialog/oauth?client_id=${facebookClientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=email,public_profile&response_type=code&state=${state}`;
+      authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${facebookClientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=email,public_profile&response_type=code&state=${state}`;
     }
 
     if (!authUrl) {

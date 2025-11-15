@@ -18,7 +18,7 @@ export function getProviderConfig(provider) {
       return {
         clientId: process.env.META_APP_ID,
         clientSecret: process.env.META_APP_SECRET,
-        authUrl: 'https://www.facebook.com/v22.0/dialog/oauth',
+        authUrl: 'https://www.facebook.com/v18.0/dialog/oauth',
         tokenUrl: 'https://graph.facebook.com/v22.0/oauth/access_token',
         redirectUri,
         scopes: [
