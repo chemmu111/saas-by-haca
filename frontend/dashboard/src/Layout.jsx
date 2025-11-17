@@ -41,14 +41,14 @@ const Layout = ({ children }) => {
     // In production, use the same origin
     // In development, try to detect the backend port
     if (window.location.port === '3000') {
-      // Vite dev server - try backend ports 5001 (common fallback) or 5000
-      // Check localStorage for saved port, otherwise default to 5001
+      // Vite dev server - try backend ports 5000 (standard) or 5001 (fallback)
+      // Check localStorage for saved port, otherwise default to 5000
       const savedPort = localStorage.getItem('backend_port');
       if (savedPort) {
         return `http://localhost:${savedPort}`;
       }
-      // Default to 5001 (common when 5000 is busy)
-      return 'http://localhost:5001';
+      // Default to 5000 (backend standard port)
+      return 'http://localhost:5000';
     }
     // Production or already on backend server
     return window.location.origin;

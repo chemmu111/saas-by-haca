@@ -169,3 +169,5 @@ GET /{ig-user-id}/insights?metric=reach,follower_count&period=day
 **All analytics services are now 100% compliant with Instagram Graph API v22+ (2024-2025)!** 🎉
 
 
+
+

@@ -238,3 +238,5 @@ ffmpeg -i input.mp4 -vf "crop=ih*9/16:ih" -vcodec h264 -acodec aac output.mp4
 
 
 
+
+

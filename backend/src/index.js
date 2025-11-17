@@ -126,77 +126,99 @@ app.get('/.well-known/appspecific/com.chrome.devtools.json', (req, res) => {
   res.status(204).end();
 });
 
-// Serve static website (login/signup)
+// Serve static files from public directory (assets, styles, etc.)
 app.use(express.static(publicDir));
 
-// Serve dashboard assets
-app.use('/dashboard/assets', express.static(path.join(publicDir, 'dashboard', 'assets')));
+// React Dashboard - serve from dashboard directory
+// In development, Vite dev server handles this (port 3000)
+// In production, this would serve the built React app
+const dashboardDir = path.resolve(__dirname, '../../frontend/dashboard');
+const dashboardIndexPath = path.join(dashboardDir, 'index.html');
 
-// Root → login page
-app.get('/', (req, res) => {
-  res.sendFile(path.join(publicDir, 'login.html'));
-});
+// Serve dashboard assets (for production builds)
+app.use('/dashboard/assets', express.static(path.join(dashboardDir, 'dist', 'assets')));
 
-// Reset password page
-app.get('/reset-password', (req, res) => {
-  res.sendFile(path.join(publicDir, 'reset-password.html'));
-});
-
-app.get('/reset-password.html', (req, res) => {
-  res.sendFile(path.join(publicDir, 'reset-password.html'));
-});
-
-// Signup page route for convenience
-app.get('/signup', (req, res) => {
-  res.sendFile(path.join(publicDir, 'signup.html'));
-});
-
-// Admin home page
-app.get('/admin-home', (req, res) => {
-  res.sendFile(path.join(publicDir, 'admin-home.html'));
-});
-
-app.get('/admin-home.html', (req, res) => {
-  res.sendFile(path.join(publicDir, 'admin-home.html'));
-});
-
-// Social Media Manager home page (legacy)
-app.get('/social-media-manager-home', (req, res) => {
-  res.sendFile(path.join(publicDir, 'social-media-manager-home.html'));
-});
-
-app.get('/social-media-manager-home.html', (req, res) => {
-  res.sendFile(path.join(publicDir, 'social-media-manager-home.html'));
-});
-
-// Dashboard routes - React dashboard
+// All routes now handled by React Router
+// The React app (running on Vite dev server in development) handles all routing
+// These routes are for production builds or fallback
 app.get('/dashboard', (req, res) => {
-  res.sendFile(path.join(publicDir, 'dashboard', 'index.html'));
-});
-
-
-app.get('/dashboard/create-post', (req, res) => {
-  res.sendFile(path.join(publicDir, 'create-post.html'));
-});
-
-app.get('/dashboard/create-post.html', (req, res) => {
-  res.sendFile(path.join(publicDir, 'create-post.html'));
+  // In development, redirect to Vite dev server
+  if (process.env.NODE_ENV !== 'production') {
+    return res.redirect('http://localhost:3000/dashboard');
+  }
+  // In production, serve built React app
+  if (fs.existsSync(dashboardIndexPath)) {
+    res.sendFile(dashboardIndexPath);
+  } else {
+    res.status(404).json({ error: 'Dashboard not found. Please build the React app first.' });
+  }
 });
 
 app.get('/dashboard/*', (req, res) => {
-  // For any route under /dashboard, serve index.html for client-side routing
-  // Assets are handled by the static middleware above
-  res.sendFile(path.join(publicDir, 'dashboard', 'index.html'));
+  // In development, redirect to Vite dev server
+  if (process.env.NODE_ENV !== 'production') {
+    return res.redirect(`http://localhost:3000${req.path}`);
+  }
+  // In production, serve built React app for client-side routing
+  if (fs.existsSync(dashboardIndexPath)) {
+    res.sendFile(dashboardIndexPath);
+  } else {
+    res.status(404).json({ error: 'Dashboard not found. Please build the React app first.' });
+  }
 });
 
-// Home route - redirect to dashboard for social media managers
-app.get('/home', (req, res) => {
-  res.sendFile(path.join(publicDir, 'dashboard', 'index.html'));
+// Root route - redirect to React app login
+app.get('/', (req, res) => {
+  if (process.env.NODE_ENV !== 'production') {
+    return res.redirect('http://localhost:3000/login');
+  }
+  res.redirect('/dashboard');
 });
 
-app.get('/home.html', (req, res) => {
-  res.sendFile(path.join(publicDir, 'dashboard', 'index.html'));
+// Legacy routes - redirect to React app
+app.get('/login', (req, res) => {
+  if (process.env.NODE_ENV !== 'production') {
+    return res.redirect('http://localhost:3000/login');
+  }
+  res.redirect('/dashboard/login');
 });
+
+app.get('/signup', (req, res) => {
+  if (process.env.NODE_ENV !== 'production') {
+    return res.redirect('http://localhost:3000/signup');
+  }
+  res.redirect('/dashboard/signup');
+});
+
+app.get('/reset-password', (req, res) => {
+  if (process.env.NODE_ENV !== 'production') {
+    return res.redirect(`http://localhost:3000/reset-password${req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : ''}`);
+  }
+  res.redirect(`/dashboard/reset-password${req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : ''}`);
+});
+
+app.get('/admin-home', (req, res) => {
+  if (process.env.NODE_ENV !== 'production') {
+    return res.redirect('http://localhost:3000/admin-home');
+  }
+  res.redirect('/dashboard/admin-home');
+});
+
+app.get('/social-media-manager-home', (req, res) => {
+  if (process.env.NODE_ENV !== 'production') {
+    return res.redirect('http://localhost:3000/social-media-manager-home');
+  }
+  res.redirect('/dashboard/social-media-manager-home');
+});
+
+// Legacy HTML routes - redirect to React app
+app.get('/login.html', (req, res) => res.redirect('/login'));
+app.get('/signup.html', (req, res) => res.redirect('/signup'));
+app.get('/reset-password.html', (req, res) => res.redirect('/reset-password'));
+app.get('/admin-home.html', (req, res) => res.redirect('/admin-home'));
+app.get('/social-media-manager-home.html', (req, res) => res.redirect('/social-media-manager-home'));
+app.get('/home', (req, res) => res.redirect('/dashboard'));
+app.get('/home.html', (req, res) => res.redirect('/dashboard'));
 
 // Routes
 app.use('/api/auth', authRouter);

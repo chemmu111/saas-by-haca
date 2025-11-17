@@ -20,7 +20,7 @@ export const useClientCapabilities = (selectedClientId, platform, postType) => {
       if (savedPort) {
         return `http://localhost:${savedPort}`;
       }
-      return 'http://localhost:5001';
+      return 'http://localhost:5000';
     }
     return window.location.origin;
   };
@@ -118,14 +118,14 @@ export const useClientCapabilities = (selectedClientId, platform, postType) => {
     switch (platform) {
       case 'instagram':
         if (!clientPermissions?.canAccessInstagram) return ['post'];
-        return ['post', 'story', 'reel', 'carousel'];
+        return ['post', 'story', 'reel', 'carousel', 'igtv', 'live', 'video', 'album'];
 
       case 'facebook':
-        return ['post', 'carousel'];
+        return ['post', 'carousel', 'video', 'album', 'live'];
 
       case 'both':
         // Common post types between Instagram and Facebook
-        return ['post', 'carousel'];
+        return ['post', 'carousel', 'video', 'album'];
 
       default:
         return ['post'];

@@ -1,0 +1,26 @@
+{
+  "name": "social-media-manager",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Social Media Management Platform",
+  "scripts": {
+    "start": "cd frontend/dashboard && npm start",
+    "dev": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend/dashboard && npm start",
+    "dev:backend": "cd backend && npm run dev",
+    "build": "cd frontend/dashboard && npm run build",
+    "build:watch": "cd frontend/dashboard && npm run build:watch",
+    "install:all": "cd frontend/dashboard && npm install && cd ../../backend && npm install",
+    "install:frontend": "cd frontend/dashboard && npm install",
+    "install:backend": "cd backend && npm install"
+  },
+  "keywords": [
+    "social-media",
+    "dashboard",
+    "react",
+    "nodejs"
+  ],
+  "author": "",
+  "license": "ISC"
+}
+

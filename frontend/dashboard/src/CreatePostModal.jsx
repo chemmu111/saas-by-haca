@@ -1,14 +1,17 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   X, Upload, Image, Video, Hash, Calendar, Clock, Send,
   AlertCircle, CheckCircle, Loader, Sparkles, Crop, RotateCw,
   Instagram, Facebook, Eye, ExternalLink, Save, Trash2, Plus,
-  Zap, MessageCircle, Music, Sticker, Lightbulb, Info
+  Zap, MessageCircle, Music, Sticker, Lightbulb, Info, Tag,
+  Smile, ShoppingBag, ChevronDown
 } from 'lucide-react';
 
 // Import our custom hooks
 import { useMediaDetector } from './hooks/useMediaDetector';
 import { useClientCapabilities } from './hooks/useClientCapabilities';
+import { useAIHashtags } from './hooks/useAIHashtags';
+import { useImageCrop } from './hooks/useImageCrop';
 
 const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
   // Get backend URL helper
@@ -18,7 +21,7 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
       if (savedPort) {
         return `http://localhost:${savedPort}`;
       }
-      return 'http://localhost:5001';
+      return 'http://localhost:5000';
     }
     return window.location.origin;
   };
@@ -26,6 +29,8 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
   // State management
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [publishResult, setPublishResult] = useState(null);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
 
   // Form state
@@ -49,17 +54,23 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
   const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
   const [showCropper, setShowCropper] = useState(false);
   const [showInsights, setShowInsights] = useState(false);
+  const [showPreview, setShowPreview] = useState(true); // Buffer-style preview panel toggle
+  const [selectedTags, setSelectedTags] = useState([]);
 
   // File input refs
   const fileInputRef = useRef(null);
   const musicInputRef = useRef(null);
+  
+  // Image crop hook
+  const { canvasRef, applyCrop, autoCropToRatio, resetCrop } = useImageCrop();
 
   // Custom hooks
   const { mediaInfo, validationErrors, validateForPostType } = useMediaDetector(
     formData.mediaFiles.map(m => m.file).filter(Boolean)
   );
-  const { clientPermissions, availablePlatforms, availablePostTypes, validateSelection } =
+  const { clientPermissions, availablePlatforms, availablePostTypes, validateSelection, getAvailablePlatforms, getAvailablePostTypes } =
     useClientCapabilities(formData.clientId, formData.platform, formData.postType);
+  const { suggestions: hashtagSuggestions, loading: hashtagsLoading, error: hashtagsError, generateHashtags, clearSuggestions } = useAIHashtags();
 
   // Show toast notification
   const showToast = (message, type = 'success') => {
@@ -67,12 +78,33 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
     setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 4000);
   };
 
+  const fetchClients = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      const backendUrl = getBackendUrl();
+
+      const response = await fetch(`${backendUrl}/api/clients`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        setClients(result.data || []);
+      }
+    } catch (err) {
+      console.error('Error fetching clients:', err);
+    }
+  }, []);
+
   // Load clients on mount
   useEffect(() => {
     if (isOpen) {
       fetchClients();
     }
-  }, [isOpen]);
+  }, [isOpen, fetchClients]);
 
   // Populate form when editing
   useEffect(() => {
@@ -94,27 +126,6 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
       });
     }
   }, [editingPost, isOpen]);
-
-  const fetchClients = async () => {
-    try {
-      const token = localStorage.getItem('auth_token');
-      const backendUrl = getBackendUrl();
-
-      const response = await fetch(`${backendUrl}/api/clients`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      const result = await response.json();
-      if (result.success) {
-        setClients(result.data || []);
-      }
-    } catch (err) {
-      console.error('Error fetching clients:', err);
-    }
-  };
 
   // Handle file selection
   const handleMediaSelect = (e) => {
@@ -187,6 +198,13 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
   // Generate AI hashtags
   const handleGenerateHashtags = async () => {
     await generateHashtags(formData.caption, formData.hashtags);
+    // After generation, suggestions will be available in hashtagSuggestions
+  };
+
+  // Add suggested hashtag to form
+  const handleAddSuggestedHashtag = (tag) => {
+    handleInsertHashtagSuggestion(tag);
+    // Optionally clear suggestions after adding
   };
 
   // Handle cropping
@@ -223,6 +241,158 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
       setShowCropper(false);
       setCurrentStep('compose');
       showToast('Image cropped successfully', 'success');
+    }
+  };
+
+  // Validate scheduled time
+  const validateScheduledTime = (scheduledTime, postType, platform) => {
+    if (!scheduledTime) {
+      return { isValid: false, error: 'Please select a scheduled time' };
+    }
+
+    const scheduledDate = new Date(scheduledTime);
+    const now = new Date();
+
+    if (scheduledDate <= now) {
+      return { isValid: false, error: 'Scheduled time must be in the future' };
+    }
+
+    // Check minimum scheduling time (e.g., 5 minutes from now)
+    const minTime = new Date(now.getTime() + 5 * 60 * 1000);
+    if (scheduledDate < minTime) {
+      return { isValid: false, error: 'Scheduled time must be at least 5 minutes from now' };
+    }
+
+    return { isValid: true };
+  };
+
+  // Get preview dimensions based on format
+  const getPreviewDimensions = (format) => {
+    const baseWidth = 280; // Preview container width
+    
+    switch (format) {
+      case 'square':
+      case 'carousel-square':
+        return { width: baseWidth, height: baseWidth, aspectRatio: '1:1' };
+      case 'portrait':
+        return { width: baseWidth, height: Math.round(baseWidth * 1.25), aspectRatio: '4:5' }; // 4:5 = 1.25
+      case 'landscape':
+        return { width: baseWidth, height: Math.round(baseWidth / 1.91), aspectRatio: '1.91:1' }; // 1.91:1
+      case 'story':
+      case 'reel':
+        return { width: baseWidth, height: Math.round(baseWidth * 1.777), aspectRatio: '9:16' }; // 9:16 = 1.777
+      case 'igtv':
+        return { width: baseWidth, height: Math.round(baseWidth * 1.777), aspectRatio: '9:16' };
+      default:
+        return { width: baseWidth, height: baseWidth, aspectRatio: '1:1' };
+    }
+  };
+
+  // Get suggested scheduling times
+  const getSuggestedTimes = () => {
+    const now = new Date();
+    const suggestions = [];
+
+    // Today at specific times
+    const today = new Date(now);
+    today.setHours(12, 0, 0, 0); // 12:00 PM today
+    if (today > now) {
+      suggestions.push({
+        label: 'Today 12:00 PM',
+        description: 'Lunch time',
+        value: today.toISOString().slice(0, 16)
+      });
+    }
+
+    today.setHours(18, 0, 0, 0); // 6:00 PM today
+    if (today > now) {
+      suggestions.push({
+        label: 'Today 6:00 PM',
+        description: 'Evening',
+        value: today.toISOString().slice(0, 16)
+      });
+    }
+
+    // Tomorrow
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(9, 0, 0, 0); // 9:00 AM tomorrow
+    suggestions.push({
+      label: 'Tomorrow 9:00 AM',
+      description: 'Morning',
+      value: tomorrow.toISOString().slice(0, 16)
+    });
+
+    // Next week
+    const nextWeek = new Date(now);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    nextWeek.setHours(10, 0, 0, 0);
+    suggestions.push({
+      label: 'Next Week',
+      description: 'Same time next week',
+      value: nextWeek.toISOString().slice(0, 16)
+    });
+
+    return suggestions;
+  };
+
+  // Get post insights after publishing
+  const getPostInsights = (result) => {
+    if (!result || !result.data) return null;
+
+    const platforms = [];
+    if (result.data.instagramPostId) {
+      platforms.push({
+        platform: 'instagram',
+        postId: result.data.instagramPostId,
+        url: result.data.instagramPostUrl || `https://instagram.com/p/${result.data.instagramPostId}`
+      });
+    }
+    if (result.data.facebookPostId) {
+      platforms.push({
+        platform: 'facebook',
+        postId: result.data.facebookPostId,
+        url: result.data.facebookPostUrl || `https://facebook.com/${result.data.facebookPostId}`
+      });
+    }
+
+    return { platforms };
+  };
+
+  // Open post URL in new tab
+  const openPostUrl = (platform, url) => {
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  // Publish a scheduled post
+  const publishPost = async (postId) => {
+    try {
+      setPublishing(true);
+      const token = localStorage.getItem('auth_token');
+      const backendUrl = getBackendUrl();
+
+      const response = await fetch(`${backendUrl}/api/posts/${postId}/publish`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        setPublishResult(result);
+        return { success: true, data: result.data };
+      } else {
+        return { success: false, error: result.error || 'Failed to publish post' };
+      }
+    } catch (err) {
+      console.error('Error publishing post:', err);
+      return { success: false, error: 'Failed to publish post. Please try again.' };
+    } finally {
+      setPublishing(false);
     }
   };
 
@@ -342,7 +512,7 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
         if (postData.publishImmediately && !editingPost) {
           // Show insights for immediate publish
           setShowInsights(true);
-          setPublishResult(result.data);
+          setPublishResult(result);
         }
 
         const successMessage = editingPost
@@ -495,6 +665,8 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
     setCurrentStep('compose');
     setShowCropper(false);
     setShowInsights(false);
+    setPublishResult(null);
+    setPublishing(false);
     setSelectedMediaIndex(0);
     resetCrop();
 
@@ -507,434 +679,361 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
     <>
       {/* Modal Backdrop */}
       <div className="fixed inset-0 z-50 overflow-y-auto">
-        <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+        <div className="flex items-center justify-center min-h-screen px-4 py-4 text-center sm:block sm:p-0">
           <div
             className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity cursor-pointer"
             onClick={handleClose}
           />
 
-          {/* Modal Panel */}
-          <div className="inline-block align-bottom bg-white rounded-2xl shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-6xl sm:w-full max-h-[90vh] overflow-hidden">
+          {/* Modal Panel - Buffer Style */}
+          <div className="inline-block align-bottom bg-white rounded-lg shadow-2xl transform transition-all sm:my-4 sm:align-middle sm:max-w-7xl sm:w-full max-h-[95vh] overflow-hidden flex flex-col">
             <form onSubmit={(e) => handleSubmit(e, false)}>
-              {/* Modal Header */}
-              <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 flex items-center justify-between rounded-t-2xl">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-white bg-opacity-20 rounded-xl flex items-center justify-center">
-                    <Send className="text-white" size={20} />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-white">
-                      {editingPost ? 'Edit Post' : 'Create New Post'}
-                    </h2>
-                    <p className="text-blue-100 text-sm">
-                      {currentStep === 'compose' && 'Compose your post'}
-                      {currentStep === 'crop' && 'Crop your image'}
-                      {currentStep === 'preview' && 'Preview your post'}
-                      {currentStep === 'publish' && 'Publishing...'}
-                    </p>
+              {/* Modal Header - Buffer Style */}
+              <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
+                <div className="flex items-center gap-4">
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Create Post
+                  </h2>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                      <Tag size={16} />
+                      Tags
+                      <ChevronDown size={14} />
+                    </button>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={handleClose}
-                  className="text-white hover:bg-white hover:bg-opacity-20 rounded-lg p-2 transition-colors"
+                  className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg p-1.5 transition-colors"
                 >
-                  <X size={24} />
+                  <X size={20} />
                 </button>
               </div>
 
-              {/* Modal Body */}
-              <div className="flex max-h-[calc(100vh-200px)]">
+              {/* Modal Body - Buffer Style */}
+              <div className="flex flex-1 min-h-0 overflow-hidden">
                 {/* Left Panel - Form */}
-                <div className="flex-1 p-6 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto">
                   {currentStep === 'compose' && (
-                    <div className="space-y-6">
-                      {/* Client Selection */}
-                      <div className="bg-gray-50 rounded-xl p-4">
-                        <label className="block text-sm font-semibold text-gray-700 mb-3">
-                          Social Account *
-                        </label>
-                        <select
-                          value={formData.clientId}
-                          onChange={(e) => setFormData(prev => ({ ...prev, clientId: e.target.value }))}
-                          required
-                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                        >
-                          <option value="">Choose an account...</option>
-                          {clients.map(client => (
-                            <option key={client._id} value={client._id}>
-                              {client.name} - {client.platform === 'instagram' ? 'Instagram' : 'Facebook'}
-                            </option>
-                          ))}
-                        </select>
-
-                        {/* Client Status Indicator */}
-                        {formData.clientId && clientPermissions && (
-                          <div className="mt-3 flex items-center gap-2">
-                            {clientPermissions.canAccessInstagram ? (
-                              <CheckCircle className="text-green-500" size={16} />
-                            ) : (
-                              <AlertCircle className="text-red-500" size={16} />
-                            )}
-                            <span className="text-sm text-gray-600">
-                              {clientPermissions.canAccessInstagram
-                                ? 'Instagram connected'
-                                : 'Instagram not connected - limited features'}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Platform & Post Type Selection */}
-                      <div className="bg-gray-50 rounded-xl p-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          {/* Platform Selection */}
-                          <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-3">
-                              Platform *
-                            </label>
-                            <select
-                              value={formData.platform}
-                              onChange={(e) => {
-                                const newPlatform = e.target.value;
-                                // Auto-adjust post type if needed
-                                let newPostType = formData.postType;
-                                if (newPlatform === 'facebook' && (formData.postType === 'story' || formData.postType === 'reel')) {
-                                  newPostType = 'post';
-                                }
-                                setFormData(prev => ({ ...prev, platform: newPlatform, postType: newPostType }));
-                              }}
-                              required
-                              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                            >
-                              {getAvailablePlatforms().map(platform => (
-                                <option key={platform} value={platform}>
-                                  {platform === 'instagram' ? 'Instagram' :
-                                   platform === 'facebook' ? 'Facebook' : 'Both Platforms'}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          {/* Post Type Selection */}
-                          <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-3">
-                              Content Type *
-                            </label>
-                            <select
-                              value={formData.postType}
-                              onChange={(e) => {
-                                const newPostType = e.target.value;
-                                // Auto-set format based on post type
-                                let autoFormat = formData.format;
-                                if (newPostType === 'reel') {
-                                  autoFormat = 'reel';
-                                } else if (newPostType === 'story') {
-                                  autoFormat = 'story';
-                                }
-                                setFormData(prev => ({ ...prev, postType: newPostType, format: autoFormat }));
-                              }}
-                              required
-                              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                            >
-                              {getAvailablePostTypes().map(type => (
-                                <option key={type} value={type}>
-                                  {type === 'post' ? 'Feed Post' :
-                                   type === 'story' ? 'Story' :
-                                   type === 'reel' ? 'Reel' :
-                                   type === 'carousel' ? 'Carousel' : type}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-
-                        {/* Format Selection (conditional) */}
-                        {formData.postType === 'post' && (
-                          <div className="mt-4">
-                            <label className="block text-sm font-semibold text-gray-700 mb-3">
-                              Format / Aspect Ratio
-                            </label>
-                            <div className="grid grid-cols-2 gap-3">
-                              {[
-                                { value: 'square', label: 'Square (1:1)', desc: '1080×1080' },
-                                { value: 'portrait', label: 'Portrait (4:5)', desc: '1080×1350' },
-                                { value: 'landscape', label: 'Landscape (1.91:1)', desc: '1080×608' },
-                                { value: 'carousel-square', label: 'Carousel Square', desc: '1080×1080' }
-                              ].map(format => (
-                                <button
-                                  key={format.value}
-                                  type="button"
-                                  onClick={() => setFormData(prev => ({ ...prev, format: format.value }))}
-                                  className={`p-3 rounded-lg border-2 text-left transition-all ${
-                                    formData.format === format.value
-                                      ? 'border-blue-500 bg-blue-50'
-                                      : 'border-gray-200 hover:border-gray-300'
-                                  }`}
-                                >
-                                  <div className="font-medium text-sm">{format.label}</div>
-                                  <div className="text-xs text-gray-500">{format.desc}</div>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Media Upload */}
-                      <div className="bg-gray-50 rounded-xl p-4">
-                        <label className="block text-sm font-semibold text-gray-700 mb-3">
-                          Media Files *
-                          {formData.postType === 'reel' && <span className="text-red-500 ml-1">(Video required)</span>}
-                          {formData.postType === 'carousel' && <span className="text-red-500 ml-1">(2+ images required)</span>}
-                        </label>
-
-                        {/* Upload Area */}
-                        <div
-                          className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-400 transition-colors cursor-pointer bg-white"
-                          onClick={() => fileInputRef.current?.click()}
-                        >
-                          <Upload className="mx-auto text-gray-400 mb-4" size={48} />
-                          <p className="text-gray-600 mb-2">Click to upload or drag and drop</p>
-                          <p className="text-sm text-gray-500">
-                            {formData.postType === 'reel' ? 'MP4, MOV videos up to 100MB' :
-                             formData.postType === 'carousel' ? 'JPEG, PNG images (min 2 files)' :
-                             'Images or videos'}
-                          </p>
-                        </div>
-
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          className="hidden"
-                          accept={formData.postType === 'reel' ? 'video/*' : 'image/*,video/*'}
-                          multiple={formData.postType === 'carousel'}
-                          onChange={handleMediaSelect}
-                        />
-
-                        {/* Media Preview Grid */}
-                        {formData.mediaFiles.length > 0 && (
-                          <div className="mt-4 grid grid-cols-3 gap-3">
-                            {formData.mediaFiles.map((media, index) => (
-                              <div key={index} className="relative group">
-                                {media.file?.type?.startsWith('video/') ? (
-                                  <video
-                                    src={media.preview}
-                                    className="w-full h-20 object-cover rounded-lg border border-gray-200"
-                                    controls={false}
-                                  />
-                                ) : (
-                                  <img
-                                    src={media.preview}
-                                    alt={`Preview ${index + 1}`}
-                                    className="w-full h-20 object-cover rounded-lg border border-gray-200"
-                                  />
-                                )}
-
-                                {/* Media overlay */}
-                                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all rounded-lg flex items-center justify-center">
-                                  <div className="opacity-0 group-hover:opacity-100 flex gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleOpenCropper(index);
-                                      }}
-                                      className="p-1 bg-white rounded-full hover:bg-gray-100"
-                                      title="Crop image"
-                                    >
-                                      <Crop size={14} />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleRemoveMedia(index);
-                                      }}
-                                      className="p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
-                                      title="Remove"
-                                    >
-                                      <X size={14} />
-                                    </button>
+                    <div className="p-6">
+                      {/* Account Selector - Buffer Style */}
+                      {(() => {
+                        const selectedClient = clients.find(c => c._id === formData.clientId);
+                        return (
+                          <div className="flex items-center gap-3 pb-4 border-b border-gray-200">
+                            {selectedClient ? (
+                              <>
+                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                                  {selectedClient.platform === 'instagram' ? (
+                                    <Instagram className="text-white" size={20} />
+                                  ) : (
+                                    <Facebook className="text-white" size={20} />
+                                  )}
+                                </div>
+                                <div className="flex-1">
+                                  <div className="font-medium text-gray-900">
+                                    {selectedClient.name}
+                                    {selectedClient.platform === 'instagram' && ' - Business'}
                                   </div>
+                                  <select
+                                    value={formData.clientId}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, clientId: e.target.value }))}
+                                    required
+                                    className="text-sm text-gray-500 border-0 bg-transparent p-0 focus:ring-0 cursor-pointer"
+                                  >
+                                    <option value="">Select account...</option>
+                                    {clients.map(client => (
+                                      <option key={client._id} value={client._id}>
+                                        {client.name} - {client.platform === 'instagram' ? 'Instagram' : 'Facebook'}
+                                      </option>
+                                    ))}
+                                  </select>
                                 </div>
-
-                                {/* File info */}
-                                <div className="absolute bottom-1 left-1 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
-                                  {media.file?.size ? `${(media.file.size / 1024 / 1024).toFixed(1)}MB` : 'URL'}
-                                </div>
-                              </div>
-                            ))}
+                              </>
+                            ) : (
+                              <select
+                                value={formData.clientId}
+                                onChange={(e) => setFormData(prev => ({ ...prev, clientId: e.target.value }))}
+                                required
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              >
+                                <option value="">Select an account...</option>
+                                {clients.map(client => (
+                                  <option key={client._id} value={client._id}>
+                                    {client.name} - {client.platform === 'instagram' ? 'Instagram' : 'Facebook'}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
                           </div>
-                        )}
+                        );
+                      })()}
 
-                        {/* Validation Errors */}
-                        {validationErrors.length > 0 && (
-                          <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                            <div className="flex items-center gap-2">
-                              <AlertCircle className="text-red-500" size={16} />
-                              <span className="text-red-700 text-sm">{validationErrors[0]}</span>
-                            </div>
-                          </div>
-                        )}
+                      {/* Post Type Selection - Buffer Style Radio Buttons */}
+                      <div className="flex gap-4 mt-6 mb-6">
+                        <label className="flex items-center cursor-pointer">
+                          <input
+                            type="radio"
+                            name="postType"
+                            value="post"
+                            checked={formData.postType === 'post'}
+                            onChange={(e) => {
+                              const newPostType = e.target.value;
+                              let autoFormat = formData.format;
+                              if (!['square', 'portrait', 'landscape', 'carousel-square'].includes(formData.format)) {
+                                autoFormat = 'square';
+                              }
+                              setFormData(prev => ({ ...prev, postType: newPostType, format: autoFormat }));
+                            }}
+                            className="mr-2 w-4 h-4 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm font-medium text-gray-700">Post</span>
+                        </label>
+                        <label className="flex items-center cursor-pointer">
+                          <input
+                            type="radio"
+                            name="postType"
+                            value="reel"
+                            checked={formData.postType === 'reel'}
+                            onChange={(e) => {
+                              setFormData(prev => ({ ...prev, postType: e.target.value, format: 'reel' }));
+                            }}
+                            className="mr-2 w-4 h-4 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm font-medium text-gray-700">Reel</span>
+                        </label>
+                        <label className="flex items-center cursor-pointer">
+                          <input
+                            type="radio"
+                            name="postType"
+                            value="story"
+                            checked={formData.postType === 'story'}
+                            onChange={(e) => {
+                              setFormData(prev => ({ ...prev, postType: e.target.value, format: 'story' }));
+                            }}
+                            className="mr-2 w-4 h-4 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm font-medium text-gray-700">Story</span>
+                        </label>
                       </div>
 
-                      {/* Caption */}
-                      <div className="bg-gray-50 rounded-xl p-4">
-                        <label className="block text-sm font-semibold text-gray-700 mb-3">
-                          Caption
-                        </label>
+                      {/* Text Input - Buffer Style */}
+                      <div className="mt-6 mb-6">
                         <textarea
                           value={formData.caption}
                           onChange={(e) => setFormData(prev => ({ ...prev, caption: e.target.value }))}
-                          rows={4}
-                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                          placeholder="Write a compelling caption for your post..."
+                          rows={8}
+                          className="w-full px-0 py-3 border-0 focus:ring-0 resize-none text-base text-gray-900 placeholder-gray-400"
+                          placeholder="What would you like to share?"
                           maxLength={2200}
                         />
-                        <div className="flex justify-between items-center mt-2">
+                        
+                        {/* Text Input Toolbar - Buffer Style */}
+                        <div className="flex items-center justify-between pt-3 mt-3 border-t border-gray-200">
+                          <div className="flex items-center gap-4">
+                            <button
+                              type="button"
+                              className="text-gray-500 hover:text-gray-700 transition-colors"
+                              title="Emoji"
+                            >
+                              <Smile size={20} />
+                            </button>
+                            <button
+                              type="button"
+                              className="text-gray-500 hover:text-gray-700 transition-colors"
+                              title="Hashtag"
+                            >
+                              <Hash size={20} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleGenerateHashtags}
+                              disabled={hashtagsLoading || !formData.caption.trim()}
+                              className="flex items-center gap-1.5 text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="AI Assistant"
+                            >
+                              {hashtagsLoading ? <Loader size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                              <span className="text-sm font-medium">AI Assistant</span>
+                            </button>
+                          </div>
                           <span className="text-sm text-gray-500">{formData.caption.length}/2200</span>
+                        </div>
+                      </div>
+
+                      {/* Media Upload - Buffer Style */}
+                      <div className="mt-6 mb-6">
+                        <div
+                          className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-gray-400 transition-colors cursor-pointer bg-gray-50"
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          <Image className="mx-auto text-gray-400 mb-3" size={40} />
+                          <p className="text-gray-600 font-medium mb-1">Drag & drop or select a file</p>
+                          <p className="text-sm text-gray-500">
+                            {formData.postType === 'reel' || formData.postType === 'story' ? 'MP4, MOV videos up to 100MB' :
+                             'JPEG, PNG images'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        className="hidden"
+                        accept={formData.postType === 'reel' || formData.postType === 'story' ? 'video/*' : 'image/*,video/*'}
+                        multiple={formData.postType === 'carousel' || formData.postType === 'album'}
+                        onChange={handleMediaSelect}
+                      />
+
+                      {/* Media Preview Grid */}
+                      {formData.mediaFiles.length > 0 && (
+                        <div className="mt-4 grid grid-cols-3 gap-2">
+                          {formData.mediaFiles.map((media, index) => (
+                            <div key={index} className="relative group">
+                              {media.file?.type?.startsWith('video/') ? (
+                                <video
+                                  src={media.preview}
+                                  className="w-full h-20 object-cover rounded-lg border border-gray-200"
+                                  controls={false}
+                                />
+                              ) : (
+                                <img
+                                  src={media.preview}
+                                  alt={`Preview ${index + 1}`}
+                                  className="w-full h-20 object-cover rounded-lg border border-gray-200"
+                                />
+                              )}
+
+                              {/* Media overlay */}
+                              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all rounded-lg flex items-center justify-center">
+                                <div className="opacity-0 group-hover:opacity-100 flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenCropper(index);
+                                    }}
+                                    className="p-1 bg-white rounded-full hover:bg-gray-100"
+                                    title="Crop image"
+                                  >
+                                    <Crop size={14} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleRemoveMedia(index);
+                                    }}
+                                    className="p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                                    title="Remove"
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* File info */}
+                              <div className="absolute bottom-1 left-1 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                                {media.file?.size ? `${(media.file.size / 1024 / 1024).toFixed(1)}MB` : 'URL'}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Validation Errors */}
+                      {validationErrors.length > 0 && (
+                        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <AlertCircle className="text-red-500" size={16} />
+                            <span className="text-red-700 text-sm">{validationErrors[0]}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Post Options - Buffer Style */}
+                      <div className="flex flex-wrap items-center gap-3 pt-6 mt-6 mb-6 border-t border-gray-200">
+                        <button
+                          type="button"
+                          className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                        >
+                          <Sticker size={16} />
+                          Add Stickers
+                        </button>
+                        <button
+                          type="button"
+                          className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                        >
+                          <Music size={16} />
+                          ♫ Music
+                        </button>
+                        <button
+                          type="button"
+                          className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                        >
+                          <ShoppingBag size={16} />
+                          Tag Products
+                        </button>
+                        <div className="relative">
                           <button
                             type="button"
-                            onClick={handleGenerateHashtags}
-                            disabled={hashtagsLoading || !formData.caption.trim()}
-                            className="flex items-center gap-2 px-3 py-1 bg-purple-100 text-purple-600 rounded-lg hover:bg-purple-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                           >
-                            {hashtagsLoading ? <Loader size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                            AI Suggest
+                            Automatic
+                            <ChevronDown size={14} />
                           </button>
                         </div>
                       </div>
 
-                      {/* Hashtags */}
-                      <div className="bg-gray-50 rounded-xl p-4">
-                        <label className="block text-sm font-semibold text-gray-700 mb-3">
-                          Hashtags
-                        </label>
+                      {/* First Comment - Buffer Style */}
+                      <div className="mt-6 mb-6">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">First Comment</label>
+                        <input
+                          type="text"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="Your comment"
+                        />
+                      </div>
 
-                        {/* Hashtag Input */}
-                        <div className="flex gap-2 mb-3">
-                          <div className="flex-1 relative">
-                            <Hash className="absolute left-3 top-3 text-gray-400" size={16} />
-                            <input
-                              type="text"
-                              value={formData.hashtagInput}
-                              onChange={(e) => setFormData(prev => ({ ...prev, hashtagInput: e.target.value }))}
-                              onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddHashtag())}
-                              className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              placeholder="Enter hashtag and press Enter"
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={handleAddHashtag}
-                            className="px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
-                          >
-                            <Plus size={16} />
-                          </button>
-                        </div>
+                      {/* Shop Grid Link - Buffer Style */}
+                      <div className="mt-6 mb-6">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Shop Grid Link</label>
+                        <input
+                          type="url"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="Website or Product URL"
+                        />
+                      </div>
 
-                        {/* Hashtag Tags */}
-                        {formData.hashtags.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mb-3">
-                            {formData.hashtags.map((tag, index) => (
-                              <span
-                                key={index}
-                                className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-sm"
+                      {/* Hashtags - Simplified */}
+                      {formData.hashtags.length > 0 && (
+                        <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-200">
+                          {formData.hashtags.map((tag, index) => (
+                            <span
+                              key={index}
+                              className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-sm"
+                            >
+                              #{tag}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveHashtag(tag)}
+                                className="text-blue-600 hover:text-blue-800"
                               >
-                                #{tag}
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveHashtag(tag)}
-                                  className="text-blue-600 hover:text-blue-800"
-                                >
-                                  <X size={12} />
-                                </button>
-                              </span>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* AI Suggestions */}
-                        {hashtagSuggestions.length > 0 && (
-                          <div className="border-t pt-3">
-                            <p className="text-sm font-medium text-gray-700 mb-2">AI Suggestions:</p>
-                            <div className="flex flex-wrap gap-2">
-                              {hashtagSuggestions.slice(0, 10).map((suggestion, index) => (
-                                <button
-                                  key={index}
-                                  type="button"
-                                  onClick={() => handleInsertHashtagSuggestion(suggestion.tag)}
-                                  disabled={formData.hashtags.includes(suggestion.tag)}
-                                  className="px-3 py-1 bg-purple-50 text-purple-600 rounded-full text-sm hover:bg-purple-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                  title={`Relevance: ${suggestion.relevance}%`}
-                                >
-                                  #{suggestion.tag}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Scheduling */}
-                      <div className="bg-gray-50 rounded-xl p-4">
-                        <label className="block text-sm font-semibold text-gray-700 mb-3">
-                          Publishing Schedule
-                        </label>
-
-                        <div className="flex gap-4 mb-4">
-                          <label className="flex items-center">
-                            <input
-                              type="radio"
-                              value="immediate"
-                              checked={formData.scheduleType === 'immediate'}
-                              onChange={(e) => setFormData(prev => ({ ...prev, scheduleType: e.target.value }))}
-                              className="mr-2"
-                            />
-                            <span className="text-sm font-medium">Publish Now</span>
-                          </label>
-                          <label className="flex items-center">
-                            <input
-                              type="radio"
-                              value="schedule"
-                              checked={formData.scheduleType === 'schedule'}
-                              onChange={(e) => setFormData(prev => ({ ...prev, scheduleType: e.target.value }))}
-                              className="mr-2"
-                            />
-                            <span className="text-sm font-medium">Schedule Later</span>
-                          </label>
+                                <X size={12} />
+                              </button>
+                            </span>
+                          ))}
                         </div>
+                      )}
 
-                        {formData.scheduleType === 'schedule' && (
-                          <div className="space-y-3">
-                            <input
-                              type="datetime-local"
-                              value={formData.scheduledTime}
-                              onChange={(e) => setFormData(prev => ({ ...prev, scheduledTime: e.target.value }))}
-                              min={new Date().toISOString().slice(0, 16)}
-                              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            />
-
-                            {/* Quick schedule options */}
-                            <div className="grid grid-cols-2 gap-2">
-                              {getSuggestedTimes().map((suggestion, index) => (
-                                <button
-                                  key={index}
-                                  type="button"
-                                  onClick={() => setFormData(prev => ({ ...prev, scheduledTime: suggestion.value }))}
-                                  className="p-3 text-left border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors"
-                                >
-                                  <div className="font-medium text-sm">{suggestion.label}</div>
-                                  <div className="text-xs text-gray-500">{suggestion.description}</div>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
                     </div>
                   )}
+                  
+                  {/* Bottom padding to ensure all content is visible */}
+                  {currentStep === 'compose' && <div className="pb-6"></div>}
 
                   {currentStep === 'crop' && showCropper && (
                     <div className="space-y-6">
@@ -970,14 +1069,27 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
                   )}
                 </div>
 
-                {/* Right Panel - Preview */}
-                <div className="w-96 bg-gray-50 p-6 border-l border-gray-200">
-                  <div className="sticky top-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Preview</h3>
+                {/* Right Panel - Preview - Buffer Style */}
+                {showPreview ? (
+                  <div className="w-96 bg-white border-l border-gray-200 overflow-y-auto flex flex-col">
+                    <div className="p-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-semibold text-gray-900">Instagram Preview</h3>
+                        <Info size={14} className="text-gray-400" />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowPreview(false)}
+                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                    <div className="p-4 flex-1 overflow-y-auto">
 
                     {/* Platform Preview */}
-                    <div className="bg-white rounded-xl p-4 shadow-sm mb-6">
-                      <div className="flex items-center gap-2 mb-3">
+                    <div className="bg-white rounded-xl p-3 shadow-sm mb-3">
+                      <div className="flex items-center gap-2 mb-2">
                         {formData.platform === 'instagram' && <Instagram className="text-purple-600" size={20} />}
                         {formData.platform === 'facebook' && <Facebook className="text-blue-600" size={20} />}
                         {formData.platform === 'both' && (
@@ -986,28 +1098,75 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
                             <Facebook className="text-blue-600" size={20} />
                           </>
                         )}
-                        <span className="font-medium capitalize">{formData.platform}</span>
-                        <span className="text-sm text-gray-500 capitalize">• {formData.postType}</span>
+                        <span className="font-medium capitalize">
+                          {formData.platform === 'both' ? 'Both Platforms' : 
+                           formData.platform === 'instagram' ? 'Instagram' : 
+                           formData.platform === 'facebook' ? 'Facebook' : formData.platform}
+                        </span>
+                        <span className="text-sm text-gray-500 capitalize">
+                          • {formData.postType === 'post' ? 'Feed Post' :
+                             formData.postType === 'story' ? 'Story' :
+                             formData.postType === 'reel' ? 'Reel' :
+                             formData.postType === 'carousel' ? 'Carousel' :
+                             formData.postType === 'igtv' ? 'IGTV' :
+                             formData.postType === 'live' ? 'Live' :
+                             formData.postType === 'video' ? 'Video' :
+                             formData.postType === 'album' ? 'Album' : formData.postType}
+                        </span>
                       </div>
 
-                      {/* Media Preview */}
-                      {formData.mediaFiles.length > 0 && (
-                        <div className="mb-3">
-                          {formData.mediaFiles[0].file?.type?.startsWith('video/') ? (
-                            <video
-                              src={formData.mediaFiles[0].preview}
-                              className="w-full h-48 object-cover rounded-lg"
-                              controls={false}
-                            />
-                          ) : (
-                            <img
-                              src={formData.mediaFiles[0].preview}
-                              alt="Post preview"
-                              className="w-full h-48 object-cover rounded-lg"
-                            />
-                          )}
-                        </div>
-                      )}
+                      {/* Media Preview - Live Format Change */}
+                      {(() => {
+                        const dimensions = getPreviewDimensions(formData.format || 'square');
+                        return (
+                          <div className="mb-3">
+                            <div 
+                              className="w-full rounded-lg overflow-hidden border-2 border-gray-200 bg-gray-100 flex items-center justify-center relative"
+                              style={{ 
+                                width: `${dimensions.width}px`, 
+                                height: `${dimensions.height}px`,
+                                maxWidth: '100%',
+                                minHeight: '120px'
+                              }}
+                            >
+                              {formData.mediaFiles.length > 0 ? (
+                                formData.mediaFiles[0].file?.type?.startsWith('video/') ? (
+                                  <video
+                                    src={formData.mediaFiles[0].preview}
+                                    className="w-full h-full object-cover"
+                                    controls={false}
+                                    style={{ 
+                                      width: `${dimensions.width}px`, 
+                                      height: `${dimensions.height}px`,
+                                      objectFit: 'cover'
+                                    }}
+                                  />
+                                ) : (
+                                  <img
+                                    src={formData.mediaFiles[0].preview}
+                                    alt="Post preview"
+                                    className="w-full h-full object-cover"
+                                    style={{ 
+                                      width: `${dimensions.width}px`, 
+                                      height: `${dimensions.height}px`,
+                                      objectFit: 'cover'
+                                    }}
+                                  />
+                                )
+                              ) : (
+                                <div className="text-center p-4 text-gray-400">
+                                  <Image className="mx-auto mb-2" size={32} />
+                                  <p className="text-xs">Preview</p>
+                                  <p className="text-xs mt-1">{dimensions.aspectRatio}</p>
+                                </div>
+                              )}
+                            </div>
+                            <div className="mt-2 text-xs text-gray-500 text-center">
+                              {dimensions.aspectRatio} • {dimensions.width}×{dimensions.height}px
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       {/* Caption Preview */}
                       {formData.caption && (
@@ -1066,64 +1225,81 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
                         </button>
                       </div>
                     )}
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowPreview(true)}
+                    className="w-8 bg-white border-l border-gray-200 hover:bg-gray-50 transition-colors flex items-center justify-center"
+                    title="Show Preview"
+                  >
+                    <Eye size={18} className="text-gray-600" />
+                  </button>
+                )}
               </div>
 
-              {/* Modal Footer */}
+              {/* Modal Footer - Buffer Style */}
               {currentStep === 'compose' && (
-                <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex items-center justify-between rounded-b-2xl">
-                  <div className="flex gap-3">
+                <div className="bg-white px-6 py-4 border-t border-gray-200 flex items-center justify-between flex-shrink-0">
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                    >
+                      Create Another
+                    </button>
                     <button
                       type="button"
                       onClick={(e) => handleSubmit(e, true)}
                       disabled={loading}
-                      className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50"
+                      className="text-sm text-gray-600 hover:text-gray-900 transition-colors disabled:opacity-50"
                     >
-                      <Save size={16} />
                       Save Draft
                     </button>
-                  </div>
-
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={handleClose}
-                      className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-                      disabled={loading}
-                    >
-                      Cancel
-                    </button>
-
-                    {editingPost && editingPost.status === 'scheduled' && (
+                    <div className="relative">
                       <button
                         type="button"
-                        onClick={handlePublishNow}
-                        disabled={publishing}
-                        className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                        className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 transition-colors"
                       >
-                        {publishing ? <Loader size={16} className="animate-spin" /> : 'Publish Now'}
+                        Prioritize
+                        <ChevronDown size={14} />
                       </button>
-                    )}
+                    </div>
+                  </div>
 
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ 
+                        ...prev, 
+                        scheduleType: prev.scheduleType === 'schedule' ? 'immediate' : 'schedule' 
+                      }))}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                    >
+                      <Calendar size={16} />
+                      {formData.scheduleType === 'schedule' ? 'Schedule' : 'Publish Now'}
+                    </button>
+                    {formData.scheduleType === 'schedule' && (
+                      <input
+                        type="datetime-local"
+                        value={formData.scheduledTime}
+                        onChange={(e) => setFormData(prev => ({ ...prev, scheduledTime: e.target.value }))}
+                        min={new Date().toISOString().slice(0, 16)}
+                        className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    )}
                     <button
                       type="submit"
                       disabled={loading}
-                      className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                      className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
                     >
-                      {loading && <Loader size={16} className="animate-spin" />}
-                      {editingPost ? 'Update Post' : (
-                        formData.scheduleType === 'schedule' ? (
-                          <>
-                            <Calendar size={16} />
-                            Schedule Post
-                          </>
-                        ) : (
-                          <>
-                            <Send size={16} />
-                            Publish Now
-                          </>
-                        )
+                      {loading ? (
+                        <Loader size={16} className="animate-spin" />
+                      ) : formData.scheduleType === 'schedule' ? (
+                        'Schedule Post'
+                      ) : (
+                        'Publish Now'
                       )}
                     </button>
                   </div>

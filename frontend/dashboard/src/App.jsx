@@ -6,20 +6,25 @@ import Clients from './Clients.jsx';
 import Posts from './Posts.jsx';
 import Analytics from './Analytics.jsx';
 import Reports from './Reports.jsx';
+import Login from './Login.jsx';
+import Signup from './Signup.jsx';
+import ResetPassword from './ResetPassword.jsx';
+import AdminHome from './AdminHome.jsx';
+import ManagerHome from './ManagerHome.jsx';
 
 // Helper function to get backend URL
 const getBackendUrl = () => {
   // In production, use the same origin
   // In development, try to detect the backend port
   if (window.location.port === '3000') {
-    // Vite dev server - try backend ports 5001 (common fallback) or 5000
-    // Check localStorage for saved port, otherwise default to 5001
+    // Vite dev server - try backend ports 5000 (standard) or 5001 (fallback)
+    // Check localStorage for saved port, otherwise default to 5000
     const savedPort = localStorage.getItem('backend_port');
     if (savedPort) {
       return `http://localhost:${savedPort}`;
     }
-    // Default to 5001 (common when 5000 is busy)
-    return 'http://localhost:5001';
+    // Default to 5000 (backend standard port)
+    return 'http://localhost:5000';
   }
   // Production or already on backend server
   return window.location.origin;
@@ -31,10 +36,14 @@ const AuthGuard = ({ children }) => {
 
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
-    // If no token and trying to access dashboard routes, redirect to login
-    if (!token && location.pathname.startsWith('/dashboard')) {
-      const backendUrl = getBackendUrl();
-      window.location.href = `${backendUrl}/login.html`;
+    // Normalize pathname (remove /dashboard prefix if present)
+    const normalizedPath = location.pathname.replace(/^\/dashboard/, '') || '/';
+    const publicRoutes = ['/login', '/signup', '/reset-password'];
+    const isPublicRoute = publicRoutes.includes(normalizedPath);
+    
+    // If no token and trying to access protected routes, redirect to login
+    if (!token && !isPublicRoute && (normalizedPath.startsWith('/dashboard') || normalizedPath === '/')) {
+      window.location.href = '/login';
     }
   }, [location]);
 
@@ -54,13 +63,26 @@ const App = () => {
       >
         <AuthGuard>
           <Routes>
+            {/* Public routes */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            
+            {/* Role-specific home pages */}
+            <Route path="/admin-home" element={<AdminHome />} />
+            <Route path="/social-media-manager-home" element={<ManagerHome />} />
+            
+            {/* Dashboard routes */}
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/dashboard/clients" element={<Clients />} />
             <Route path="/dashboard/posts" element={<Posts />} />
             <Route path="/dashboard/analytics" element={<Analytics />} />
             <Route path="/dashboard/reports" element={<Reports />} />
             <Route path="/clients" element={<Clients />} />
+            
+            {/* Default route */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            
             {/* Catch-all route - redirect unmatched routes to dashboard */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>

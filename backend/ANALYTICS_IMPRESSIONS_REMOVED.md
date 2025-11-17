@@ -143,3 +143,5 @@ STORY:    GET /{media-id}/insights?metric=reach,replies,exits,taps_forward,taps_
 **The analytics service is now fully compatible with Instagram Graph API v22+ (2025)!** 🎉
 
 
+
+
