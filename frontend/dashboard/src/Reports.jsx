@@ -2,6 +2,30 @@ import { useState, useEffect } from 'react';
 import { Download, Mail, Calendar, FileText, Settings, Upload, Trash2, Users } from 'lucide-react';
 import Layout from './Layout.jsx';
 
+// Get backend URL helper
+const getBackendUrl = () => {
+  // If accessing via ngrok, always use localhost:5000 for backend
+  if (window.location.hostname.includes('ngrok')) {
+    const savedPort = localStorage.getItem('backend_port');
+    if (savedPort) {
+      return `http://localhost:${savedPort}`;
+    }
+    return 'http://localhost:5000';
+  }
+  
+  // If on Vite dev server (port 3000) or localhost, use localhost:5000 for backend
+  if (window.location.port === '3000' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    const savedPort = localStorage.getItem('backend_port');
+    if (savedPort) {
+      return `http://localhost:${savedPort}`;
+    }
+    return 'http://localhost:5000';
+  }
+  
+  // Production: use same origin
+  return window.location.origin;
+};
+
 const Reports = () => {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -60,7 +84,7 @@ const Reports = () => {
       }
 
       // Get backend URL
-      const backendUrl = window.location.origin;
+      const backendUrl = getBackendUrl();
 
       const params = new URLSearchParams();
       if (startDate) params.append('startDate', startDate);
@@ -100,7 +124,7 @@ const Reports = () => {
       const token = localStorage.getItem('auth_token');
       if (!token) return;
 
-      const backendUrl = window.location.origin;
+      const backendUrl = getBackendUrl();
       const response = await fetch(`${backendUrl}/api/reports/templates`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -124,7 +148,7 @@ const Reports = () => {
       const token = localStorage.getItem('auth_token');
       if (!token) return;
 
-      const backendUrl = window.location.origin;
+      const backendUrl = getBackendUrl();
       const response = await fetch(`${backendUrl}/api/clients`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -155,7 +179,7 @@ const Reports = () => {
         return;
       }
 
-      const backendUrl = window.location.origin;
+      const backendUrl = getBackendUrl();
       const formData = new FormData();
       formData.append('template', file);
 
@@ -198,7 +222,7 @@ const Reports = () => {
         return;
       }
 
-      const backendUrl = window.location.origin;
+      const backendUrl = getBackendUrl();
       const response = await fetch(`${backendUrl}/api/reports/templates/${filename}`, {
         method: 'DELETE',
         headers: {
@@ -238,7 +262,7 @@ const Reports = () => {
       }
 
       // Get backend URL
-      const backendUrl = window.location.origin;
+      const backendUrl = getBackendUrl();
 
       const response = await fetch(`${backendUrl}/api/reports/download`, {
         method: 'POST',
@@ -310,7 +334,7 @@ const Reports = () => {
         return;
       }
 
-      const backendUrl = window.location.origin;
+      const backendUrl = getBackendUrl();
       const clientIds = selectedClients.length > 0 ? selectedClients : clients.map(c => c._id);
 
       const response = await fetch(`${backendUrl}/api/reports/send-to-clients`, {
@@ -356,7 +380,7 @@ const Reports = () => {
       }
 
       // Get backend URL
-      const backendUrl = window.location.origin;
+      const backendUrl = getBackendUrl();
 
       const response = await fetch(`${backendUrl}/api/reports/schedule`, {
         method: 'POST',
@@ -394,7 +418,7 @@ const Reports = () => {
       }
 
       // Get backend URL
-      const backendUrl = window.location.origin;
+      const backendUrl = getBackendUrl();
 
       const response = await fetch(`${backendUrl}/api/reports/send-test`, {
         method: 'POST',

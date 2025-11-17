@@ -12,6 +12,14 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    host: true, // Allow external connections
+    allowedHosts: [
+      'geneva-incapacious-romana.ngrok-free.dev',
+      '.ngrok-free.dev',
+      '.ngrok.io',
+      'localhost',
+      '127.0.0.1'
+    ],
     headers: {
       'Permissions-Policy': 'unload=*',
     },

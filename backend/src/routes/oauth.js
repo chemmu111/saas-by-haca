@@ -5,6 +5,39 @@ import requireAuth from '../middleware/requireAuth.js';
 
 const router = express.Router();
 
+// Helper function to get the base URL for redirect URIs
+// Detects ngrok and other forwarded hosts
+const getBaseUrl = (req) => {
+  // Check for forwarded host (ngrok sets this)
+  const forwardedHost = req.get('x-forwarded-host');
+  const forwardedProto = req.get('x-forwarded-proto') || 'https';
+  
+  if (forwardedHost) {
+    // ngrok or other proxy detected
+    return `${forwardedProto}://${forwardedHost}`;
+  }
+  
+  // Check origin header
+  const origin = req.get('origin');
+  if (origin) {
+    return origin;
+  }
+  
+  // Check referer header
+  const referer = req.get('referer');
+  if (referer) {
+    try {
+      const url = new URL(referer);
+      return `${url.protocol}//${url.host}`;
+    } catch (e) {
+      // Invalid referer, continue
+    }
+  }
+  
+  // Fall back to environment variable or localhost
+  return process.env.API_URL || 'http://localhost:5001';
+};
+
 // Test route to verify callback is accessible without auth
 router.get('/callback/test', async (req, res) => {
   res.json({ 
@@ -107,7 +140,9 @@ router.get('/callback/:platform', async (req, res) => {
       console.log('📱 Starting Instagram Business API OAuth flow...');
       
       // Instagram Business API OAuth flow via Facebook Graph API
-      const redirectUri = `${process.env.API_URL || 'http://localhost:5001'}/auth/instagram/callback`;
+      const baseUrl = getBaseUrl(req);
+      const redirectUri = `${baseUrl}/auth/instagram/callback`;
+      console.log('  Base URL:', baseUrl);
       console.log('  Redirect URI:', redirectUri);
       
       // For Instagram Business API, use Facebook App ID (can also use INSTAGRAM_CLIENT_ID if it's set to Facebook App ID)
@@ -484,7 +519,9 @@ router.get('/callback/:platform', async (req, res) => {
       console.log('📘 Starting Facebook OAuth flow...');
       
       // Facebook OAuth flow
-      const redirectUri = `${process.env.API_URL || 'http://localhost:5001'}/auth/facebook/callback`;
+      const baseUrl = getBaseUrl(req);
+      const redirectUri = `${baseUrl}/auth/facebook/callback`;
+      console.log('  Base URL:', baseUrl);
       console.log('  Redirect URI:', redirectUri);
       
       const facebookClientId = process.env.FACEBOOK_CLIENT_ID || '';
@@ -748,9 +785,14 @@ router.post('/authorize', requireAuth, async (req, res) => {
       userId: userId.toString() 
     })).toString('base64');
     // Build redirect URI based on platform
+    // Detect ngrok or forwarded host from request
+    const baseUrl = getBaseUrl(req);
     const redirectUri = platform === 'instagram' 
-      ? `${process.env.API_URL || 'http://localhost:5001'}/auth/instagram/callback`
-      : `${process.env.API_URL || 'http://localhost:5001'}/auth/facebook/callback`;
+      ? `${baseUrl}/auth/instagram/callback`
+      : `${baseUrl}/auth/facebook/callback`;
+    
+    console.log('  Base URL detected:', baseUrl);
+    console.log('  Redirect URI:', redirectUri);
 
     let authUrl;
 

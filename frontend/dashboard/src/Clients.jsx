@@ -4,14 +4,19 @@ import Layout from './Layout.jsx';
 
 // Helper function to get backend URL
 const getBackendUrl = () => {
-  // If accessing via ngrok or any domain, use the same origin
-  if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-    console.log('Using current origin for backend:', window.location.origin);
-    return window.location.origin;
+  // If accessing via ngrok, always use localhost:5000 for backend
+  if (window.location.hostname.includes('ngrok')) {
+    const savedPort = localStorage.getItem('backend_port');
+    if (savedPort) {
+      console.log('Using saved backend port for ngrok:', savedPort);
+      return `http://localhost:${savedPort}`;
+    }
+    console.log('Using default backend port for ngrok: 5000');
+    return 'http://localhost:5000';
   }
   
   // In development on localhost, try to detect the backend port
-  if (window.location.port === '3000' || window.location.hostname === 'localhost') {
+  if (window.location.port === '3000' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
     // Vite dev server or localhost - try backend ports 5000 first, then 5001
     // Check localStorage for saved port
     const savedPort = localStorage.getItem('backend_port');
@@ -23,7 +28,9 @@ const getBackendUrl = () => {
     console.log('Using default backend port: 5000');
     return 'http://localhost:5000';
   }
-  // Fallback to current origin
+  
+  // Production: use same origin
+  console.log('Using current origin for backend:', window.location.origin);
   return window.location.origin;
 };
 
@@ -125,7 +132,8 @@ const Clients = () => {
         return;
       }
 
-      const response = await fetch('/api/clients', {
+      const backendUrl = getBackendUrl();
+      const response = await fetch(`${backendUrl}/api/clients`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -147,6 +155,7 @@ const Clients = () => {
       if (result.success) {
         console.log('Clients data:', result.data); // Debug log
         setClients(result.data || []);
+        setError(''); // Clear any previous errors
       } else {
         setError(result.error || 'Failed to fetch clients');
       }
@@ -249,7 +258,8 @@ const Clients = () => {
         return;
       }
 
-      const response = await fetch('/api/clients', {
+      const backendUrl = getBackendUrl();
+      const response = await fetch(`${backendUrl}/api/clients`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

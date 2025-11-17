@@ -24,6 +24,10 @@ const __dirname = path.dirname(__filename);
 // Serve static files from frontend/public
 const publicDir = path.resolve(__dirname, '../../frontend/public');
 
+// Trust proxy (required for ngrok and other reverse proxies)
+// This allows Express to read x-forwarded-* headers
+app.set('trust proxy', true);
+
 // Middleware
 // CORS configuration with cookie support for cross-origin requests
 const corsOptions = {

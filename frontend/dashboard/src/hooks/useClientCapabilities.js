@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 /**
  * Custom hook for checking client capabilities and permissions
@@ -15,13 +15,25 @@ export const useClientCapabilities = (selectedClientId, platform, postType) => {
 
   // Get backend URL helper
   const getBackendUrl = () => {
-    if (window.location.port === '3000') {
+    // If accessing via ngrok, always use localhost:5000 for backend
+    if (window.location.hostname.includes('ngrok')) {
       const savedPort = localStorage.getItem('backend_port');
       if (savedPort) {
         return `http://localhost:${savedPort}`;
       }
       return 'http://localhost:5000';
     }
+    
+    // If on Vite dev server (port 3000) or localhost, use localhost:5000 for backend
+    if (window.location.port === '3000' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      const savedPort = localStorage.getItem('backend_port');
+      if (savedPort) {
+        return `http://localhost:${savedPort}`;
+      }
+      return 'http://localhost:5000';
+    }
+    
+    // Production: use same origin
     return window.location.origin;
   };
 
@@ -287,6 +299,10 @@ export const useClientCapabilities = (selectedClientId, platform, postType) => {
     };
   };
 
+  // Memoize computed values to prevent infinite loops
+  const availablePlatforms = useMemo(() => getAvailablePlatforms(), [clientData, clientPermissions]);
+  const availablePostTypes = useMemo(() => getAvailablePostTypes(), [platform, clientPermissions]);
+
   return {
     clientPermissions,
     clientData,
@@ -298,7 +314,7 @@ export const useClientCapabilities = (selectedClientId, platform, postType) => {
     getRecommendations,
     hasRequiredTokens,
     getConnectionStatus,
-    availablePlatforms: getAvailablePlatforms(),
-    availablePostTypes: getAvailablePostTypes()
+    availablePlatforms,
+    availablePostTypes
   };
 };

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   X, Upload, Image, Video, Hash, Calendar, Clock, Send,
   AlertCircle, CheckCircle, Loader, Sparkles, Crop, RotateCw,
@@ -13,18 +13,31 @@ import { useClientCapabilities } from './hooks/useClientCapabilities';
 import { useAIHashtags } from './hooks/useAIHashtags';
 import { useImageCrop } from './hooks/useImageCrop';
 
-const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
-  // Get backend URL helper
-  const getBackendUrl = () => {
-    if (window.location.port === '3000') {
-      const savedPort = localStorage.getItem('backend_port');
-      if (savedPort) {
-        return `http://localhost:${savedPort}`;
-      }
-      return 'http://localhost:5000';
+// Get backend URL helper (moved outside component to prevent recreation)
+const getBackendUrl = () => {
+  // If accessing via ngrok, always use localhost:5000 for backend
+  if (window.location.hostname.includes('ngrok')) {
+    const savedPort = localStorage.getItem('backend_port');
+    if (savedPort) {
+      return `http://localhost:${savedPort}`;
     }
-    return window.location.origin;
-  };
+    return 'http://localhost:5000';
+  }
+  
+  // If on Vite dev server (port 3000) or localhost, use localhost:5000 for backend
+  if (window.location.port === '3000' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    const savedPort = localStorage.getItem('backend_port');
+    if (savedPort) {
+      return `http://localhost:${savedPort}`;
+    }
+    return 'http://localhost:5000';
+  }
+  
+  // Production: use same origin
+  return window.location.origin;
+};
+
+const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
 
   // State management
   const [clients, setClients] = useState([]);
@@ -60,14 +73,17 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
   // File input refs
   const fileInputRef = useRef(null);
   const musicInputRef = useRef(null);
+  const editingPostIdRef = useRef(null);
   
   // Image crop hook
   const { canvasRef, applyCrop, autoCropToRatio, resetCrop } = useImageCrop();
 
-  // Custom hooks
-  const { mediaInfo, validationErrors, validateForPostType } = useMediaDetector(
-    formData.mediaFiles.map(m => m.file).filter(Boolean)
+  // Custom hooks - memoize media files array to prevent infinite loops
+  const mediaFilesArray = useMemo(
+    () => formData.mediaFiles.map(m => m.file).filter(Boolean),
+    [formData.mediaFiles]
   );
+  const { mediaInfo, validationErrors, validateForPostType } = useMediaDetector(mediaFilesArray);
   const { clientPermissions, availablePlatforms, availablePostTypes, validateSelection, getAvailablePlatforms, getAvailablePostTypes } =
     useClientCapabilities(formData.clientId, formData.platform, formData.postType);
   const { suggestions: hashtagSuggestions, loading: hashtagsLoading, error: hashtagsError, generateHashtags, clearSuggestions } = useAIHashtags();
@@ -108,7 +124,12 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
 
   // Populate form when editing
   useEffect(() => {
-    if (editingPost && isOpen) {
+    const currentPostId = editingPost?._id;
+    
+    // Only update if the post ID actually changed and modal is open
+    if (editingPost && isOpen && currentPostId && editingPostIdRef.current !== currentPostId) {
+      editingPostIdRef.current = currentPostId;
+      
       setFormData({
         clientId: editingPost.client?._id || editingPost.client || '',
         platform: editingPost.platform || 'instagram',
@@ -124,8 +145,11 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
         musicUrl: editingPost.musicUrl || '',
         location: editingPost.location || ''
       });
+    } else if (!editingPost || !isOpen) {
+      // Reset ref when modal closes or editingPost is cleared
+      editingPostIdRef.current = null;
     }
-  }, [editingPost, isOpen]);
+  }, [editingPost?._id, isOpen]); // Use editingPost._id instead of the whole object to prevent infinite loops
 
   // Handle file selection
   const handleMediaSelect = (e) => {
@@ -668,6 +692,7 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
     setPublishResult(null);
     setPublishing(false);
     setSelectedMediaIndex(0);
+    editingPostIdRef.current = null; // Reset editing post ref
     resetCrop();
 
     onClose();
