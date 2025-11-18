@@ -11,11 +11,25 @@ export default defineConfig({
   server: {
     port: 3000,
     host: true,
+    allowedHosts: [
+      'localhost',
+      '127.0.0.1',
+      '.ngrok-free.dev',
+      '.ngrok.io',
+      'geneva-incapacious-romana.ngrok-free.dev'
+    ],
+    headers: {
+      'Permissions-Policy': 'unload=*',
+    },
   },
   preview: {
-    port: process.env.PORT ? Number(process.env.PORT) : 3000,
+    port: process.env.PORT ? parseInt(process.env.PORT) : 4173,
     host: true,
     strictPort: true,
-  },
+    allowedHosts: [
+      'saas-by-haca-testing-only.onrender.com',  // <-- ADD THIS
+      'localhost',
+      '127.0.0.1'
+    ]
+  }
 })
-
