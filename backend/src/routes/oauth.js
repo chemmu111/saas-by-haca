@@ -809,23 +809,43 @@ router.post('/authorize', requireAuth, async (req, res) => {
       }
       
       // Instagram Business API scopes (via Facebook OAuth)
-      // Required permissions for Instagram publishing:
-      // - pages_manage_posts: Required to publish content to Instagram via Page
-      // - instagram_content_publish: Required to publish to Instagram
-      // - pages_show_list: Required to list user's Facebook Pages
-      // - pages_read_engagement: Required to read page engagement metrics
-      // - instagram_basic: Required for basic Instagram account info
-      // - business_management: Required for managing business assets
-      const scopes = [
-        'instagram_basic',
-        'instagram_content_publish',
-        'pages_show_list',
-        'pages_read_engagement',
-        'pages_manage_posts',
-        'instagram_manage_insights',
-        'instagram_manage_comments',
-        'business_management'
-      ].join(',');
+      // Development Mode: Use minimal scopes (no App Review required)
+      // Production Mode: Use full scopes (requires App Review)
+      const useMinimalScopes = process.env.FACEBOOK_DEV_MODE === 'true' || process.env.NODE_ENV === 'development';
+      
+      let scopes;
+      if (useMinimalScopes) {
+        // Minimal scopes for Development Mode (no App Review needed)
+        // These are basic permissions that work without review
+        scopes = [
+          'public_profile',
+          'email',
+          'pages_show_list',  // Basic permission, usually approved
+          'instagram_basic'    // Basic permission, usually approved
+        ].join(',');
+        console.log('⚠️  Using DEVELOPMENT MODE scopes (minimal permissions)');
+        console.log('   To use full publishing features, set FACEBOOK_DEV_MODE=false and submit for App Review');
+      } else {
+        // Full scopes for Production Mode (requires App Review)
+        // Required permissions for Instagram publishing:
+        // - pages_manage_posts: Required to publish content to Instagram via Page
+        // - instagram_content_publish: Required to publish to Instagram
+        // - pages_show_list: Required to list user's Facebook Pages
+        // - pages_read_engagement: Required to read page engagement metrics
+        // - instagram_basic: Required for basic Instagram account info
+        // - business_management: Required for managing business assets
+        scopes = [
+          'instagram_basic',
+          'instagram_content_publish',
+          'pages_show_list',
+          'pages_read_engagement',
+          'pages_manage_posts',
+          'instagram_manage_insights',
+          'instagram_manage_comments',
+          'business_management'
+        ].join(',');
+        console.log('✅ Using PRODUCTION MODE scopes (full permissions)');
+      }
       
       // Log the configuration
       console.log('Instagram Business API OAuth Configuration:');
