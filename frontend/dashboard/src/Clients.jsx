@@ -1,38 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Users, Plus, Mail, Link as LinkIcon, User, X, Instagram, Facebook, Undo2 } from 'lucide-react';
 import Layout from './Layout.jsx';
-
-// Helper function to get backend URL
-const getBackendUrl = () => {
-  // If accessing via ngrok, always use localhost:5000 for backend
-  if (window.location.hostname.includes('ngrok')) {
-    const savedPort = localStorage.getItem('backend_port');
-    if (savedPort) {
-      console.log('Using saved backend port for ngrok:', savedPort);
-      return `http://localhost:${savedPort}`;
-    }
-    console.log('Using default backend port for ngrok: 5000');
-    return 'http://localhost:5000';
-  }
-  
-  // In development on localhost, try to detect the backend port
-  if (window.location.port === '3000' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    // Vite dev server or localhost - try backend ports 5000 first, then 5001
-    // Check localStorage for saved port
-    const savedPort = localStorage.getItem('backend_port');
-    if (savedPort) {
-      console.log('Using saved backend port:', savedPort);
-      return `http://localhost:${savedPort}`;
-    }
-    // Default to 5000 (backend standard port)
-    console.log('Using default backend port: 5000');
-    return 'http://localhost:5000';
-  }
-  
-  // Production: use same origin
-  console.log('Using current origin for backend:', window.location.origin);
-  return window.location.origin;
-};
+import { getBackendUrl } from './config/api.js';
 
 // Helper function to handle authentication errors
 const handleAuthError = (response, errorData) => {

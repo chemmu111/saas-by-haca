@@ -12,30 +12,7 @@ import { useMediaDetector } from './hooks/useMediaDetector';
 import { useClientCapabilities } from './hooks/useClientCapabilities';
 import { useAIHashtags } from './hooks/useAIHashtags';
 import { useImageCrop } from './hooks/useImageCrop';
-
-// Get backend URL helper (moved outside component to prevent recreation)
-const getBackendUrl = () => {
-  // If accessing via ngrok, always use localhost:5000 for backend
-  if (window.location.hostname.includes('ngrok')) {
-    const savedPort = localStorage.getItem('backend_port');
-    if (savedPort) {
-      return `http://localhost:${savedPort}`;
-    }
-    return 'http://localhost:5000';
-  }
-  
-  // If on Vite dev server (port 3000) or localhost, use localhost:5000 for backend
-  if (window.location.port === '3000' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    const savedPort = localStorage.getItem('backend_port');
-    if (savedPort) {
-      return `http://localhost:${savedPort}`;
-    }
-    return 'http://localhost:5000';
-  }
-  
-  // Production: use same origin
-  return window.location.origin;
-};
+import { getBackendUrl } from './config/api.js';
 
 const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
 

@@ -1,33 +1,10 @@
 import { useState } from 'react';
+import { getBackendUrl } from '../config/api.js';
 
 export const usePostPublishing = () => {
   const [publishing, setPublishing] = useState(false);
   const [publishResult, setPublishResult] = useState(null);
   const [error, setError] = useState('');
-
-  // Get backend URL helper
-  const getBackendUrl = () => {
-    // If accessing via ngrok, always use localhost:5000 for backend
-    if (window.location.hostname.includes('ngrok')) {
-      const savedPort = localStorage.getItem('backend_port');
-      if (savedPort) {
-        return `http://localhost:${savedPort}`;
-      }
-      return 'http://localhost:5000';
-    }
-    
-    // If on Vite dev server (port 3000) or localhost, use localhost:5000 for backend
-    if (window.location.port === '3000' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      const savedPort = localStorage.getItem('backend_port');
-      if (savedPort) {
-        return `http://localhost:${savedPort}`;
-      }
-      return 'http://localhost:5000';
-    }
-    
-    // Production: use same origin
-    return window.location.origin;
-  };
 
   const publishPost = async (postId) => {
     setPublishing(true);

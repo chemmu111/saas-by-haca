@@ -1,30 +1,7 @@
 import { useState, useEffect } from 'react';
 import { User, Calendar, Clock, BarChart } from 'lucide-react';
 import Layout from './Layout.jsx';
-
-// Get backend URL helper
-const getBackendUrl = () => {
-  // If accessing via ngrok, always use localhost:5000 for backend
-  if (window.location.hostname.includes('ngrok')) {
-    const savedPort = localStorage.getItem('backend_port');
-    if (savedPort) {
-      return `http://localhost:${savedPort}`;
-    }
-    return 'http://localhost:5000';
-  }
-  
-  // If on Vite dev server (port 3000), use localhost:5000 for backend
-  if (window.location.port === '3000' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    const savedPort = localStorage.getItem('backend_port');
-    if (savedPort) {
-      return `http://localhost:${savedPort}`;
-    }
-    return 'http://localhost:5000';
-  }
-  
-  // Production: use same origin
-  return window.location.origin;
-};
+import { getBackendUrl } from './config/api.js';
 
 const Dashboard = () => {
   const [userName, setUserName] = useState('User');

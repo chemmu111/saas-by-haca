@@ -11,32 +11,7 @@ import Signup from './Signup.jsx';
 import ResetPassword from './ResetPassword.jsx';
 import AdminHome from './AdminHome.jsx';
 import ManagerHome from './ManagerHome.jsx';
-
-// Helper function to get backend URL
-const getBackendUrl = () => {
-  // If accessing via ngrok, always use localhost:5000 for backend
-  if (window.location.hostname.includes('ngrok')) {
-    const savedPort = localStorage.getItem('backend_port');
-    if (savedPort) {
-      return `http://localhost:${savedPort}`;
-    }
-    return 'http://localhost:5000';
-  }
-  
-  // In development, try to detect the backend port
-  if (window.location.port === '3000' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    // Vite dev server - try backend ports 5000 (standard) or 5001 (fallback)
-    // Check localStorage for saved port, otherwise default to 5000
-    const savedPort = localStorage.getItem('backend_port');
-    if (savedPort) {
-      return `http://localhost:${savedPort}`;
-    }
-    // Default to 5000 (backend standard port)
-    return 'http://localhost:5000';
-  }
-  // Production: use same origin
-  return window.location.origin;
-};
+import { getBackendUrl } from './config/api.js';
 
 // Component to handle authentication check
 const AuthGuard = ({ children }) => {

@@ -3,6 +3,7 @@ import Layout from './Layout.jsx';
 import DeleteConfirmModal from './DeleteConfirmModal.jsx';
 import CreatePostModal from './CreatePostModal.jsx';
 import { FileText, Calendar, Clock, CheckCircle, XCircle, Edit, Trash2, Filter, Plus, Instagram, Facebook, Image as ImageIcon, Send, Upload, X, AlertCircle, Video, Hash, Search, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Play, Heart, MessageCircle, Eye, TrendingUp } from 'lucide-react';
+import { getBackendUrl } from './config/api.js';
 
 const Posts = () => {
   const [posts, setPosts] = useState([]);
@@ -28,30 +29,6 @@ const Posts = () => {
   
   const POSTS_PER_PAGE = 10;
   
-
-  // Helper function to get backend URL
-  const getBackendUrl = () => {
-    // If accessing via ngrok, always use localhost:5000 for backend
-    if (window.location.hostname.includes('ngrok')) {
-      const savedPort = localStorage.getItem('backend_port');
-      if (savedPort) {
-        return `http://localhost:${savedPort}`;
-      }
-      return 'http://localhost:5000';
-    }
-    
-    // If on Vite dev server (port 3000) or localhost, use localhost:5000 for backend
-    if (window.location.port === '3000' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      const savedPort = localStorage.getItem('backend_port');
-      if (savedPort) {
-        return `http://localhost:${savedPort}`;
-      }
-      return 'http://localhost:5000';
-    }
-    
-    // Production: use same origin
-    return window.location.origin;
-  };
 
   // Show toast notification
   const showToast = (message, type = 'success') => {
