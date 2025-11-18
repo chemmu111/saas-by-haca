@@ -259,7 +259,7 @@ app.get('/health', (req, res) => {
   res.json({ ok: true });
 });
 
-const PORT = 5000; // Fixed port - do not change
+const PORT = process.env.PORT || 5000; // Use Render's PORT or default to 5000
 const MONGODB_URI = process.env.MONGODB_URI;
 
 async function start() {
@@ -280,9 +280,9 @@ async function start() {
       console.error('Failed to start post scheduler:', error);
     }
     
-    // Start the server on port 5000 only
+    // Start the server on the configured PORT
     const server = app.listen(PORT, () => {
-      console.log(`🚀 API listening on http://localhost:${PORT}`);
+      console.log(`🚀 API listening on port ${PORT}`);
     }).on('error', (err) => {
       if (err.code === 'EADDRINUSE') {
         console.error(`❌ Port ${PORT} is already in use. Please free up port ${PORT} and try again.`);
