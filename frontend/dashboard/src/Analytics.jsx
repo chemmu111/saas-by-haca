@@ -56,6 +56,59 @@ const Analytics = () => {
     return { startDate, endDate };
   };
 
+  // Helper function to normalize media URLs
+  // Converts old ngrok URLs or relative paths to current backend URL
+  const normalizeMediaUrl = (url) => {
+    if (!url) return url;
+    
+    try {
+      const backendUrl = window.location.origin;
+      
+      // If it's already a full URL, check if it's from an old ngrok domain
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        const urlObj = new URL(url);
+        
+        // If it's an ngrok URL, replace with current backend URL
+        if (urlObj.hostname.includes('ngrok')) {
+          // Extract the path (e.g., /uploads/filename.png)
+          return `${backendUrl}${urlObj.pathname}`;
+        }
+        
+        // If it's localhost but different port, use current backend
+        if (urlObj.hostname === 'localhost' && urlObj.port !== window.location.port) {
+          return `${backendUrl}${urlObj.pathname}`;
+        }
+        
+        // Otherwise return as-is
+        return url;
+      }
+      
+      // If it's a relative path (starts with /uploads/ or /api/images/)
+      if (url.startsWith('/uploads/') || url.startsWith('/api/images/')) {
+        // Convert /api/images/ to /uploads/ for consistency
+        const normalizedPath = url.startsWith('/api/images/') 
+          ? url.replace('/api/images/', '/uploads/')
+          : url;
+        return `${backendUrl}${normalizedPath}`;
+      }
+      
+      // If it's just a filename, assume it's in uploads
+      if (!url.includes('/') && !url.includes('http')) {
+        return `${backendUrl}/uploads/${url}`;
+      }
+      
+      return url;
+    } catch (error) {
+      console.warn('Error normalizing media URL:', url, error);
+      // Fallback: try to construct URL with current backend
+      const backendUrl = window.location.origin;
+      if (url.startsWith('/')) {
+        return `${backendUrl}${url}`;
+      }
+      return url;
+    }
+  };
+
   const fetchAnalytics = async () => {
     try {
       setLoading(true);
@@ -736,7 +789,7 @@ const Analytics = () => {
                     {(post.thumbnail_url || (post.mediaUrls && post.mediaUrls[0])) && (
                       <div className="flex-shrink-0">
                         <img
-                          src={post.thumbnail_url || post.mediaUrls[0]}
+                          src={normalizeMediaUrl(post.thumbnail_url || post.mediaUrls[0])}
                           alt="Post thumbnail"
                           className="w-20 h-20 object-cover rounded-lg border border-slate-200"
                           onError={(e) => {

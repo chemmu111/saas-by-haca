@@ -8,7 +8,8 @@
     "dev": "node --env-file=.env --watch src/index.js",
     "start": "node --env-file=.env src/index.js",
     "migrate:users": "node --env-file=.env src/scripts/migrateUsersAddRole.js",
-    "create:admin": "node --env-file=.env src/scripts/createAdminUser.js"
+    "create:admin": "node --env-file=.env src/scripts/createAdminUser.js",
+    "update:token": "node --env-file=.env src/scripts/updateAccessTokenAndUrls.js"
   },
   "dependencies": {
     "axios": "^1.13.2",

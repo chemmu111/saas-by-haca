@@ -17,7 +17,6 @@ const Posts = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [postToDelete, setPostToDelete] = useState(null);
   
-
   // Helper function to get backend URL
   const getBackendUrl = () => {
     if (window.location.port === '3000') {
@@ -29,6 +28,62 @@ const Posts = () => {
     }
     return window.location.origin;
   };
+
+  // Helper function to normalize media URLs
+  // Converts old ngrok URLs or relative paths to current backend URL
+  const normalizeMediaUrl = (url) => {
+    if (!url) return url;
+    
+    try {
+      // If it's already a full URL, check if it's from an old ngrok domain
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        const urlObj = new URL(url);
+        
+        // If it's an ngrok URL, replace with current backend URL
+        if (urlObj.hostname.includes('ngrok')) {
+          const backendUrl = getBackendUrl();
+          // Extract the path (e.g., /uploads/filename.png)
+          return `${backendUrl}${urlObj.pathname}`;
+        }
+        
+        // If it's localhost but different port, use current backend
+        if (urlObj.hostname === 'localhost' && urlObj.port !== window.location.port) {
+          const backendUrl = getBackendUrl();
+          return `${backendUrl}${urlObj.pathname}`;
+        }
+        
+        // Otherwise return as-is
+        return url;
+      }
+      
+      // If it's a relative path (starts with /uploads/ or /api/images/)
+      if (url.startsWith('/uploads/') || url.startsWith('/api/images/')) {
+        const backendUrl = getBackendUrl();
+        // Convert /api/images/ to /uploads/ for consistency
+        const normalizedPath = url.startsWith('/api/images/') 
+          ? url.replace('/api/images/', '/uploads/')
+          : url;
+        return `${backendUrl}${normalizedPath}`;
+      }
+      
+      // If it's just a filename, assume it's in uploads
+      if (!url.includes('/') && !url.includes('http')) {
+        const backendUrl = getBackendUrl();
+        return `${backendUrl}/uploads/${url}`;
+      }
+      
+      return url;
+    } catch (error) {
+      console.warn('Error normalizing media URL:', url, error);
+      // Fallback: try to construct URL with current backend
+      const backendUrl = getBackendUrl();
+      if (url.startsWith('/')) {
+        return `${backendUrl}${url}`;
+      }
+      return url;
+    }
+  };
+
 
   // Show toast notification
   const showToast = (message, type = 'success') => {
@@ -75,9 +130,25 @@ const Posts = () => {
         return;
       }
 
+      if (!response.ok) {
+        // Try to get error message from response
+        let errorMessage = `Failed to fetch posts (${response.status})`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (e) {
+          // If response is not JSON, use status text
+          errorMessage = response.statusText || errorMessage;
+        }
+        setError(errorMessage);
+        console.error('Error fetching posts:', response.status, errorMessage);
+        return;
+      }
+
       const result = await response.json();
       if (result.success) {
         setPosts(result.data || []);
+        setError(''); // Clear any previous errors
       } else {
         setError(result.error || 'Failed to fetch posts');
       }
@@ -417,17 +488,41 @@ const Posts = () => {
                 {/* Media Preview */}
                 {post.mediaUrls && post.mediaUrls.length > 0 && (
                   <div className="mb-4 flex gap-2 flex-wrap">
-                    {post.mediaUrls.map((url, index) => (
-                      <img
-                        key={index}
-                        src={url}
-                        alt={`Post media ${index + 1}`}
-                        className="w-24 h-24 object-cover rounded-lg border border-gray-200"
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                        }}
-                      />
-                    ))}
+                    {post.mediaUrls.map((url, index) => {
+                      const normalizedUrl = normalizeMediaUrl(url);
+                      return (
+                        <div key={index} className="relative">
+                          <img
+                            src={normalizedUrl}
+                            alt={`Post media ${index + 1}`}
+                            className="w-24 h-24 object-cover rounded-lg border border-gray-200"
+                            loading="lazy"
+                            decoding="async"
+                            onError={(e) => {
+                              // Show placeholder instead of hiding
+                              e.target.style.display = 'none';
+                              const placeholder = e.target.nextSibling;
+                              if (placeholder) {
+                                placeholder.style.display = 'flex';
+                              }
+                            }}
+                            onLoad={(e) => {
+                              // Hide placeholder if image loads successfully
+                              const placeholder = e.target.nextSibling;
+                              if (placeholder) {
+                                placeholder.style.display = 'none';
+                              }
+                            }}
+                          />
+                          <div 
+                            className="w-24 h-24 bg-gray-100 border border-gray-200 rounded-lg flex items-center justify-center text-xs text-gray-400"
+                            style={{ display: 'none' }}
+                          >
+                            Image not found
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
