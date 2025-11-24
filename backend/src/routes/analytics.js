@@ -184,6 +184,10 @@ router.get('/', async (req, res) => {
     let totalFollowers = 0;
     let totalAccountReach = 0; // Account-level reach (daily trend)
     let igTotalViews = 0;
+    let igTotalInteractions = 0;
+    let igTotalWatchTime = 0;
+    let igAvgWatchTimeSum = 0;
+    let igAvgWatchTimeCount = 0;
     let igTotalEngagements = 0;
     let igTotalLikes = 0;
     let igTotalComments = 0;
@@ -240,8 +244,17 @@ router.get('/', async (req, res) => {
           // Extract media metrics - ONLY FROM INSTAGRAM API
           if (data.media) {
             const mediaViews = data.media.totalViews || 0;
-            const reelCount = (data.media.postsByType?.REELS || 0) + (data.media.postsByType?.REEL || 0);
+            const mediaInteractions = data.media.totalInteractions || 0;
+            const mediaWatchTime = data.media.totalWatchTime || 0;
+            const mediaAvgWatchTime = data.media.avgWatchTime || 0;
+
             igTotalViews += mediaViews;
+            igTotalInteractions += mediaInteractions;
+            igTotalWatchTime += mediaWatchTime;
+            if (mediaAvgWatchTime > 0) {
+              igAvgWatchTimeSum += mediaAvgWatchTime;
+              igAvgWatchTimeCount += 1;
+            }
             igTotalEngagements += data.media.totalEngagements || 0;
             igTotalLikes += data.media.totalLikes || 0;
             igTotalComments += data.media.totalComments || 0;
@@ -251,33 +264,14 @@ router.get('/', async (req, res) => {
             // Log views extraction for debugging
             console.log(`   📊 Instagram API Response:`);
             console.log(`      Total Views: ${mediaViews}`);
-            console.log(`      REEL Count: ${reelCount}`);
+            console.log(`      Total Interactions: ${mediaInteractions}`);
             console.log(`      Posts by Type:`, data.media.postsByType || {});
-            if (mediaViews === 0 && reelCount > 0) {
-              console.log(`      ⚠️  WARNING: ${reelCount} REEL(s) found but 0 views!`);
-              console.log(`      This might indicate:`);
-              console.log(`        1. REEL insights not being fetched correctly`);
-              console.log(`        2. REELs have no views yet`);
-              console.log(`        3. API permissions issue`);
-            }
 
             // Aggregate post types
             if (data.media.postsByType) {
               Object.keys(data.media.postsByType).forEach(type => {
                 postsByTypeFromIG[type] = (postsByTypeFromIG[type] || 0) + (data.media.postsByType[type] || 0);
               });
-            }
-
-            // If we have recentPosts, also check for views there (fallback)
-            if (data.recentPosts && Array.isArray(data.recentPosts)) {
-              const reelsViews = data.recentPosts
-                .filter(p => p.media_type === 'REEL' || p.media_type === 'REELS')
-                .reduce((sum, p) => sum + (p.metrics?.plays || p.metrics?.views || 0), 0);
-
-              if (reelsViews > 0 && mediaViews === 0) {
-                console.log(`   ⚠️  Using views from recentPosts: ${reelsViews}`);
-                igTotalViews += reelsViews;
-              }
             }
           }
 
@@ -315,25 +309,22 @@ router.get('/', async (req, res) => {
     // However, if Instagram API returns 0 views but we have published REELS in database,
     // try to get views from database engagement data as a fallback (only for posts we published)
     if (igTotalViews === 0) {
-      // Check if we have published REELS in database with views data
-      // Only count posts that were actually published through our system (have instagramPostId)
       const publishedReels = posts.filter(p =>
         p.status === 'published' &&
-        (p.instagramPostId || p.facebookPostId) && // Must be actually published
-        (p.postType === 'reel' || p.postType === 'REEL' || p.postType === 'REELS') &&
+        (p.instagramPostId || p.facebookPostId) &&
         p.engagement?.views > 0
       );
 
       if (publishedReels.length > 0) {
         const dbViews = publishedReels.reduce((sum, p) => sum + (p.engagement?.views || 0), 0);
-        console.log(`   📊 Found ${publishedReels.length} published REELS in database with ${dbViews} total views (using as fallback)`);
-        totalViews = dbViews; // Use database views as fallback if Instagram API returns 0
+        console.log(`   📊 Found ${publishedReels.length} published posts in database with ${dbViews} total views (using as fallback)`);
+        totalViews = dbViews;
       } else {
-        totalViews = igTotalViews; // Use Instagram API (0 if no REELS or no views)
-        console.log(`   📊 No views found: Instagram API returned 0, and no published REELS in database with views`);
+        totalViews = igTotalViews;
+        console.log(`   📊 No views found: Instagram API returned 0, and no published posts in database with views`);
       }
     } else {
-      totalViews = igTotalViews; // Always use Instagram views when available
+      totalViews = igTotalViews;
       console.log(`   ✅ Using Instagram API views: ${igTotalViews}`);
     }
 
@@ -407,9 +398,13 @@ router.get('/', async (req, res) => {
         REELS: postsByTypeFromIG.REELS || 0,
       },
       // Real engagement metrics - ONLY FROM INSTAGRAM API (NO DATABASE FALLBACKS)
-      totalEngagements: igTotalEngagements, // Instagram API only
-      totalViews: igTotalViews, // Instagram API only (REEL/REELS plays)
-      totalReach: totalAccountReach, // Account-level reach
+      totalEngagements: igTotalEngagements,
+      totalViews: totalViews,
+      totalReach: totalAccountReach,
+      totalInteractions: igTotalInteractions || 0,
+      avgWatchTime: igAvgWatchTimeCount > 0 ? igAvgWatchTimeSum / igAvgWatchTimeCount : 0,
+      totalWatchTime: igTotalWatchTime,
+      reelWatchTimeTotal: igTotalWatchTime,
       totalLikes: igTotalLikes, // Instagram API only
       totalComments: igTotalComments, // Instagram API only
       totalShares: igTotalShares, // Instagram API only

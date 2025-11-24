@@ -668,7 +668,6 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
     setShowInsights(false);
     setSelectedMediaIndex(0);
     setPublishResult(null);
-    resetCrop();
 
     onClose();
   };

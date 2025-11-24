@@ -36,6 +36,43 @@ const Dashboard = () => {
       }
     }
 
+    // Check for default dashboard tab preference
+    const checkDefaultTab = async () => {
+      try {
+        const token = localStorage.getItem('auth_token');
+        if (!token) return;
+
+        const getBackendUrl = () => {
+          if (window.location.port === '3000') {
+            const savedPort = localStorage.getItem('backend_port');
+            return savedPort ? `http://localhost:${savedPort}` : 'http://localhost:5000';
+          }
+          return window.location.origin;
+        };
+
+        const backendUrl = getBackendUrl();
+        const response = await fetch(`${backendUrl}/api/settings/preferences`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data.defaultTab && result.data.defaultTab !== 'overview') {
+            // Redirect to user's preferred tab
+            navigate(`/dashboard/${result.data.defaultTab}`);
+            return; // Don't load dashboard data if redirecting
+          }
+        }
+      } catch (error) {
+        console.error('Error checking default tab:', error);
+      }
+    };
+
+    checkDefaultTab();
+
     const fetchData = async () => {
       try {
         const token = localStorage.getItem('auth_token');

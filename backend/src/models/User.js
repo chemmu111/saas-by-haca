@@ -10,7 +10,32 @@ const userSchema = new mongoose.Schema(
       enum: ['admin', 'social media manager'],
       default: 'social media manager',
       required: true
-    }
+    },
+    bio: { type: String, default: '', maxlength: 500 },
+    theme: {
+      mode: { type: String, enum: ['light', 'dark', 'auto'], default: 'light' },
+      color: { type: String, default: 'blue' }
+    },
+    notificationSettings: {
+      emailAlerts: { type: Boolean, default: true },
+      tokenAlerts: { type: Boolean, default: true },
+      reminders: { type: Boolean, default: true },
+      weeklyReports: { type: Boolean, default: false }
+    },
+    preferences: {
+      language: { type: String, default: 'en' },
+      timezone: { type: String, default: 'UTC' },
+      defaultTab: { type: String, default: 'overview' },
+      defaultDateRange: { type: String, default: '7days' }
+    },
+    twoFactorEnabled: { type: Boolean, default: false },
+    sessions: [{
+      token: String,
+      createdAt: { type: Date, default: Date.now },
+      expiresAt: Date,
+      userAgent: String,
+      ip: String
+    }]
   },
   { timestamps: true }
 );
@@ -23,8 +48,5 @@ userSchema.pre('save', function (next) {
   next();
 });
 
-
 const User = mongoose.model('User', userSchema);
 export default User;
-
-

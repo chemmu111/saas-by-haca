@@ -54,20 +54,60 @@ const Layout = ({ children }) => {
     return window.location.origin;
   };
 
-  const handleSignOut = () => {
+  const [defaultTabLabel, setDefaultTabLabel] = useState('Main Dashboard');
+
+  // Fetch user's default tab preference
+  useEffect(() => {
+    const fetchDefaultTab = async () => {
+      try {
+        const token = localStorage.getItem('auth_token');
+        if (!token) return;
+
+        const backendUrl = window.location.port === '3000'
+          ? `http://localhost:${localStorage.getItem('backend_port') || '5000'}`
+          : window.location.origin;
+
+        const response = await fetch(`${backendUrl}/api/settings/preferences`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data.defaultTab) {
+            // Map defaultTab value to display label
+            const tabLabels = {
+              'overview': 'Main Dashboard',
+              'posts': 'Posts',
+              'calendar': 'Calendar',
+              'analytics': 'Analytics',
+              'reports': 'Reports',
+              'clients': 'Clients'
+            };
+            setDefaultTabLabel(tabLabels[result.data.defaultTab] || 'Main Dashboard');
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching default tab:', error);
+      }
+    };
+
+    fetchDefaultTab();
+  }, [location.pathname]); // Re-fetch when route changes
+
+  const handleLogout = () => {
     localStorage.removeItem('auth_token');
-    // Redirect to login page (outside React Router) on backend server
-    const backendUrl = getBackendUrl();
-    window.location.href = `${backendUrl}/login.html`;
+    localStorage.removeItem('user_info');
+    navigate('/login');
   };
 
   const menuItems = [
-    { icon: LayoutDashboard, label: 'Overview', path: '/dashboard' },
+    { icon: LayoutDashboard, label: defaultTabLabel, path: '/dashboard' },
     { icon: Users, label: 'Clients', path: '/dashboard/clients' },
     { icon: FileText, label: 'Posts', path: '/dashboard/posts' },
     { icon: Calendar, label: 'Calendar', path: '/dashboard/calendar' },
-    { icon: Image, label: 'Media Library', path: '/dashboard/media' },
-    { icon: FileType, label: 'Templates', path: '/dashboard/templates' },
     { icon: TrendingUp, label: 'Analytics', path: '/dashboard/analytics' },
     { icon: FileCheck, label: 'Reports', path: '/dashboard/reports' },
     { icon: Settings, label: 'Settings', path: '/dashboard/settings' },
@@ -75,7 +115,7 @@ const Layout = ({ children }) => {
 
   const isActive = (path) => {
     if (path === '/dashboard') {
-      return location.pathname === '/dashboard' || location.pathname === '/';
+      return location.pathname === '/dashboard';
     }
     return location.pathname.startsWith(path);
   };
@@ -87,8 +127,16 @@ const Layout = ({ children }) => {
         className={`${sidebarOpen ? 'w-64' : 'w-0 lg:w-64'
           } bg-white border-r border-gray-200 transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0 lg:flex lg:flex-col fixed lg:static inset-y-0 left-0 z-50 lg:z-auto`}
       >
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-800">Social Manager</h2>
+        <div className="p-6 border-b border-gray-200 flex items-center justify-center">
+          <img
+            src="/dashboard/assets/logo.png"
+            alt="HarisandCo"
+            className="h-12 w-auto object-contain"
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.src = 'https://harisand.co/static/media/NewLogo.fc59d5f2c088d6861458.png';
+            }}
+          />
         </div>
         <nav className="flex-1 p-4 space-y-2">
           {menuItems.map((item, index) => {
@@ -122,44 +170,43 @@ const Layout = ({ children }) => {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top Bar */}
-        <header className="bg-white border-b border-gray-200 px-4 lg:px-6 py-4 flex items-center justify-between">
+        {/* Header */}
+        <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-40">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="lg:hidden p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+            className="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
           >
-            {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+            {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
-
-          <div className="flex items-center gap-4 ml-auto">
-            <span className="text-gray-700 font-medium hidden sm:block">{userName}</span>
+          <div className="flex-1 lg:flex-none"></div>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-600">{userName}</span>
             <button
-              onClick={handleSignOut}
-              className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-red-600 hover:bg-red-50 transition-colors border border-red-200"
+              title="Logout"
             >
               <LogOut size={18} />
-              <span className="hidden sm:inline">Sign Out</span>
+              <span className="hidden sm:inline text-sm">Sign Out</span>
             </button>
           </div>
         </header>
 
-        {/* Overlay for mobile sidebar */}
-        {sidebarOpen && (
-          <div
-            className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
-
         {/* Page Content */}
-        <main className="flex-1 overflow-auto bg-gray-50">
+        <main className="flex-1 p-6 overflow-auto">
           {children}
         </main>
-
       </div>
+
+      {/* Mobile Sidebar Overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        ></div>
+      )}
     </div>
   );
 };
 
 export default Layout;
-

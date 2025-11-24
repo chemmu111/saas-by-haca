@@ -66,7 +66,9 @@ const postSchema = new mongoose.Schema(
       saves: { type: Number, default: 0 },
       views: { type: Number, default: 0 },
       reach: { type: Number, default: 0 },
-      impressions: { type: Number, default: 0 },
+      interactions: { type: Number, default: 0 }, // Total interactions
+      watchTime: { type: Number, default: 0 }, // Avg watch time for reels
+      impressions: { type: Number, default: 0 }, // Deprecated but kept for history
       lastUpdated: { type: Date } // When engagement data was last fetched
     }
   },

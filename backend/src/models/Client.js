@@ -5,11 +5,14 @@ const clientSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, lowercase: true, trim: true },
     socialMediaLink: { type: String, trim: true }, // Optional now, can be derived from OAuth
-    platform: {
+    platform: { 
       type: String,
       enum: ['instagram', 'facebook', 'manual'],
       default: 'manual'
     },
+    instagramAccessToken: { type: String, trim: true },
+    instagramRefreshToken: { type: String, trim: true },
+    instagramTokenExpiresAt: { type: Date },
     accessToken: { type: String, trim: true }, // OAuth access token (deprecated for Instagram, use pageAccessToken)
     refreshToken: { type: String, trim: true }, // OAuth refresh token (if available)
     socialMediaId: { type: String, trim: true }, // Instagram/Facebook user ID

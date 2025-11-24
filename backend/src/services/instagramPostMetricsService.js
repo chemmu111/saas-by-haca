@@ -31,7 +31,7 @@ export async function fetchInstagramPostMetrics(igPostId, pageAccessToken, media
       try {
         const url = `https://graph.facebook.com/v18.0/${igPostId}?fields=like_count,comments_count,media_type&access_token=${pageAccessToken}`;
         const response = await fetch(url);
-        
+
         if (response.ok) {
           const data = await response.json();
           detectedMediaType = data.media_type || mediaType;
@@ -49,25 +49,19 @@ export async function fetchInstagramPostMetrics(igPostId, pageAccessToken, media
       console.warn('Could not fetch insights for post:', error.message);
     }
 
-    // Step 3: Calculate views - ONLY REEL/REELS have real views (plays metric)
-    // VIDEO, IMAGE, and STORY do NOT have real views → return 0
-    let views = 0;
-    if (detectedMediaType === 'REEL' || detectedMediaType === 'REELS') {
-      views = insights?.plays || 0;
-    }
-    // All other media types: views = 0 (no fallback to impressions, reach, or views)
-
-    // Step 4: Build result object
+    // Step 4: Build result object (API v24.0)
     return {
       likes: insights?.likes || 0,
       comments: insights?.comments || 0,
       shares: insights?.shares || 0,
       saves: insights?.saved || 0,
-      views: views, // Only REEL/REELS have real views (via plays), all others return 0
-      reach: (detectedMediaType === 'REEL' || detectedMediaType === 'REELS') ? (insights?.reach || 0) : 0, // Only REEL/REELS have reach
-      replies: detectedMediaType === 'STORY' ? (insights?.replies || 0) : 0, // Only STORY has replies
-      engagement: insights?.engagement || 0, // Calculated: likes + comments + shares + saved
-      impressions: 0 // Not available in v22+ (removed from API)
+      views: insights?.views || 0, // Unified views
+      reach: insights?.reach || 0, // Unified reach
+      interactions: insights?.interactions || 0, // Unified interactions
+      watchTime: insights?.watchTime || 0, // Only for Reels
+      replies: detectedMediaType === 'STORY' ? (insights?.replies || 0) : 0,
+      engagement: insights?.engagement || 0,
+      impressions: 0 // Deprecated
     };
   } catch (error) {
     console.error('Error fetching Instagram post metrics:', error);
@@ -91,7 +85,7 @@ export async function fetchInstagramFollowerCount(igUserId, pageAccessToken) {
 
     // Use insights API to get follower count
     const url = `https://graph.facebook.com/v18.0/${igUserId}/insights?metric=follower_count&period=day&access_token=${pageAccessToken}`;
-    
+
     const response = await fetch(url);
     if (!response.ok) {
       console.error('Error fetching Instagram follower count:', response.status, response.statusText);

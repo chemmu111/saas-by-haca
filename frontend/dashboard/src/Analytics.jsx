@@ -203,6 +203,10 @@ const Analytics = () => {
         totalPosts: data.totalPosts || 0,
         totalFollowers: data.totalFollowers || 0,
         totalViews: data.totalViews || 0,
+        totalReach: data.totalReach || 0,
+        totalInteractions: data.totalInteractions || 0,
+        avgWatchTime: data.avgWatchTime || 0,
+        reelWatchTimeTotal: data.reelWatchTimeTotal || data.totalWatchTime || 0,
         totalEngagements: data.totalEngagements || 0,
         engagementRate: data.engagementRate || 0,
         followerGrowth: data.followerGrowth || 0,
@@ -219,6 +223,7 @@ const Analytics = () => {
         followersTrend: data.followersTrend || [],
         topPost: data.topPost,
         recentPosts: data.recentPosts || [],
+        detailedPosts: data.detailedPosts || []
       });
       setMetadata(meta);
     } catch (err) {
@@ -232,9 +237,13 @@ const Analytics = () => {
     }
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
-    fetchAnalytics();
+    try {
+      await fetchAnalytics();
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const handleExportPDF = async () => {
@@ -539,18 +548,19 @@ const Analytics = () => {
 
           {/* Performance Summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Row 1 */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 relative overflow-hidden group hover:shadow-md transition-all">
               <div className="absolute right-0 top-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                <FileText size={80} className="text-blue-600" />
+                <Eye size={80} className="text-blue-600" />
               </div>
               <div className="flex items-center gap-4 mb-4">
                 <div className="p-3 bg-blue-50 rounded-xl group-hover:scale-110 transition-transform">
-                  <FileText className="text-blue-600" size={24} />
+                  <Eye className="text-blue-600" size={24} />
                 </div>
-                <span className="text-xs font-bold tracking-wider text-blue-600 uppercase bg-blue-50 px-2 py-1 rounded-full">Posts</span>
+                <span className="text-xs font-bold tracking-wider text-blue-600 uppercase bg-blue-50 px-2 py-1 rounded-full">Visibility</span>
               </div>
-              <h3 className="text-sm font-medium text-slate-500 mb-1">Total Posts</h3>
-              <p className="text-3xl font-bold text-slate-900">{analytics.totalPosts}</p>
+              <h3 className="text-sm font-medium text-slate-500 mb-1">Total Views</h3>
+              <p className="text-3xl font-bold text-slate-900">{analytics.totalViews.toLocaleString()}</p>
             </div>
 
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 relative overflow-hidden group hover:shadow-md transition-all">
@@ -561,7 +571,69 @@ const Analytics = () => {
                 <div className="p-3 bg-emerald-50 rounded-xl group-hover:scale-110 transition-transform">
                   <Users className="text-emerald-600" size={24} />
                 </div>
-                <span className="text-xs font-bold tracking-wider text-emerald-600 uppercase bg-emerald-50 px-2 py-1 rounded-full">Audience</span>
+                <span className="text-xs font-bold tracking-wider text-emerald-600 uppercase bg-emerald-50 px-2 py-1 rounded-full">Reach</span>
+              </div>
+              <h3 className="text-sm font-medium text-slate-500 mb-1">Total Reach</h3>
+              <p className="text-3xl font-bold text-slate-900">{analytics.totalReach.toLocaleString()}</p>
+            </div>
+
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 relative overflow-hidden group hover:shadow-md transition-all">
+              <div className="absolute right-0 top-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                <Activity size={80} className="text-purple-600" />
+              </div>
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-3 bg-purple-50 rounded-xl group-hover:scale-110 transition-transform">
+                  <Activity className="text-purple-600" size={24} />
+                </div>
+                <span className="text-xs font-bold tracking-wider text-purple-600 uppercase bg-purple-50 px-2 py-1 rounded-full">Interactions</span>
+              </div>
+              <h3 className="text-sm font-medium text-slate-500 mb-1">Total Interactions</h3>
+              <p className="text-3xl font-bold text-slate-900">{analytics.totalInteractions.toLocaleString()}</p>
+            </div>
+
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 relative overflow-hidden group hover:shadow-md transition-all">
+              <div className="absolute right-0 top-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                <Clock size={80} className="text-rose-600" />
+              </div>
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-3 bg-rose-50 rounded-xl group-hover:scale-110 transition-transform">
+                  <Clock className="text-rose-600" size={24} />
+                </div>
+                <span className="text-xs font-bold tracking-wider text-rose-600 uppercase bg-rose-50 px-2 py-1 rounded-full">Watch Time</span>
+              </div>
+              <h3 className="text-sm font-medium text-slate-500 mb-1">Avg Watch Time</h3>
+              <p className="text-3xl font-bold text-slate-900">
+                {analytics.avgWatchTime ? `${Math.round(analytics.avgWatchTime)}s` : 'N/A'}
+              </p>
+              <p className="text-xs text-slate-500 mt-1">
+                Total: {analytics.reelWatchTimeTotal ? `${Math.round(analytics.reelWatchTimeTotal)}s` : 'N/A'}
+              </p>
+            </div>
+
+            {/* Row 2 - Secondary Metrics */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 relative overflow-hidden group hover:shadow-md transition-all">
+              <div className="absolute right-0 top-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                <FileText size={80} className="text-slate-600" />
+              </div>
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-3 bg-slate-50 rounded-xl group-hover:scale-110 transition-transform">
+                  <FileText className="text-slate-600" size={24} />
+                </div>
+                <span className="text-xs font-bold tracking-wider text-slate-600 uppercase bg-slate-50 px-2 py-1 rounded-full">Content</span>
+              </div>
+              <h3 className="text-sm font-medium text-slate-500 mb-1">Total Posts</h3>
+              <p className="text-3xl font-bold text-slate-900">{analytics.totalPosts}</p>
+            </div>
+
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 relative overflow-hidden group hover:shadow-md transition-all">
+              <div className="absolute right-0 top-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                <Users size={80} className="text-indigo-600" />
+              </div>
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-3 bg-indigo-50 rounded-xl group-hover:scale-110 transition-transform">
+                  <Users className="text-indigo-600" size={24} />
+                </div>
+                <span className="text-xs font-bold tracking-wider text-indigo-600 uppercase bg-indigo-50 px-2 py-1 rounded-full">Community</span>
               </div>
               <h3 className="text-sm font-medium text-slate-500 mb-1">Total Followers</h3>
               <p className="text-3xl font-bold text-slate-900">{analytics.totalFollowers.toLocaleString()}</p>
@@ -569,30 +641,32 @@ const Analytics = () => {
 
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 relative overflow-hidden group hover:shadow-md transition-all">
               <div className="absolute right-0 top-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                <Eye size={80} className="text-purple-600" />
+                <Zap size={80} className="text-yellow-600" />
               </div>
               <div className="flex items-center gap-4 mb-4">
-                <div className="p-3 bg-purple-50 rounded-xl group-hover:scale-110 transition-transform">
-                  <Eye className="text-purple-600" size={24} />
+                <div className="p-3 bg-yellow-50 rounded-xl group-hover:scale-110 transition-transform">
+                  <Zap className="text-yellow-600" size={24} />
                 </div>
-                <span className="text-xs font-bold tracking-wider text-purple-600 uppercase bg-purple-50 px-2 py-1 rounded-full">Reach</span>
+                <span className="text-xs font-bold tracking-wider text-yellow-600 uppercase bg-yellow-50 px-2 py-1 rounded-full">Engagement</span>
               </div>
-              <h3 className="text-sm font-medium text-slate-500 mb-1">Total Views</h3>
-              <p className="text-3xl font-bold text-slate-900">{analytics.totalViews.toLocaleString()}</p>
+              <h3 className="text-sm font-medium text-slate-500 mb-1">Engagement Rate</h3>
+              <p className="text-3xl font-bold text-slate-900">{parseFloat(analytics.engagementRate).toFixed(1)}%</p>
             </div>
 
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 relative overflow-hidden group hover:shadow-md transition-all">
               <div className="absolute right-0 top-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                <Activity size={80} className="text-rose-600" />
+                <TrendingUp size={80} className="text-green-600" />
               </div>
               <div className="flex items-center gap-4 mb-4">
-                <div className="p-3 bg-rose-50 rounded-xl group-hover:scale-110 transition-transform">
-                  <Activity className="text-rose-600" size={24} />
+                <div className="p-3 bg-green-50 rounded-xl group-hover:scale-110 transition-transform">
+                  <TrendingUp className="text-green-600" size={24} />
                 </div>
-                <span className="text-xs font-bold tracking-wider text-rose-600 uppercase bg-rose-50 px-2 py-1 rounded-full">Quality</span>
+                <span className="text-xs font-bold tracking-wider text-green-600 uppercase bg-green-50 px-2 py-1 rounded-full">Growth</span>
               </div>
-              <h3 className="text-sm font-medium text-slate-500 mb-1">Engagement Rate</h3>
-              <p className="text-3xl font-bold text-slate-900">{parseFloat(analytics.engagementRate).toFixed(1)}%</p>
+              <h3 className="text-sm font-medium text-slate-500 mb-1">Follower Growth</h3>
+              <p className="text-3xl font-bold text-slate-900">
+                {analytics.followerGrowth > 0 ? '+' : ''}{analytics.followerGrowth}
+              </p>
             </div>
           </div>
 

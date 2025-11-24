@@ -29,18 +29,35 @@ const getBackendUrl = () => {
   return window.location.origin;
 };
 
+import Login from '../../auth/Login.jsx';
+import Signup from '../../auth/Signup.jsx';
+
 // Component to handle authentication check
 const AuthGuard = ({ children }) => {
   const location = useLocation();
 
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
+    const publicPaths = ['/login', '/signup'];
+
     // If no token and trying to access dashboard routes, redirect to login
-    if (!token && location.pathname.startsWith('/dashboard')) {
-      const backendUrl = getBackendUrl();
-      window.location.href = `${backendUrl}/login.html`;
+    if (!token && !publicPaths.includes(location.pathname)) {
+      // Redirect to internal login route instead of external html
+      // window.location.href = '/login'; // This would cause full reload, better to use navigate if possible, but here we are inside useEffect
     }
   }, [location]);
+
+  const token = localStorage.getItem('auth_token');
+  const publicPaths = ['/login', '/signup'];
+
+  if (!token && !publicPaths.includes(location.pathname)) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // If authenticated and trying to access login/signup, redirect to dashboard
+  if (token && publicPaths.includes(location.pathname)) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return children;
 };
@@ -58,6 +75,8 @@ const App = () => {
       >
         <AuthGuard>
           <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/dashboard/clients" element={<Clients />} />
             <Route path="/dashboard/clients/:clientId" element={<ClientDashboard />} />

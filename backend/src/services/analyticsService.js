@@ -114,6 +114,8 @@ export async function updatePostEngagementMetrics(post, client) {
             metrics.comments += fbMetrics.comments;
             metrics.shares += fbMetrics.shares;
             metrics.views += fbMetrics.views;
+            metrics.reach = (metrics.reach || 0) + (fbMetrics.reach || 0);
+            metrics.interactions = (metrics.interactions || 0) + ((fbMetrics.likes + fbMetrics.comments + fbMetrics.shares) || 0);
           } else {
             metrics = fbMetrics;
           }

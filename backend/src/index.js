@@ -185,42 +185,31 @@ app.use(express.static(publicDir));
 // Serve dashboard assets
 app.use('/dashboard/assets', express.static(path.join(publicDir, 'dashboard', 'assets')));
 
-// Root → login page
+// Root → React App (Login)
 app.get('/', (req, res) => {
-  res.sendFile(path.join(publicDir, 'login.html'));
+  res.sendFile(path.join(publicDir, 'dashboard', 'index.html'));
 });
 
-// Reset password page
-app.get('/reset-password', (req, res) => {
-  res.sendFile(path.join(publicDir, 'reset-password.html'));
+
+// Redirect old HTML files to React routes
+app.get('/login.html', (req, res) => {
+  res.redirect(301, '/login');
 });
 
-app.get('/reset-password.html', (req, res) => {
-  res.sendFile(path.join(publicDir, 'reset-password.html'));
+app.get('/signup.html', (req, res) => {
+  res.redirect(301, '/signup');
 });
 
-// Signup page route for convenience
+// Signup page route → React App
 app.get('/signup', (req, res) => {
-  res.sendFile(path.join(publicDir, 'signup.html'));
+  res.sendFile(path.join(publicDir, 'dashboard', 'index.html'));
 });
 
-// Admin home page
-app.get('/admin-home', (req, res) => {
-  res.sendFile(path.join(publicDir, 'admin-home.html'));
+// Login page route → React App
+app.get('/login', (req, res) => {
+  res.sendFile(path.join(publicDir, 'dashboard', 'index.html'));
 });
 
-app.get('/admin-home.html', (req, res) => {
-  res.sendFile(path.join(publicDir, 'admin-home.html'));
-});
-
-// Social Media Manager home page (legacy)
-app.get('/social-media-manager-home', (req, res) => {
-  res.sendFile(path.join(publicDir, 'social-media-manager-home.html'));
-});
-
-app.get('/social-media-manager-home.html', (req, res) => {
-  res.sendFile(path.join(publicDir, 'social-media-manager-home.html'));
-});
 
 // Dashboard routes - React dashboard
 app.get('/dashboard', (req, res) => {

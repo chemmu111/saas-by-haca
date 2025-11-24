@@ -14,27 +14,27 @@ const templatesDir = path.join(__dirname, '../templates');
 
 export async function generateReport(userId, posts, clients, options = {}) {
   const { startDate, endDate, format = 'json' } = options;
-  
+
   // Calculate statistics
   const totalPosts = posts.length;
   const publishedPosts = posts.filter(p => p.status === 'published').length;
   const scheduledPosts = posts.filter(p => p.status === 'scheduled').length;
   const draftPosts = posts.filter(p => p.status === 'draft').length;
   const failedPosts = posts.filter(p => p.status === 'failed').length;
-  
+
   // Posts by platform
   const postsByPlatform = {
     instagram: posts.filter(p => p.platform === 'instagram' || p.platform === 'both').length,
     facebook: posts.filter(p => p.platform === 'facebook' || p.platform === 'both').length,
   };
-  
+
   // Posts by type
   const postsByType = {
     post: posts.filter(p => p.postType === 'post').length,
     story: posts.filter(p => p.postType === 'story').length,
     reel: posts.filter(p => p.postType === 'reel').length,
   };
-  
+
   // Calculate real engagement metrics from posts
   const getEngagementMetrics = (post) => {
     const engagement = post.engagement || {};
@@ -45,11 +45,13 @@ export async function generateReport(userId, posts, clients, options = {}) {
       saves: engagement.saves || 0,
       views: engagement.views || 0,
       reach: engagement.reach || 0,
+      interactions: engagement.interactions || 0,
+      watchTime: engagement.watchTime || 0,
       impressions: engagement.impressions || 0,
       engagements: (engagement.likes || 0) + (engagement.comments || 0) + (engagement.shares || 0) + (engagement.saves || 0)
     };
   };
-  
+
   // Calculate total engagement metrics
   let totalEngagements = 0;
   let totalViews = 0;
@@ -58,8 +60,10 @@ export async function generateReport(userId, posts, clients, options = {}) {
   let totalShares = 0;
   let totalSaves = 0;
   let totalReach = 0;
+  let totalInteractions = 0;
+  let totalWatchTime = 0;
   let totalImpressions = 0;
-  
+
   posts.forEach(post => {
     const metrics = getEngagementMetrics(post);
     totalEngagements += metrics.engagements;
@@ -69,17 +73,19 @@ export async function generateReport(userId, posts, clients, options = {}) {
     totalShares += metrics.shares;
     totalSaves += metrics.saves;
     totalReach += metrics.reach;
+    totalInteractions += metrics.interactions;
+    totalWatchTime += metrics.watchTime;
     totalImpressions += metrics.impressions;
   });
-  
+
   // Calculate total followers from clients
   const totalFollowers = clients.reduce((sum, client) => {
     return sum + (client.followerCount || 0);
   }, 0);
-  
+
   // Calculate engagement rate
   const engagementRate = totalViews > 0 ? ((totalEngagements / totalViews) * 100).toFixed(2) : '0.00';
-  
+
   // Client breakdown - handle cases where client might be null or not populated
   const clientBreakdown = clients.map(client => {
     const clientPosts = posts.filter(p => {
@@ -88,7 +94,7 @@ export async function generateReport(userId, posts, clients, options = {}) {
       const clientId = p.client._id ? p.client._id.toString() : p.client.toString();
       return clientId === client._id.toString();
     });
-    
+
     // Calculate client-specific engagement metrics
     let clientEngagements = 0;
     let clientViews = 0;
@@ -96,7 +102,7 @@ export async function generateReport(userId, posts, clients, options = {}) {
     let clientComments = 0;
     let clientShares = 0;
     let clientSaves = 0;
-    
+
     clientPosts.forEach(post => {
       const metrics = getEngagementMetrics(post);
       clientEngagements += metrics.engagements;
@@ -106,9 +112,9 @@ export async function generateReport(userId, posts, clients, options = {}) {
       clientShares += metrics.shares;
       clientSaves += metrics.saves;
     });
-    
+
     const clientEngagementRate = clientViews > 0 ? ((clientEngagements / clientViews) * 100).toFixed(2) : '0.00';
-    
+
     return {
       clientId: client._id,
       clientName: client.name || 'Unknown Client',
@@ -129,10 +135,10 @@ export async function generateReport(userId, posts, clients, options = {}) {
       }
     };
   });
-  
+
   // Monthly breakdown
   const monthlyBreakdown = getMonthlyBreakdown(posts, startDate, endDate);
-  
+
   // Generate report object with real analytics data
   const report = {
     generatedAt: new Date().toISOString(),
@@ -155,6 +161,8 @@ export async function generateReport(userId, posts, clients, options = {}) {
       totalShares,
       totalSaves,
       totalReach,
+      totalInteractions,
+      totalWatchTime,
       totalImpressions,
       totalFollowers,
       engagementRate: engagementRate + '%',
@@ -185,17 +193,17 @@ export async function generateReport(userId, posts, clients, options = {}) {
         };
       }),
   };
-  
+
   return report;
 }
 
 function getMonthlyBreakdown(posts, startDate, endDate) {
   const monthly = {};
-  
+
   posts.forEach(post => {
     const date = new Date(post.createdAt);
     const monthKey = date.toISOString().slice(0, 7); // YYYY-MM
-    
+
     if (!monthly[monthKey]) {
       monthly[monthKey] = {
         month: monthKey,
@@ -205,13 +213,13 @@ function getMonthlyBreakdown(posts, startDate, endDate) {
         draft: 0,
       };
     }
-    
+
     monthly[monthKey].total++;
     if (post.status === 'published') monthly[monthKey].published++;
     if (post.status === 'scheduled') monthly[monthKey].scheduled++;
     if (post.status === 'draft') monthly[monthKey].draft++;
   });
-  
+
   return Object.values(monthly).sort((a, b) => a.month.localeCompare(b.month));
 }
 
@@ -220,25 +228,25 @@ function getMonthlyBreakdown(posts, startDate, endDate) {
  */
 export async function generateReportWithTemplate(userId, posts, clients, options = {}) {
   const { startDate, endDate, templateName, format = 'html' } = options;
-  
+
   // Generate base report data
   const report = await generateReport(userId, posts, clients, { startDate, endDate, format });
-  
+
   if (!templateName) {
     return report;
   }
-  
+
   // Load template file
   const templatePath = path.join(templatesDir, templateName);
   if (!fs.existsSync(templatePath)) {
     throw new Error(`Template not found: ${templateName}`);
   }
-  
+
   const templateContent = fs.readFileSync(templatePath, 'utf-8');
-  
+
   // Replace placeholders with real data
   let html = templateContent;
-  
+
   // Replace common placeholders
   html = html.replace(/\{\{totalPosts\}\}/g, report.summary.totalPosts || 0);
   html = html.replace(/\{\{publishedPosts\}\}/g, report.summary.publishedPosts || 0);
@@ -251,37 +259,29 @@ export async function generateReportWithTemplate(userId, posts, clients, options
   html = html.replace(/\{\{storyTypePosts\}\}/g, report.breakdown.byType.story || 0);
   html = html.replace(/\{\{reelTypePosts\}\}/g, report.breakdown.byType.reel || 0);
   // Real analytics data placeholders
-  html = html.replace(/\{\{totalEngagements\}\}/g, report.summary.totalEngagements || 0);
-  html = html.replace(/\{\{totalViews\}\}/g, report.summary.totalViews || 0);
-  html = html.replace(/\{\{totalLikes\}\}/g, report.summary.totalLikes || 0);
-  html = html.replace(/\{\{totalComments\}\}/g, report.summary.totalComments || 0);
-  html = html.replace(/\{\{totalShares\}\}/g, report.summary.totalShares || 0);
-  html = html.replace(/\{\{totalSaves\}\}/g, report.summary.totalSaves || 0);
-  html = html.replace(/\{\{totalFollowers\}\}/g, report.summary.totalFollowers || 0);
-  html = html.replace(/\{\{engagementRate\}\}/g, report.summary.engagementRate || '0.00%');
   html = html.replace(/\{\{startDate\}\}/g, startDate ? new Date(startDate).toLocaleDateString() : 'All Time');
   html = html.replace(/\{\{endDate\}\}/g, endDate ? new Date(endDate).toLocaleDateString() : 'All Time');
   html = html.replace(/\{\{generatedAt\}\}/g, new Date(report.generatedAt).toLocaleString());
-  
+
   // Replace client data
   if (clients.length > 0) {
     const client = clients[0];
     html = html.replace(/\{\{clientName\}\}/g, client.name || 'Client');
     html = html.replace(/\{\{clientEmail\}\}/g, client.email || '');
   }
-  
+
   // Replace top clients list
-  const topClientsHtml = report.topClients.map((client, index) => 
+  const topClientsHtml = report.topClients.map((client, index) =>
     `<li>${index + 1}. ${client.clientName}: ${client.totalPosts} posts (${client.publishedPosts} published)</li>`
   ).join('');
   html = html.replace(/\{\{topClients\}\}/g, topClientsHtml || '<li>No clients</li>');
-  
+
   // Replace recent posts list
-  const recentPostsHtml = report.recentPosts.map(post => 
+  const recentPostsHtml = report.recentPosts.map(post =>
     `<li>${post.caption || 'No caption'} - ${post.status} (${post.platform})</li>`
   ).join('');
   html = html.replace(/\{\{recentPosts\}\}/g, recentPostsHtml || '<li>No posts</li>');
-  
+
   return {
     ...report,
     html: html
@@ -293,40 +293,40 @@ export async function generateReportWithTemplate(userId, posts, clients, options
  */
 export async function generatePDFFromTemplate(userId, posts, clients, options = {}) {
   const { startDate, endDate, templateName } = options;
-  
+
   if (!templateName) {
     throw new Error('Template name is required for PDF generation');
   }
-  
+
   // Load template file
   const templatePath = path.join(templatesDir, templateName);
   if (!fs.existsSync(templatePath)) {
     throw new Error(`Template not found: ${templateName}`);
   }
-  
+
   // Check if template is PDF
   const ext = path.extname(templateName).toLowerCase();
   if (ext !== '.pdf') {
     throw new Error('PDF template must be a PDF file');
   }
-  
+
   // Load PDF template
   const templateBytes = fs.readFileSync(templatePath);
   const pdfDoc = await PDFDocument.load(templateBytes);
-  
+
   // Get pages
   const pages = pdfDoc.getPages();
   if (pages.length === 0) {
     throw new Error('Template PDF has no pages');
   }
-  
+
   // Generate report data
   const report = await generateReport(userId, posts, clients, { startDate, endDate });
-  
+
   // Fill form fields if template has form fields
   const form = pdfDoc.getForm();
   const fields = form.getFields();
-  
+
   // Try to fill common form fields with real analytics data
   const fieldMap = {
     'totalPosts': report.summary.totalPosts || 0,
@@ -342,10 +342,13 @@ export async function generatePDFFromTemplate(userId, posts, clients, options = 
     'totalComments': report.summary.totalComments || 0,
     'totalShares': report.summary.totalShares || 0,
     'totalSaves': report.summary.totalSaves || 0,
+    'totalReach': report.summary.totalReach || 0,
+    'totalInteractions': report.summary.totalInteractions || 0,
+    'totalWatchTime': report.summary.totalWatchTime || 0,
     'totalFollowers': report.summary.totalFollowers || 0,
     'engagementRate': report.summary.engagementRate || '0.00%',
   };
-  
+
   fields.forEach(field => {
     const fieldName = field.getName();
     const value = fieldMap[fieldName];
@@ -360,13 +363,13 @@ export async function generatePDFFromTemplate(userId, posts, clients, options = 
       }
     }
   });
-  
+
   // Flatten form to prevent editing
   form.flatten();
-  
+
   // Generate PDF bytes
   const pdfBytes = await pdfDoc.save();
-  
+
   return pdfBytes;
 }
 

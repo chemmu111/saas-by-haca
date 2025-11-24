@@ -728,6 +728,9 @@ router.get('/callback/:platform', async (req, res) => {
       clientDataToSave.pageId = pageId;
       clientDataToSave.pageAccessToken = pageAccessToken; // Long-lived page token (exchanged above)
       clientDataToSave.igUserId = igUserId;
+      clientDataToSave.instagramAccessToken = pageAccessToken;
+      clientDataToSave.instagramRefreshToken = refreshToken || null;
+      clientDataToSave.instagramTokenExpiresAt = clientDataToSave.tokenExpiresAt || null;
 
       console.log('✅ Instagram-specific fields added with LONG-LIVED tokens only');
       console.log('    Page ID:', pageId);
