@@ -355,6 +355,31 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
     if (!client.igUserId || !client.pageAccessToken) {
       throw new Error('Instagram credentials not found. Client must be connected via OAuth.');
     }
+
+    // Validate and refresh token if needed
+    console.log('  🔐 Validating Instagram access token...');
+    try {
+      const { ensureValidToken } = await import('./instagramTokenService.js');
+      const tokenResult = await ensureValidToken(client);
+      
+      if (tokenResult.needReLogin) {
+        const error = new Error('Instagram token expired. Please reconnect your account.');
+        error.needReLogin = true;
+        throw error;
+      }
+      
+      if (tokenResult.success && tokenResult.client) {
+        // Use fresh token
+        client.pageAccessToken = tokenResult.client.pageAccessToken;
+        console.log('  ✅ Token validated and ready');
+      }
+    } catch (tokenError) {
+      console.error('  ❌ Token validation error:', tokenError.message);
+      if (tokenError.needReLogin) {
+        throw tokenError;
+      }
+      // Continue with existing token if validation fails but not expired
+    }
     
     // Verify permissions before attempting to post
     console.log('  🔍 Verifying Page Access Token permissions...');
@@ -715,18 +740,24 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
       let statusCode = null;
       let statusMessage = null;
       let attempts = 0;
+      // Optimized wait times - start with shorter intervals, increase if needed
       // For stories, use shorter wait times (stories process faster)
-      // For videos, use longer wait times
-      const waitTime = postType === 'story' ? 5000 : 10000; // 5 seconds for stories, 10 for videos
-      const maxAttempts = postType === 'story' ? 24 : 60; // 2 minutes for stories, 10 minutes for videos
+      // For videos, use longer wait times but start shorter
+      const initialWaitTime = postType === 'story' ? 2000 : 3000; // 2-3 seconds initial
+      const regularWaitTime = postType === 'story' ? 3000 : 5000; // 3-5 seconds between checks
+      const maxAttempts = postType === 'story' ? 40 : 120; // 2 minutes for stories, 10 minutes for videos
       
       while (attempts < maxAttempts) {
-        // Wait before checking
-        // For stories, add a small initial delay to give Instagram time to process
-        if (attempts === 0 && postType === 'story') {
-          await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second initial delay for stories
-        } else if (attempts > 0) {
-          await new Promise(resolve => setTimeout(resolve, waitTime));
+        // Wait before checking - optimized intervals
+        if (attempts === 0) {
+          // Initial delay - shorter for faster response
+          await new Promise(resolve => setTimeout(resolve, initialWaitTime));
+        } else if (attempts < 5) {
+          // First few checks - more frequent (media usually processes quickly)
+          await new Promise(resolve => setTimeout(resolve, regularWaitTime));
+        } else {
+          // After 5 attempts, increase interval slightly
+          await new Promise(resolve => setTimeout(resolve, regularWaitTime + 2000));
         }
         
         const statusUrl = `https://graph.facebook.com/v18.0/${creationId}?fields=status_code,status&access_token=${client.pageAccessToken}`;
@@ -823,8 +854,8 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
     let publishResponse;
     let publishData = null;
     let publishAttempts = 0;
-    const maxPublishAttempts = 5;
-    const publishWaitTime = 3000; // 3 seconds between retries
+    const maxPublishAttempts = 3; // Reduced from 5 to 3
+    const publishWaitTime = 2000; // Reduced from 3 to 2 seconds between retries
     
     while (publishAttempts < maxPublishAttempts) {
       if (publishAttempts > 0) {

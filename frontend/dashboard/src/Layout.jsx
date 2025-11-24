@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X, LogOut, LayoutDashboard, Users, FileText, TrendingUp, FileCheck } from 'lucide-react';
+import { Menu, X, LogOut, LayoutDashboard, Users, FileText, TrendingUp, FileCheck, Calendar, Image, FileType, Settings, Shield } from 'lucide-react';
 
 const Layout = ({ children }) => {
   const [userName, setUserName] = useState('User');
+  const [userRole, setUserRole] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     return window.innerWidth >= 1024;
   });
@@ -19,6 +20,7 @@ const Layout = ({ children }) => {
         if (parts.length === 3) {
           const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
           setUserName(payload.name || 'User');
+          setUserRole(payload.role);
         }
       } catch (e) {
         console.error('Error decoding token:', e);
@@ -48,7 +50,7 @@ const Layout = ({ children }) => {
         return `http://localhost:${savedPort}`;
       }
       // Default to 5001 (common when 5000 is busy)
-      return 'http://localhost:5001';
+      return 'http://localhost:5000';
     }
     // Production or already on backend server
     return window.location.origin;
@@ -65,8 +67,15 @@ const Layout = ({ children }) => {
     { icon: LayoutDashboard, label: 'Overview', path: '/dashboard' },
     { icon: Users, label: 'Clients', path: '/dashboard/clients' },
     { icon: FileText, label: 'Posts', path: '/dashboard/posts' },
+    { icon: Calendar, label: 'Calendar', path: '/dashboard/calendar' },
     { icon: TrendingUp, label: 'Analytics', path: '/dashboard/analytics' },
     { icon: FileCheck, label: 'Reports', path: '/dashboard/reports' },
+    { icon: Settings, label: 'Settings', path: '/dashboard/settings' },
+  ];
+
+  // Admin-only menu items
+  const adminMenuItems = [
+    { icon: Shield, label: 'Token Monitor', path: '/dashboard/admin/tokens' },
   ];
 
   const isActive = (path) => {
@@ -80,9 +89,8 @@ const Layout = ({ children }) => {
     <div className="min-h-screen bg-gray-50 flex">
       {/* Sidebar */}
       <aside
-        className={`${
-          sidebarOpen ? 'w-64' : 'w-0 lg:w-64'
-        } bg-white border-r border-gray-200 transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0 lg:flex lg:flex-col fixed lg:static inset-y-0 left-0 z-50 lg:z-auto`}
+        className={`${sidebarOpen ? 'w-64' : 'w-0 lg:w-64'
+          } bg-white border-r border-gray-200 transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0 lg:flex lg:flex-col fixed lg:static inset-y-0 left-0 z-50 lg:z-auto`}
       >
         <div className="p-6 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-800">Social Manager</h2>
@@ -104,17 +112,48 @@ const Layout = ({ children }) => {
                     setSidebarOpen(false);
                   }
                 }}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                  active
-                    ? 'bg-blue-50 text-blue-600 font-medium'
-                    : 'text-gray-700 hover:bg-gray-50'
-                }`}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${active
+                  ? 'bg-blue-50 text-blue-600 font-medium'
+                  : 'text-gray-700 hover:bg-gray-50'
+                  }`}
               >
                 <Icon size={20} />
                 <span>{item.label}</span>
               </button>
             );
           })}
+
+          {/* Admin-only menu items */}
+          {userRole === 'admin' && adminMenuItems.length > 0 && (
+            <>
+              <div className="my-4 border-t border-gray-200"></div>
+              <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Admin
+              </div>
+              {adminMenuItems.map((item, index) => {
+                const Icon = item.icon;
+                const active = isActive(item.path);
+                return (
+                  <button
+                    key={`admin-${index}`}
+                    onClick={() => {
+                      navigate(item.path);
+                      if (window.innerWidth < 1024) {
+                        setSidebarOpen(false);
+                      }
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${active
+                      ? 'bg-blue-50 text-blue-600 font-medium'
+                      : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                  >
+                    <Icon size={20} />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </>
+          )}
         </nav>
       </aside>
 
@@ -128,7 +167,7 @@ const Layout = ({ children }) => {
           >
             {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
-          
+
           <div className="flex items-center gap-4 ml-auto">
             <span className="text-gray-700 font-medium hidden sm:block">{userName}</span>
             <button
@@ -154,12 +193,6 @@ const Layout = ({ children }) => {
           {children}
         </main>
 
-        {/* Footer */}
-        <footer className="bg-white border-t border-gray-200 px-4 lg:px-6 py-4">
-          <div className="flex justify-end">
-            <p className="text-sm text-gray-500">Made in Bolt</p>
-          </div>
-        </footer>
       </div>
     </div>
   );

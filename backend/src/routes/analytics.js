@@ -4,6 +4,14 @@ import Client from '../models/Client.js';
 import requireAuth from '../middleware/requireAuth.js';
 import { updatePostEngagementMetrics, updateClientFollowerCount } from '../services/analyticsService.js';
 import { fetchInstagramAnalytics, fetchAccountInsights, fetchInstagramMedia, clearUserCache } from '../services/instagramInsightsService.js';
+import {
+  createAnalyticsResponse,
+  validateInstagramToken,
+  createTokenErrorResponse,
+  validateRealData,
+  calculateEngagementRate,
+  getCacheInfo
+} from '../services/analyticsResponseHandler.js';
 
 const router = express.Router();
 
@@ -15,7 +23,7 @@ router.get('/', async (req, res) => {
   try {
     const userId = req.user.sub;
     const { startDate, endDate, refresh } = req.query;
-    
+
     // Build date filter
     const dateFilter = {};
     if (startDate || endDate) {
@@ -27,22 +35,42 @@ router.get('/', async (req, res) => {
         dateFilter.createdAt.$lte = new Date(endDate);
       }
     }
-    
+
     // Get all clients for the user
     const clients = await Client.find({ createdBy: userId });
     const clientIds = clients.map(c => c._id);
-    
+
     // Get analytics for all posts (handle case when there are no clients)
+    // IMPORTANT: Scheduled posts should be included regardless of date range
+    // Only apply date filter to published/draft/failed posts
     let posts = [];
     if (clientIds.length > 0) {
-      const postFilter = {
+      // Base filter
+      const baseFilter = {
         createdBy: userId,
-        client: { $in: clientIds },
-        ...dateFilter
+        client: { $in: clientIds }
       };
-      posts = await Post.find(postFilter).populate('client', 'name email platform pageAccessToken igUserId pageId');
+
+      // If date filter is provided, use it but also include scheduled posts
+      if (Object.keys(dateFilter).length > 0) {
+        // Include scheduled posts OR posts within date range
+        // Build proper MongoDB query
+        const query = {
+          ...baseFilter,
+          $or: [
+            { status: 'scheduled' }, // Always include scheduled posts regardless of date
+            { ...dateFilter } // Include posts within date range
+          ]
+        };
+        posts = await Post.find(query).populate('client', 'name email platform pageAccessToken igUserId pageId');
+      } else {
+        // No date filter - get all posts
+        posts = await Post.find(baseFilter).populate('client', 'name email platform pageAccessToken igUserId pageId');
+      }
+
+      console.log(`📊 Found ${posts.length} total posts (including ${posts.filter(p => p.status === 'scheduled').length} scheduled)`);
     }
-    
+
     // If refresh=true, fetch latest engagement metrics from APIs (limited to avoid rate limits)
     if (refresh === 'true') {
       // Update follower counts for clients (limit to 5 to avoid rate limits)
@@ -59,7 +87,7 @@ router.get('/', async (req, res) => {
           console.error(`Error updating follower count for client ${client._id}:`, error);
         }
       }
-      
+
       // Update engagement metrics for published posts (limit to 10 to avoid rate limits)
       const publishedPosts = posts.filter(p => p.status === 'published' && (p.instagramPostId || p.facebookPostId));
       for (let i = 0; i < Math.min(publishedPosts.length, 10); i++) {
@@ -77,7 +105,7 @@ router.get('/', async (req, res) => {
           console.error(`Error updating engagement metrics for post ${post._id}:`, error);
         }
       }
-      
+
       // Re-fetch posts after updates
       if (clientIds.length > 0) {
         posts = await Post.find({
@@ -87,7 +115,7 @@ router.get('/', async (req, res) => {
         }).populate('client', 'name email platform pageAccessToken igUserId pageId');
       }
     }
-    
+
     // Use real engagement data from posts (defaults to 0 if not set)
     const getEngagementMetrics = (post) => {
       const engagement = post.engagement || {};
@@ -97,7 +125,7 @@ router.get('/', async (req, res) => {
       const saves = engagement.saves || 0;
       const views = engagement.views || 0;
       const engagements = likes + comments + shares + saves;
-      
+
       return {
         likes,
         comments,
@@ -107,15 +135,15 @@ router.get('/', async (req, res) => {
         engagements
       };
     };
-    
+
     // Calculate daily trends from real data
     const dailyEngagementData = {};
-    
+
     posts.forEach(post => {
       if (post.createdAt && post.status === 'published') {
         const date = new Date(post.createdAt).toISOString().split('T')[0];
         const metrics = getEngagementMetrics(post);
-        
+
         if (!dailyEngagementData[date]) {
           dailyEngagementData[date] = { date, engagements: 0, views: 0 };
         }
@@ -123,12 +151,12 @@ router.get('/', async (req, res) => {
         dailyEngagementData[date].views += metrics.views;
       }
     });
-    
+
     // Sort and format daily data
     const engagementTrend = Object.values(dailyEngagementData)
       .sort((a, b) => new Date(a.date) - new Date(b.date))
       .slice(-30); // Last 30 days
-    
+
     // Calculate total engagement metrics from real data
     let totalEngagements = 0;
     let totalViews = 0;
@@ -136,7 +164,7 @@ router.get('/', async (req, res) => {
     let totalComments = 0;
     let totalShares = 0;
     let totalSaves = 0;
-    
+
     const postsWithMetrics = posts.map(post => {
       const metrics = getEngagementMetrics(post);
       totalEngagements += metrics.engagements;
@@ -145,17 +173,24 @@ router.get('/', async (req, res) => {
       totalComments += metrics.comments;
       totalShares += metrics.shares;
       totalSaves += metrics.saves;
-      
+
       return {
         ...post.toObject(),
         engagement: metrics
       };
     });
-    
-    // Fetch real Instagram data for Instagram clients
+
+    // Fetch real Instagram data for Instagram clients - ONLY USE INSTAGRAM API DATA
     let totalFollowers = 0;
+    let totalAccountReach = 0; // Account-level reach (daily trend)
     let igTotalViews = 0;
     let igTotalEngagements = 0;
+    let igTotalLikes = 0;
+    let igTotalComments = 0;
+    let igTotalShares = 0;
+    let igTotalSaves = 0;
+    let totalFollowerGrowth = 0;
+    let followersTrendData = [];
     let postsByTypeFromIG = {
       IMAGE: 0,
       VIDEO: 0,
@@ -163,54 +198,197 @@ router.get('/', async (req, res) => {
       REELS: 0
     };
 
-    const instagramClients = clients.filter(c => 
+    const instagramClients = clients.filter(c =>
       c.platform === 'instagram' && c.igUserId && c.pageAccessToken
     );
 
+    console.log(`📡 Fetching Instagram analytics for ${instagramClients.length} client(s)...`);
+
+    let allDetailedPosts = [];
+
     for (const client of instagramClients) {
       try {
-        const igData = await fetchInstagramAnalytics(client.igUserId, client.pageAccessToken);
-        if (igData) {
-          totalFollowers += igData.account?.follower_count || 0;
-          igTotalViews += igData.media?.totalViews || 0;
-          igTotalEngagements += igData.media?.totalEngagements || 0;
-          
-          // Aggregate post types
-          if (igData.media?.postsByType) {
-            Object.keys(igData.media.postsByType).forEach(type => {
-              postsByTypeFromIG[type] = (postsByTypeFromIG[type] || 0) + (igData.media.postsByType[type] || 0);
+        console.log(`   Fetching data for client: ${client.name} (IG User: ${client.igUserId})`);
+        const igData = await fetchInstagramAnalytics(client.igUserId, client.pageAccessToken, client);
+
+        // Check if token expired
+        if (igData && igData.needReLogin) {
+          console.error(`   ❌ Token expired for ${client.name} — user must re-authenticate`);
+          // Return error response requiring re-authentication
+          return res.status(401).json({
+            success: false,
+            needReLogin: true,
+            error: 'instagram_token_expired',
+            message: `Instagram access token expired for ${client.name}. Please reconnect your Instagram account.`,
+            clientName: client.name,
+            timestamp: new Date().toISOString()
+          });
+        }
+
+        if (igData && igData.success && igData.data) {
+          const data = igData.data;
+
+          // Collect detailed posts
+          if (data.allPosts) {
+            allDetailedPosts = [...allDetailedPosts, ...data.allPosts];
+          }
+
+          // Extract account data
+          totalFollowers += data.account?.follower_count || 0;
+          totalAccountReach += data.account?.reach || 0;
+
+          // Extract media metrics - ONLY FROM INSTAGRAM API
+          if (data.media) {
+            const mediaViews = data.media.totalViews || 0;
+            const reelCount = (data.media.postsByType?.REELS || 0) + (data.media.postsByType?.REEL || 0);
+            igTotalViews += mediaViews;
+            igTotalEngagements += data.media.totalEngagements || 0;
+            igTotalLikes += data.media.totalLikes || 0;
+            igTotalComments += data.media.totalComments || 0;
+            igTotalShares += data.media.totalShares || 0;
+            igTotalSaves += data.media.totalSaves || 0;
+
+            // Log views extraction for debugging
+            console.log(`   📊 Instagram API Response:`);
+            console.log(`      Total Views: ${mediaViews}`);
+            console.log(`      REEL Count: ${reelCount}`);
+            console.log(`      Posts by Type:`, data.media.postsByType || {});
+            if (mediaViews === 0 && reelCount > 0) {
+              console.log(`      ⚠️  WARNING: ${reelCount} REEL(s) found but 0 views!`);
+              console.log(`      This might indicate:`);
+              console.log(`        1. REEL insights not being fetched correctly`);
+              console.log(`        2. REELs have no views yet`);
+              console.log(`        3. API permissions issue`);
+            }
+
+            // Aggregate post types
+            if (data.media.postsByType) {
+              Object.keys(data.media.postsByType).forEach(type => {
+                postsByTypeFromIG[type] = (postsByTypeFromIG[type] || 0) + (data.media.postsByType[type] || 0);
+              });
+            }
+
+            // If we have recentPosts, also check for views there (fallback)
+            if (data.recentPosts && Array.isArray(data.recentPosts)) {
+              const reelsViews = data.recentPosts
+                .filter(p => p.media_type === 'REEL' || p.media_type === 'REELS')
+                .reduce((sum, p) => sum + (p.metrics?.plays || p.metrics?.views || 0), 0);
+
+              if (reelsViews > 0 && mediaViews === 0) {
+                console.log(`   ⚠️  Using views from recentPosts: ${reelsViews}`);
+                igTotalViews += reelsViews;
+              }
+            }
+          }
+
+          // Extract follower growth
+          totalFollowerGrowth += data.followerGrowth || 0;
+
+          // Extract followers trend data
+          if (data.trends && data.trends.followers && Array.isArray(data.trends.followers)) {
+            // Merge trend data from all clients
+            data.trends.followers.forEach(day => {
+              const existingDay = followersTrendData.find(d => d.date === day.date);
+              if (existingDay) {
+                existingDay.follower_count += day.follower_count || 0;
+                existingDay.followers += day.followers || 0;
+              } else {
+                followersTrendData.push({
+                  date: day.date,
+                  follower_count: day.follower_count || 0,
+                  followers: day.followers || day.follower_count || 0
+                });
+              }
             });
           }
+
+          console.log(`   ✅ Fetched: ${data.media?.total || 0} posts, ${data.account?.follower_count || 0} followers, ${data.account?.reach || 0} reach`);
+        } else {
+          console.warn(`   ⚠️  No data returned for client ${client.name}`);
         }
       } catch (error) {
-        console.error(`Error fetching IG data for client ${client._id}:`, error);
+        console.error(`   ❌ Error fetching IG data for client ${client._id}:`, error.message);
       }
     }
 
-    // Use Instagram data if available, otherwise use DB data
-    if (igTotalViews > 0) {
-      totalViews = igTotalViews;
-    }
-    if (igTotalEngagements > 0) {
-      totalEngagements = igTotalEngagements;
+    // USE ONLY INSTAGRAM DATA - NO DATABASE FALLBACKS
+    // However, if Instagram API returns 0 views but we have published REELS in database,
+    // try to get views from database engagement data as a fallback (only for posts we published)
+    if (igTotalViews === 0) {
+      // Check if we have published REELS in database with views data
+      // Only count posts that were actually published through our system (have instagramPostId)
+      const publishedReels = posts.filter(p =>
+        p.status === 'published' &&
+        (p.instagramPostId || p.facebookPostId) && // Must be actually published
+        (p.postType === 'reel' || p.postType === 'REEL' || p.postType === 'REELS') &&
+        p.engagement?.views > 0
+      );
+
+      if (publishedReels.length > 0) {
+        const dbViews = publishedReels.reduce((sum, p) => sum + (p.engagement?.views || 0), 0);
+        console.log(`   📊 Found ${publishedReels.length} published REELS in database with ${dbViews} total views (using as fallback)`);
+        totalViews = dbViews; // Use database views as fallback if Instagram API returns 0
+      } else {
+        totalViews = igTotalViews; // Use Instagram API (0 if no REELS or no views)
+        console.log(`   📊 No views found: Instagram API returned 0, and no published REELS in database with views`);
+      }
+    } else {
+      totalViews = igTotalViews; // Always use Instagram views when available
+      console.log(`   ✅ Using Instagram API views: ${igTotalViews}`);
     }
 
-    // Fallback to DB follower count if no IG data
-    if (totalFollowers === 0) {
-      totalFollowers = clients.reduce((sum, client) => {
-        return sum + (client.followerCount || 0);
-      }, 0);
-    }
-    
+    totalEngagements = igTotalEngagements; // Always use Instagram engagements
+    totalLikes = igTotalLikes; // Always use Instagram likes
+    totalComments = igTotalComments; // Always use Instagram comments
+    totalShares = igTotalShares; // Always use Instagram shares
+    totalSaves = igTotalSaves; // Always use Instagram saves
+
+    // Sort followers trend by date
+    followersTrendData.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    console.log(`📊 Instagram Data Summary:`);
+    console.log(`   Total Posts: ${Object.values(postsByTypeFromIG).reduce((sum, count) => sum + count, 0)}`);
+    console.log(`   Total Followers: ${totalFollowers}`);
+    console.log(`   Total Reach: ${totalAccountReach}`);
+    console.log(`   Total Views: ${totalViews}`);
+    console.log(`   Total Engagements: ${totalEngagements}`);
+    console.log(`   Follower Growth: ${totalFollowerGrowth}`);
+
     // Find top performing post based on real engagement data
     const topPost = postsWithMetrics
       .filter(p => p.status === 'published' && p.engagement && p.engagement.engagements > 0)
       .sort((a, b) => (b.engagement?.engagements || 0) - (a.engagement?.engagements || 0))[0];
-    
-    // Calculate analytics with safe defaults
+
+    // Calculate analytics - ONLY USE INSTAGRAM API DATA
+    const totalPostsFromIG = Object.values(postsByTypeFromIG).reduce((sum, count) => sum + count, 0);
+
+    // Calculate engagement rate properly using Reach if available
+    const engagementRate = calculateEngagementRate(totalEngagements, totalFollowers, totalAccountReach);
+
+    // Count published posts - must have status='published' AND actually be published (has postId)
+    // Use publishedTime for date filtering if available, otherwise createdAt
+    const publishedPostsCount = posts.filter(p => {
+      if (p.status !== 'published') return false;
+      // Must have actually been published (has post ID)
+      if (!p.instagramPostId && !p.facebookPostId) return false;
+
+      // If date filter is applied, check publishedTime first, then createdAt
+      if (startDate || endDate) {
+        const dateToCheck = p.publishedTime || p.createdAt;
+        if (!dateToCheck) return false;
+
+        const postDate = new Date(dateToCheck);
+        if (startDate && postDate < new Date(startDate)) return false;
+        if (endDate && postDate > new Date(endDate)) return false;
+      }
+
+      return true;
+    }).length;
+
     const analytics = {
-      totalPosts: posts.length || 0,
-      publishedPosts: posts.filter(p => p.status === 'published').length || 0,
+      // ONLY Instagram API - NO DATABASE FALLBACK
+      totalPosts: totalPostsFromIG, // Always use Instagram count (even if 0)
+      publishedPosts: publishedPostsCount,
       scheduledPosts: posts.filter(p => p.status === 'scheduled').length || 0,
       draftPosts: posts.filter(p => p.status === 'draft').length || 0,
       failedPosts: posts.filter(p => p.status === 'failed').length || 0,
@@ -228,23 +406,25 @@ router.get('/', async (req, res) => {
         CAROUSEL_ALBUM: postsByTypeFromIG.CAROUSEL_ALBUM || 0,
         REELS: postsByTypeFromIG.REELS || 0,
       },
-      // Real engagement metrics from database
-      totalEngagements: totalEngagements || 0,
-      totalViews: totalViews || 0,
-      totalLikes: totalLikes || 0,
-      totalComments: totalComments || 0,
-      totalShares: totalShares || 0,
-      totalSaves: totalSaves || 0,
-      totalFollowers: totalFollowers || 0,
-      engagementRate: totalViews > 0 ? ((totalEngagements / totalViews) * 100).toFixed(2) : '0.00',
-      // Follower growth - not available in database, set to 0
-      // In production, this should be fetched from Instagram/Facebook APIs
-      totalFollowersGained: 0,
-      totalFollowersLost: 0,
-      followerGrowth: 0,
-      // Trends
+      // Real engagement metrics - ONLY FROM INSTAGRAM API (NO DATABASE FALLBACKS)
+      totalEngagements: igTotalEngagements, // Instagram API only
+      totalViews: igTotalViews, // Instagram API only (REEL/REELS plays)
+      totalReach: totalAccountReach, // Account-level reach
+      totalLikes: igTotalLikes, // Instagram API only
+      totalComments: igTotalComments, // Instagram API only
+      totalShares: igTotalShares, // Instagram API only
+      totalSaves: igTotalSaves, // Instagram API only
+      totalFollowers: totalFollowers, // Instagram API only
+      engagementRate: engagementRate,
+      // Follower growth - from Instagram API (calculated from trend data)
+      totalFollowersGained: totalFollowerGrowth > 0 ? totalFollowerGrowth : 0,
+      totalFollowersLost: totalFollowerGrowth < 0 ? Math.abs(totalFollowerGrowth) : 0,
+      followerGrowth: totalFollowerGrowth,
+      // Trends - FROM INSTAGRAM API ONLY
+      // Note: engagementTrend from database is kept for historical data
+      // But followersTrend is ONLY from Instagram API
       engagementTrend: engagementTrend || [],
-      followersTrend: [], // Empty since we don't have follower data
+      followersTrend: followersTrendData, // ONLY from Instagram API - NO DATABASE FALLBACK
       // Top performing post
       topPost: topPost ? {
         id: topPost._id,
@@ -288,8 +468,31 @@ router.get('/', async (req, res) => {
           clientName: p.client ? p.client.name : 'Unknown',
         })),
     };
-    
-    res.json({ success: true, data: analytics });
+
+    // Validate no dummy data
+    validateRealData(analytics);
+
+    // Log real data confirmation
+    console.log('📊 REAL INSTAGRAM ANALYTICS LOADED');
+    console.log('   Total Posts:', analytics.totalPosts, '(from Instagram API)');
+    console.log('   Published:', analytics.publishedPosts, '(from Database)');
+    console.log('   Total Followers:', analytics.totalFollowers, '(from Instagram API)');
+    console.log('   Total Views:', analytics.totalViews, '(from Instagram API - REEL/REELS only)');
+    console.log('   Total Engagements:', analytics.totalEngagements, '(from Instagram API)');
+    console.log('   Total Likes:', analytics.totalLikes, '(from Instagram API)');
+    console.log('   Total Comments:', analytics.totalComments, '(from Instagram API)');
+    console.log('   Total Shares:', analytics.totalShares, '(from Instagram API)');
+    console.log('   Total Saves:', analytics.totalSaves, '(from Instagram API)');
+    console.log('   Engagement Rate:', analytics.engagementRate + '% (Calculated)');
+    console.log('   Follower Growth:', analytics.followerGrowth, '(from Instagram API trend)');
+    console.log('   Followers Trend:', analytics.followersTrend.length, 'days (from Instagram API)');
+    // Return with metadata
+    const responseData = {
+      ...analytics,
+      detailedPosts: allDetailedPosts // Pass the full media array with insights
+    };
+
+    res.json(createAnalyticsResponse(responseData, false, 'mixed'));
   } catch (error) {
     console.error('Error fetching analytics:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch analytics' });
@@ -302,7 +505,7 @@ router.get('/client/:clientId', async (req, res) => {
     const userId = req.user.sub;
     const { clientId } = req.params;
     const { startDate, endDate, refresh } = req.query;
-    
+
     // Build date filter
     const dateFilter = {};
     if (startDate || endDate) {
@@ -314,27 +517,27 @@ router.get('/client/:clientId', async (req, res) => {
         dateFilter.createdAt.$lte = new Date(endDate);
       }
     }
-    
+
     // Verify client belongs to user
     const client = await Client.findOne({
       _id: clientId,
       createdBy: userId
     });
-    
+
     if (!client) {
       return res.status(404).json({
         success: false,
         error: 'Client not found'
       });
     }
-    
+
     // Get posts for this client
     let posts = await Post.find({
       createdBy: userId,
       client: clientId,
       ...dateFilter
     }).populate('client', 'name email platform pageAccessToken igUserId pageId');
-    
+
     // If refresh=true, fetch latest engagement metrics from APIs
     if (refresh === 'true') {
       // Update follower count
@@ -348,7 +551,7 @@ router.get('/client/:clientId', async (req, res) => {
       } catch (error) {
         console.error(`Error updating follower count for client ${client._id}:`, error);
       }
-      
+
       // Update engagement metrics for published posts (limit to 20)
       const publishedPosts = posts.filter(p => p.status === 'published' && (p.instagramPostId || p.facebookPostId));
       for (let i = 0; i < Math.min(publishedPosts.length, 20); i++) {
@@ -366,7 +569,7 @@ router.get('/client/:clientId', async (req, res) => {
           console.error(`Error updating engagement metrics for post ${post._id}:`, error);
         }
       }
-      
+
       // Re-fetch posts after updates
       posts = await Post.find({
         createdBy: userId,
@@ -374,7 +577,7 @@ router.get('/client/:clientId', async (req, res) => {
         ...dateFilter
       }).populate('client', 'name email platform pageAccessToken igUserId pageId');
     }
-    
+
     // Use real engagement data from posts
     const getEngagementMetrics = (post) => {
       const engagement = post.engagement || {};
@@ -384,7 +587,7 @@ router.get('/client/:clientId', async (req, res) => {
       const saves = engagement.saves || 0;
       const views = engagement.views || 0;
       const engagements = likes + comments + shares + saves;
-      
+
       return {
         likes,
         comments,
@@ -394,15 +597,15 @@ router.get('/client/:clientId', async (req, res) => {
         engagements
       };
     };
-    
+
     // Calculate daily trends from real data
     const dailyEngagementData = {};
-    
+
     posts.forEach(post => {
       if (post.createdAt && post.status === 'published') {
         const date = new Date(post.createdAt).toISOString().split('T')[0];
         const metrics = getEngagementMetrics(post);
-        
+
         if (!dailyEngagementData[date]) {
           dailyEngagementData[date] = { date, engagements: 0, views: 0 };
         }
@@ -410,11 +613,11 @@ router.get('/client/:clientId', async (req, res) => {
         dailyEngagementData[date].views += metrics.views;
       }
     });
-    
+
     const engagementTrend = Object.values(dailyEngagementData)
       .sort((a, b) => new Date(a.date) - new Date(b.date))
       .slice(-30);
-    
+
     // Calculate totals from real data
     let totalEngagements = 0;
     let totalViews = 0;
@@ -422,7 +625,7 @@ router.get('/client/:clientId', async (req, res) => {
     let totalComments = 0;
     let totalShares = 0;
     let totalSaves = 0;
-    
+
     const postsWithMetrics = posts.map(post => {
       const metrics = getEngagementMetrics(post);
       totalEngagements += metrics.engagements;
@@ -431,27 +634,68 @@ router.get('/client/:clientId', async (req, res) => {
       totalComments += metrics.comments;
       totalShares += metrics.shares;
       totalSaves += metrics.saves;
-      
+
       return {
         ...post.toObject(),
         engagement: metrics
       };
     });
-    
+
     const topPost = postsWithMetrics
       .filter(p => p.status === 'published' && p.engagement && p.engagement.engagements > 0)
       .sort((a, b) => (b.engagement?.engagements || 0) - (a.engagement?.engagements || 0))[0];
-    
+
     // Get client follower count
     const clientFollowerCount = client.followerCount || 0;
-    
+
     // Calculate client-specific analytics
+    // For single client route, we still need to fetch Instagram data if it's Instagram
+    let clientTotalPosts = posts.length || 0;
+    let clientTotalFollowers = clientFollowerCount || 0;
+    let clientTotalViews = 0;
+    let clientTotalEngagements = 0;
+
+    // If Instagram client, fetch real data
+    if (client.platform === 'instagram' && client.igUserId && client.pageAccessToken) {
+      try {
+        const igData = await fetchInstagramAnalytics(client.igUserId, client.pageAccessToken, client);
+        if (igData && igData.success && igData.data) {
+          const data = igData.data;
+          clientTotalPosts = data.media?.total || 0; // Use Instagram count
+          clientTotalFollowers = data.account?.follower_count || 0; // Use Instagram count
+          clientTotalViews = data.media?.totalViews || 0; // Only REELS
+          clientTotalEngagements = data.media?.totalEngagements || 0;
+        }
+      } catch (error) {
+        console.error(`Error fetching IG data for client ${client._id}:`, error);
+      }
+    }
+
+    // Count published posts - must have status='published' AND actually be published (has postId)
+    // Use publishedTime for date filtering if available, otherwise createdAt
+    const clientPublishedPosts = posts.filter(p => {
+      if (p.status !== 'published') return false;
+      if (!p.instagramPostId && !p.facebookPostId) return false;
+
+      // If date filter is applied, check publishedTime first, then createdAt
+      if (startDate || endDate) {
+        const dateToCheck = p.publishedTime || p.createdAt;
+        if (!dateToCheck) return false;
+
+        const postDate = new Date(dateToCheck);
+        if (startDate && postDate < new Date(startDate)) return false;
+        if (endDate && postDate > new Date(endDate)) return false;
+      }
+
+      return true;
+    }).length;
+
     const analytics = {
       clientId: client._id,
       clientName: client.name || 'Unknown Client',
       platform: client.platform || 'unknown',
-      totalPosts: posts.length || 0,
-      publishedPosts: posts.filter(p => p.status === 'published').length || 0,
+      totalPosts: clientTotalPosts, // Instagram API if available, otherwise DB
+      publishedPosts: clientPublishedPosts,
       scheduledPosts: posts.filter(p => p.status === 'scheduled').length || 0,
       draftPosts: posts.filter(p => p.status === 'draft').length || 0,
       failedPosts: posts.filter(p => p.status === 'failed').length || 0,
@@ -509,7 +753,7 @@ router.get('/client/:clientId', async (req, res) => {
           clientName: p.client ? (p.client.name || 'Unknown') : 'Unknown',
         })),
     };
-    
+
     res.json({ success: true, data: analytics });
   } catch (error) {
     console.error('Error fetching client analytics:', error);
@@ -545,13 +789,13 @@ router.get('/overview', async (req, res) => {
     console.log(`${'='.repeat(60)}\n`);
 
     // Get all Instagram clients
-    const allClients = await Client.find({ 
+    const allClients = await Client.find({
       createdBy: userId,
       platform: 'instagram'
     });
 
     console.log(`📊 Found ${allClients.length} Instagram client(s) for user ${userId}`);
-    
+
     // Log client details for debugging
     allClients.forEach(client => {
       console.log(`  - Client: ${client.name}`);
@@ -559,7 +803,7 @@ router.get('/overview', async (req, res) => {
       console.log(`    pageAccessToken: ${client.pageAccessToken ? '✅ Set (' + client.pageAccessToken.substring(0, 20) + '...)' : '❌ Missing'}`);
     });
 
-    const clients = allClients.filter(c => 
+    const clients = allClients.filter(c =>
       c.igUserId && c.pageAccessToken
     );
 
@@ -602,22 +846,53 @@ router.get('/overview', async (req, res) => {
 
     // Fetch real Instagram data for all clients
     const analyticsData = [];
+    const tokenErrors = [];
+
     for (const client of clients) {
       try {
         console.log(`\n📊 Fetching Instagram analytics for client: ${client.name}`);
         console.log(`   IG User ID: ${client.igUserId}`);
         console.log(`   Token: ${client.pageAccessToken ? client.pageAccessToken.substring(0, 30) + '...' : 'MISSING'}`);
+
+        // Validate token first
+        console.log(`   🔐 Validating Instagram access token...`);
+        const tokenValidation = await validateInstagramToken(client.pageAccessToken, client.igUserId);
+
+        if (!tokenValidation.valid) {
+          console.error(`   ❌ Token validation failed for ${client.name}`);
+          console.error(`      Error: ${tokenValidation.error}`);
+          console.error(`      Message: ${tokenValidation.message}`);
+
+          tokenErrors.push({
+            clientId: client._id,
+            clientName: client.name,
+            ...tokenValidation
+          });
+
+          if (tokenValidation.expired) {
+            // Token expired - return error requiring re-auth
+            return res.status(401).json(createTokenErrorResponse(
+              'token_expired',
+              `Instagram access token expired for ${client.name}. Please re-authenticate.`
+            ));
+          }
+          continue;
+        }
+
+        console.log(`   ✅ Token validated successfully (username: ${tokenValidation.username})`);
+
         const igData = await fetchInstagramAnalytics(client.igUserId, client.pageAccessToken);
-        if (igData) {
+        if (igData && igData.success && igData.data) {
+          const data = igData.data;
           console.log(`✅ Successfully fetched Instagram data for ${client.name}:`, {
-            followers: igData.account?.follower_count,
-            views: igData.media?.totalViews,
-            engagements: igData.media?.totalEngagements
+            followers: data.account?.follower_count,
+            views: data.media?.totalViews,
+            engagements: data.media?.totalEngagements
           });
           analyticsData.push({
             clientId: client._id,
             clientName: client.name,
-            ...igData
+            ...data  // Spread the data object, not the full response
           });
         } else {
           console.warn(`⚠️ No Instagram data returned for client ${client.name}`);
@@ -635,12 +910,13 @@ router.get('/overview', async (req, res) => {
     let totalEngagements = 0;
     let totalFollowerGrowth = 0;
 
-    analyticsData.forEach(data => {
-      totalPosts += data.media?.total || 0;
-      totalFollowers += data.account?.follower_count || 0;
-      totalViews += data.media?.totalViews || 0;
-      totalEngagements += data.media?.totalEngagements || 0;
-      totalFollowerGrowth += data.followerGrowth || 0;
+    analyticsData.forEach(item => {
+      // item is now the data object directly (from spreading ...data above)
+      totalPosts += item.media?.total || 0;
+      totalFollowers += item.account?.follower_count || 0;
+      totalViews += item.media?.totalViews || 0;
+      totalEngagements += item.media?.totalEngagements || 0;
+      totalFollowerGrowth += item.followerGrowth || 0;
     });
 
     // Get posts from database for scheduled/draft counts
@@ -650,43 +926,47 @@ router.get('/overview', async (req, res) => {
       client: { $in: clientIds }
     });
 
-    const publishedPosts = dbPosts.filter(p => p.status === 'published').length;
+    // Count published posts - must have status='published' AND actually be published (has postId)
+    const publishedPosts = dbPosts.filter(p => {
+      return p.status === 'published' && (p.instagramPostId || p.facebookPostId);
+    }).length;
     const scheduledPosts = dbPosts.filter(p => p.status === 'scheduled').length;
     const draftPosts = dbPosts.filter(p => p.status === 'draft').length;
 
-    // Fallback: If no Instagram data, use DB follower count
-    if (totalFollowers === 0) {
-      totalFollowers = clients.reduce((sum, client) => sum + (client.followerCount || 0), 0);
-      console.log(`📊 Using DB follower count as fallback: ${totalFollowers}`);
-    }
+    // NO FALLBACK - Use ONLY Instagram API data
+    // If totalFollowers is 0, it means the account has 0 followers (real data)
 
-    // Calculate engagement rate
-    const engagementRate = totalFollowers > 0
-      ? ((totalEngagements / totalFollowers) * 100).toFixed(2)
-      : '0.00';
+    // Calculate engagement rate using helper
+    const engagementRate = calculateEngagementRate(totalEngagements, totalFollowers);
 
-    console.log(`📊 Analytics Summary:`, {
-      totalPosts: totalPosts || publishedPosts,
+    const overviewData = {
+      // ONLY Instagram API - NO DATABASE FALLBACK
+      totalPosts: totalPosts, // Always use Instagram count (even if 0)
+      publishedPosts,
+      scheduledPosts,
+      draftPosts,
       totalFollowers,
       totalViews,
       totalEngagements,
-      engagementRate
-    });
+      engagementRate,
+      followerGrowth: totalFollowerGrowth
+    };
 
-    res.json({
-      success: true,
-      data: {
-        totalPosts: totalPosts || publishedPosts, // Use IG count or DB count
-        publishedPosts,
-        scheduledPosts,
-        draftPosts,
-        totalFollowers,
-        totalViews,
-        totalEngagements,
-        engagementRate,
-        followerGrowth: totalFollowerGrowth
-      }
-    });
+    console.log(`📊 REAL INSTAGRAM ANALYTICS LOADED (Overview)`);
+    console.log(`   Total Posts: ${overviewData.totalPosts} (from Instagram)`);
+    console.log(`   Published: ${overviewData.publishedPosts} (from Database)`);
+    console.log(`   Scheduled: ${overviewData.scheduledPosts} (from Database)`);
+    console.log(`   Draft: ${overviewData.draftPosts} (from Database)`);
+    console.log(`   Total Followers: ${overviewData.totalFollowers} (from Instagram)`);
+    console.log(`   Total Views: ${overviewData.totalViews} (from Instagram)`);
+    console.log(`   Total Engagements: ${overviewData.totalEngagements} (from Instagram)`);
+    console.log(`   Engagement Rate: ${overviewData.engagementRate}% (Calculated)`);
+    console.log(`   Follower Growth: ${overviewData.followerGrowth} (from Instagram)`);
+
+    // Validate no dummy data
+    validateRealData(overviewData);
+
+    res.json(createAnalyticsResponse(overviewData, refresh !== 'true', 'instagram_api'));
   } catch (error) {
     console.error('Error fetching overview analytics:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch overview analytics' });
@@ -722,23 +1002,28 @@ router.get('/trends', async (req, res) => {
     for (const client of clients) {
       try {
         const igData = await fetchInstagramAnalytics(client.igUserId, client.pageAccessToken);
-        if (igData && igData.trends) {
+        if (igData && igData.success && igData.data && igData.data.trends) {
+          const trends = igData.data.trends;
           // Aggregate engagement trends
-          igData.trends.engagement.forEach(day => {
-            if (!engagementTrendMap[day.date]) {
-              engagementTrendMap[day.date] = { date: day.date, engagements: 0, views: 0 };
-            }
-            engagementTrendMap[day.date].engagements += day.engagements || 0;
-            engagementTrendMap[day.date].views += day.views || 0;
-          });
+          if (trends.engagement && Array.isArray(trends.engagement)) {
+            trends.engagement.forEach(day => {
+              if (!engagementTrendMap[day.date]) {
+                engagementTrendMap[day.date] = { date: day.date, engagements: 0, views: 0 };
+              }
+              engagementTrendMap[day.date].engagements += day.engagements || 0;
+              engagementTrendMap[day.date].views += day.views || 0;
+            });
+          }
 
           // Aggregate follower trends
-          igData.trends.followers.forEach(day => {
-            if (!followerTrendMap[day.date]) {
-              followerTrendMap[day.date] = { date: day.date, followers: 0 };
-            }
-            followerTrendMap[day.date].followers += day.follower_count || day.followers || 0;
-          });
+          if (trends.followers && Array.isArray(trends.followers)) {
+            trends.followers.forEach(day => {
+              if (!followerTrendMap[day.date]) {
+                followerTrendMap[day.date] = { date: day.date, followers: 0 };
+              }
+              followerTrendMap[day.date].followers += day.follower_count || day.followers || 0;
+            });
+          }
         }
       } catch (error) {
         console.error(`Error fetching trends for client ${client._id}:`, error);
@@ -792,8 +1077,8 @@ router.get('/posts', async (req, res) => {
     for (const client of clients) {
       try {
         const igData = await fetchInstagramAnalytics(client.igUserId, client.pageAccessToken);
-        if (igData && igData.recentPosts) {
-          igData.recentPosts.forEach(post => {
+        if (igData && igData.success && igData.data && igData.data.recentPosts) {
+          igData.data.recentPosts.forEach(post => {
             allRecentPosts.push({
               ...post,
               clientName: client.name,
@@ -852,22 +1137,26 @@ router.get('/client-performance', async (req, res) => {
     for (const client of clients) {
       try {
         const igData = await fetchInstagramAnalytics(client.igUserId, client.pageAccessToken);
-        const clientDbPosts = dbPosts.filter(p => 
+        const clientDbPosts = dbPosts.filter(p =>
           p.client && p.client.toString() === client._id.toString()
         );
+
+        // Extract data from structured response
+        const data = (igData && igData.success && igData.data) ? igData.data : null;
 
         const performance = {
           clientId: client._id,
           clientName: client.name,
-          totalPosts: igData?.media?.total || clientDbPosts.length || 0,
-          publishedPosts: clientDbPosts.filter(p => p.status === 'published').length,
+          // ONLY Instagram API - NO DATABASE FALLBACK
+          totalPosts: data?.media?.total || 0, // Always use Instagram count
+          publishedPosts: clientDbPosts.filter(p => p.status === 'published' && (p.instagramPostId || p.facebookPostId)).length,
           scheduledPosts: clientDbPosts.filter(p => p.status === 'scheduled').length,
           draftPosts: clientDbPosts.filter(p => p.status === 'draft').length,
-          totalFollowers: igData?.account?.follower_count || 0,
-          totalViews: igData?.media?.totalViews || 0,
-          totalEngagements: igData?.media?.totalEngagements || 0,
-          engagementRate: igData?.media?.engagementRate || '0.00',
-          postsByType: igData?.media?.postsByType || {
+          totalFollowers: data?.account?.follower_count || 0, // ONLY Instagram API
+          totalViews: data?.media?.totalViews || 0, // ONLY Instagram API (REELS only)
+          totalEngagements: data?.media?.totalEngagements || 0, // ONLY Instagram API
+          engagementRate: data?.media?.engagementRate || '0.00',
+          postsByType: data?.media?.postsByType || {
             IMAGE: 0,
             VIDEO: 0,
             CAROUSEL_ALBUM: 0,
@@ -879,14 +1168,14 @@ router.get('/client-performance', async (req, res) => {
       } catch (error) {
         console.error(`Error fetching performance for client ${client._id}:`, error);
         // Add client with zero metrics
-        const clientDbPosts = dbPosts.filter(p => 
+        const clientDbPosts = dbPosts.filter(p =>
           p.client && p.client.toString() === client._id.toString()
         );
         clientPerformance.push({
           clientId: client._id,
           clientName: client.name,
           totalPosts: clientDbPosts.length,
-          publishedPosts: clientDbPosts.filter(p => p.status === 'published').length,
+          publishedPosts: clientDbPosts.filter(p => p.status === 'published' && (p.instagramPostId || p.facebookPostId)).length,
           scheduledPosts: clientDbPosts.filter(p => p.status === 'scheduled').length,
           draftPosts: clientDbPosts.filter(p => p.status === 'draft').length,
           totalFollowers: 0,
@@ -910,6 +1199,117 @@ router.get('/client-performance', async (req, res) => {
   } catch (error) {
     console.error('Error fetching client performance:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch client performance' });
+  }
+});
+
+// GET /api/analytics/best-posting-times - Get best posting times based on historical engagement
+router.get('/best-posting-times', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const { clientId, days = 30 } = req.query;
+
+    // Build query for published posts with engagement data
+    const query = {
+      createdBy: userId,
+      status: 'published',
+      'metrics.engagement': { $exists: true, $gt: 0 }
+    };
+
+    if (clientId) {
+      query.client = clientId;
+    }
+
+    // Get posts from last N days
+    const daysAgo = new Date();
+    daysAgo.setDate(daysAgo.getDate() - parseInt(days));
+    query.createdAt = { $gte: daysAgo };
+
+    const posts = await Post.find(query)
+      .select('scheduledTime createdAt metrics.engagement')
+      .lean();
+
+    if (posts.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          bestDays: [],
+          bestHours: [],
+          recommendedTimes: []
+        }
+      });
+    }
+
+    // Analyze by day of week (0 = Sunday, 6 = Saturday)
+    const dayEngagement = {};
+    const hourEngagement = {};
+
+    posts.forEach(post => {
+      const postDate = post.scheduledTime ? new Date(post.scheduledTime) : new Date(post.createdAt);
+      const dayOfWeek = postDate.getDay();
+      const hour = postDate.getHours();
+      const engagement = post.metrics?.engagement || 0;
+
+      if (!dayEngagement[dayOfWeek]) {
+        dayEngagement[dayOfWeek] = { total: 0, count: 0 };
+      }
+      dayEngagement[dayOfWeek].total += engagement;
+      dayEngagement[dayOfWeek].count += 1;
+
+      if (!hourEngagement[hour]) {
+        hourEngagement[hour] = { total: 0, count: 0 };
+      }
+      hourEngagement[hour].total += engagement;
+      hourEngagement[hour].count += 1;
+    });
+
+    // Calculate average engagement per day
+    const bestDays = Object.entries(dayEngagement)
+      .map(([day, data]) => ({
+        day: parseInt(day),
+        dayName: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][parseInt(day)],
+        avgEngagement: data.total / data.count,
+        postCount: data.count
+      }))
+      .sort((a, b) => b.avgEngagement - a.avgEngagement)
+      .slice(0, 3); // Top 3 days
+
+    // Calculate average engagement per hour
+    const bestHours = Object.entries(hourEngagement)
+      .map(([hour, data]) => ({
+        hour: parseInt(hour),
+        avgEngagement: data.total / data.count,
+        postCount: data.count
+      }))
+      .sort((a, b) => b.avgEngagement - a.avgEngagement)
+      .slice(0, 5); // Top 5 hours
+
+    // Generate recommended times (combinations of best days and hours)
+    const recommendedTimes = [];
+    bestDays.forEach(dayData => {
+      bestHours.forEach(hourData => {
+        recommendedTimes.push({
+          day: dayData.day,
+          dayName: dayData.dayName,
+          hour: hourData.hour,
+          hourDisplay: `${hourData.hour}:00`,
+          score: (dayData.avgEngagement + hourData.avgEngagement) / 2
+        });
+      });
+    });
+
+    recommendedTimes.sort((a, b) => b.score - a.score);
+
+    res.json({
+      success: true,
+      data: {
+        bestDays,
+        bestHours,
+        recommendedTimes: recommendedTimes.slice(0, 10) // Top 10 recommended times
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching best posting times:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch best posting times' });
   }
 });
 

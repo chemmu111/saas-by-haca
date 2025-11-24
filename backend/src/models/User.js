@@ -16,7 +16,7 @@ const userSchema = new mongoose.Schema(
 );
 
 // Pre-save hook to ensure role is always set (for existing documents without role)
-userSchema.pre('save', function(next) {
+userSchema.pre('save', function (next) {
   if (!this.role) {
     this.role = 'social media manager';
   }

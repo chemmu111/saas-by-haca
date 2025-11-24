@@ -15,10 +15,10 @@ const postSchema = new mongoose.Schema(
     },
     scheduledTime: { type: Date },
     publishedTime: { type: Date },
-    client: { 
-      type: mongoose.Schema.Types.ObjectId, 
-      ref: 'Client', 
-      required: true 
+    client: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Client',
+      required: true
     },
     mediaUrls: [{ type: String }], // Array of image/video URLs
     musicUrl: { type: String, trim: true }, // Music/audio URL for posts and stories
@@ -41,10 +41,10 @@ const postSchema = new mongoose.Schema(
       enum: ['square', 'portrait', 'landscape', 'reel', 'story', 'carousel-square', 'carousel-vertical'],
       default: 'square'
     },
-    createdBy: { 
-      type: mongoose.Schema.Types.ObjectId, 
-      ref: 'User', 
-      required: true 
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
     },
     instagramPostId: { type: String, trim: true }, // Instagram post ID after publishing
     facebookPostId: { type: String, trim: true }, // Facebook post ID after publishing
@@ -52,6 +52,12 @@ const postSchema = new mongoose.Schema(
     facebookPostUrl: { type: String, trim: true }, // Facebook post URL after publishing
     publishingErrors: [{ type: String }], // Array of error messages if publishing fails
     errorMessage: { type: String, trim: true }, // Error message if publishing fails (backward compatibility)
+    folder: { type: mongoose.Schema.Types.ObjectId, ref: 'Folder' }, // Organize posts
+    isTemplate: { type: Boolean, default: false }, // Save as template
+    bestTime: {
+      score: { type: Number }, // 0-100 score
+      reason: { type: String } // "High engagement time"
+    },
     // Engagement metrics (from Instagram/Facebook APIs)
     engagement: {
       likes: { type: Number, default: 0 },

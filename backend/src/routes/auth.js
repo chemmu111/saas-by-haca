@@ -6,6 +6,9 @@ import User from '../models/User.js';
 import VerificationCode from '../models/VerificationCode.js';
 import PasswordReset from '../models/PasswordReset.js';
 import { sendVerificationEmail, sendPasswordResetEmail } from '../services/emailService.js';
+import Client from '../models/Client.js';
+import mongoose from 'mongoose';
+import { refreshLongLivedToken } from '../services/instagramTokenService.js';
 
 const router = Router();
 
@@ -46,7 +49,7 @@ router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body || {};
     console.log('🔐 Login attempt:', { email, passwordLength: password?.length });
-    
+
     if (!email || !isValidEmail(email)) return res.status(400).json({ error: 'Valid email is required' });
     if (!password) return res.status(400).json({ error: 'Password is required' });
 
@@ -55,7 +58,7 @@ router.post('/login', async (req, res) => {
       console.log('❌ User not found:', email);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
-    
+
     console.log('✅ User found:', user.email);
 
     const ok = await bcrypt.compare(password, user.passwordHash);
@@ -63,7 +66,7 @@ router.post('/login', async (req, res) => {
       console.log('❌ Password mismatch for:', email);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
-    
+
     console.log('✅ Password correct for:', email);
 
     // Ensure role exists (for existing users without role field)
@@ -76,7 +79,7 @@ router.post('/login', async (req, res) => {
     if (user.role === 'admin') {
       // Generate 6-digit verification code
       const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-      
+
       // Set expiration to 10 minutes from now
       const expiresAt = new Date();
       expiresAt.setMinutes(expiresAt.getMinutes() + 10);
@@ -95,10 +98,10 @@ router.post('/login', async (req, res) => {
       // Send verification email
       try {
         await sendVerificationEmail(user.email, verificationCode);
-        return res.status(200).json({ 
-          requiresVerification: true, 
+        return res.status(200).json({
+          requiresVerification: true,
           message: 'Verification code sent to your email',
-          email: user.email 
+          email: user.email
         });
       } catch (emailError) {
         console.error('Error sending verification email:', emailError);
@@ -156,33 +159,33 @@ router.post('/verify-code', async (req, res) => {
 router.post('/forgot-password', async (req, res) => {
   try {
     const { email } = req.body || {};
-    
+
     if (!email || !isValidEmail(email)) {
       return res.status(400).json({ error: 'Valid email is required' });
     }
 
     // Find user by email
     const user = await User.findOne({ email: email.toLowerCase() });
-    
+
     // Always return success (security best practice - don't reveal if email exists)
     if (!user) {
-      return res.json({ 
-        success: true, 
-        message: 'If an account with that email exists, a password reset link has been sent.' 
+      return res.json({
+        success: true,
+        message: 'If an account with that email exists, a password reset link has been sent.'
       });
     }
 
     // Generate secure random token
     const resetToken = crypto.randomBytes(32).toString('hex');
-    
+
     // Set expiration to 1 hour from now
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 1);
 
     // Delete any existing unused reset tokens for this user
-    await PasswordReset.deleteMany({ 
-      email: email.toLowerCase(), 
-      used: false 
+    await PasswordReset.deleteMany({
+      email: email.toLowerCase(),
+      used: false
     });
 
     // Save reset token
@@ -200,14 +203,14 @@ router.post('/forgot-password', async (req, res) => {
     // Send password reset email
     try {
       await sendPasswordResetEmail(user.email, resetToken, resetUrl);
-      return res.json({ 
-        success: true, 
-        message: 'If an account with that email exists, a password reset link has been sent.' 
+      return res.json({
+        success: true,
+        message: 'If an account with that email exists, a password reset link has been sent.'
       });
     } catch (emailError) {
       console.error('Error sending password reset email:', emailError);
-      return res.status(500).json({ 
-        error: 'Failed to send password reset email. Please try again.' 
+      return res.status(500).json({
+        error: 'Failed to send password reset email. Please try again.'
       });
     }
   } catch (err) {
@@ -220,11 +223,11 @@ router.post('/forgot-password', async (req, res) => {
 router.post('/reset-password', async (req, res) => {
   try {
     const { token, password } = req.body || {};
-    
+
     if (!token) {
       return res.status(400).json({ error: 'Reset token is required' });
     }
-    
+
     if (!password || password.length < 8) {
       return res.status(400).json({ error: 'Password must be at least 8 characters' });
     }
@@ -258,18 +261,240 @@ router.post('/reset-password', async (req, res) => {
     await passwordReset.save();
 
     // Delete all unused reset tokens for this user (security)
-    await PasswordReset.deleteMany({ 
-      email: user.email.toLowerCase(), 
-      used: false 
+    await PasswordReset.deleteMany({
+      email: user.email.toLowerCase(),
+      used: false
     });
 
-    return res.json({ 
-      success: true, 
-      message: 'Password has been reset successfully. You can now login with your new password.' 
+    return res.json({
+      success: true,
+      message: 'Password has been reset successfully. You can now login with your new password.'
     });
   } catch (err) {
     console.error('Reset password error', err);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/auth/token-status/:clientId - Get token status
+router.get('/token-status/:clientId', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(clientId)) {
+      return res.status(400).json({ error: 'Invalid client ID' });
+    }
+
+    const client = await Client.findById(clientId);
+    if (!client) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    // If tokenStatus is still a string (old schema), return basic info
+    if (typeof client.tokenStatus === 'string') {
+      return res.json({
+        state: client.tokenStatus,
+        expiresInDays: null,
+        lastRefresh: client.lastTokenRefresh,
+        nextRefresh: null,
+        lastRefreshStatus: 'unknown'
+      });
+    }
+
+    res.json(client.tokenStatus);
+  } catch (error) {
+    console.error('Error fetching token status:', error);
+    res.status(500).json({ error: 'Failed to fetch token status' });
+  }
+});
+
+// POST /api/auth/refresh/:clientId - Force refresh token
+router.post('/refresh/:clientId', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(clientId)) {
+      return res.status(400).json({ error: 'Invalid client ID' });
+    }
+
+    const client = await Client.findById(clientId);
+    if (!client) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    if (client.platform !== 'instagram' || !client.pageAccessToken) {
+      return res.status(400).json({ error: 'Client is not connected to Instagram' });
+    }
+
+    console.log(`🔄 Force refreshing token for ${client.name}...`);
+    const refreshResult = await refreshLongLivedToken(client.pageAccessToken);
+
+    if (refreshResult.success) {
+      client.pageAccessToken = refreshResult.accessToken;
+      client.tokenCreatedAt = refreshResult.refreshedAt;
+      client.tokenExpiresIn = refreshResult.expiresIn;
+      client.tokenExpiresAt = new Date(refreshResult.refreshedAt.getTime() + (refreshResult.expiresIn * 1000));
+      client.lastTokenRefresh = refreshResult.refreshedAt;
+
+      client.tokenStatus = {
+        state: refreshResult.expiresInDays > 30 ? 'active' : 'expiring',
+        expiresInDays: refreshResult.expiresInDays,
+        lastRefresh: refreshResult.refreshedAt,
+        nextRefresh: refreshResult.nextRefresh,
+        lastRefreshStatus: 'success'
+      };
+
+      client.tokenNeedsRefresh = false;
+      await client.save();
+
+      res.json({ success: true, status: client.tokenStatus });
+    } else {
+      client.tokenStatus = {
+        state: 'expired',
+        expiresInDays: 0,
+        lastRefresh: new Date(),
+        nextRefresh: null,
+        lastRefreshStatus: 'failed'
+      };
+      await client.save();
+
+      res.status(400).json({
+        success: false,
+        error: refreshResult.error || 'Token refresh failed',
+        needReLogin: refreshResult.needReLogin
+      });
+    }
+  } catch (error) {
+    console.error('Error forcing token refresh:', error);
+    res.status(500).json({ error: 'Failed to refresh token' });
+  }
+});
+
+// GET /api/token/check/:clientId - Real-time token validation via Facebook Debug API
+router.get('/token/check/:clientId', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(clientId)) {
+      return res.status(400).json({ error: 'Invalid client ID' });
+    }
+
+    const client = await Client.findById(clientId);
+    if (!client) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    if (client.platform !== 'instagram' || !client.pageAccessToken) {
+      return res.json({
+        status: 'not_connected',
+        isExpired: false,
+        isExpiringSoon: false,
+        expiresInDays: null,
+        expiresAt: null
+      });
+    }
+
+    // Use Facebook Debug Token API to validate token
+    const appId = process.env.FACEBOOK_APP_ID;
+    const appSecret = process.env.FACEBOOK_APP_SECRET;
+
+    if (!appId || !appSecret) {
+      console.warn('⚠️ Facebook App ID or Secret not configured');
+      // Fallback to local calculation
+      if (client.tokenExpiresAt) {
+        const now = new Date();
+        const expiresAt = new Date(client.tokenExpiresAt);
+        const diffTime = expiresAt - now;
+        const expiresInDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        return res.json({
+          status: expiresInDays <= 0 ? 'expired' : expiresInDays <= 10 ? 'expiringSoon' : 'active',
+          isExpired: expiresInDays <= 0,
+          isExpiringSoon: expiresInDays > 0 && expiresInDays <= 10,
+          expiresInDays: expiresInDays,
+          expiresAt: client.tokenExpiresAt,
+          source: 'local_calculation'
+        });
+      }
+
+      return res.json({
+        status: 'unknown',
+        isExpired: false,
+        isExpiringSoon: false,
+        expiresInDays: null,
+        expiresAt: null
+      });
+    }
+
+    try {
+      // Call Facebook Debug Token API
+      const axios = (await import('axios')).default;
+      const debugUrl = `https://graph.facebook.com/debug_token?input_token=${client.pageAccessToken}&access_token=${appId}|${appSecret}`;
+
+      const response = await axios.get(debugUrl);
+      const tokenData = response.data.data;
+
+      if (!tokenData.is_valid) {
+        // Token is invalid/expired
+        return res.json({
+          status: 'expired',
+          isExpired: true,
+          isExpiringSoon: false,
+          expiresInDays: 0,
+          expiresAt: client.tokenExpiresAt,
+          source: 'facebook_api'
+        });
+      }
+
+      // Calculate days until expiration
+      const expiresAtTimestamp = tokenData.expires_at * 1000; // Convert to milliseconds
+      const expiresAt = new Date(expiresAtTimestamp);
+      const now = new Date();
+      const diffTime = expiresAt - now;
+      const expiresInDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      const status = expiresInDays <= 0 ? 'expired' : expiresInDays <= 10 ? 'expiringSoon' : 'active';
+
+      return res.json({
+        status: status,
+        isExpired: expiresInDays <= 0,
+        isExpiringSoon: expiresInDays > 0 && expiresInDays <= 10,
+        expiresInDays: expiresInDays,
+        expiresAt: expiresAt.toISOString(),
+        source: 'facebook_api'
+      });
+    } catch (apiError) {
+      console.error('Error calling Facebook Debug Token API:', apiError.message);
+
+      // Fallback to local calculation
+      if (client.tokenExpiresAt) {
+        const now = new Date();
+        const expiresAt = new Date(client.tokenExpiresAt);
+        const diffTime = expiresAt - now;
+        const expiresInDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        return res.json({
+          status: expiresInDays <= 0 ? 'expired' : expiresInDays <= 10 ? 'expiringSoon' : 'active',
+          isExpired: expiresInDays <= 0,
+          isExpiringSoon: expiresInDays > 0 && expiresInDays <= 10,
+          expiresInDays: expiresInDays,
+          expiresAt: client.tokenExpiresAt,
+          source: 'local_calculation_fallback'
+        });
+      }
+
+      return res.json({
+        status: 'unknown',
+        isExpired: false,
+        isExpiringSoon: false,
+        expiresInDays: null,
+        expiresAt: null,
+        error: 'Failed to validate token'
+      });
+    }
+  } catch (error) {
+    console.error('Error checking token:', error);
+    res.status(500).json({ error: 'Failed to check token status' });
   }
 });
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { getFileType, getImageDimensions, getVideoMetadata, formatFileSize } from '../lib/mediaUtils';
 
 /**
@@ -10,8 +10,29 @@ export const useMediaDetector = (files) => {
   const [mediaInfo, setMediaInfo] = useState([]);
   const [validationErrors, setValidationErrors] = useState([]);
   const [loading, setLoading] = useState(false);
+  const mediaInfoRef = useRef([]);
+  const filesRef = useRef([]);
+  const isProcessingRef = useRef(false);
+
+  // Create a stable reference for files by comparing file names and sizes
+  const filesKey = useMemo(() => {
+    if (!files || files.length === 0) return '';
+    return files.map(f => `${f.name}-${f.size}-${f.lastModified}`).join('|');
+  }, [files]);
 
   useEffect(() => {
+    // Prevent infinite loops by checking if files actually changed
+    if (filesKey === filesRef.current) {
+      return;
+    }
+    
+    // Prevent concurrent processing
+    if (isProcessingRef.current) {
+      return;
+    }
+
+    filesRef.current = filesKey;
+
     if (!files || files.length === 0) {
       setMediaInfo([]);
       setValidationErrors([]);
@@ -19,6 +40,7 @@ export const useMediaDetector = (files) => {
     }
 
     const processFiles = async () => {
+      isProcessingRef.current = true;
       setLoading(true);
       const info = [];
       const errors = [];
@@ -73,21 +95,24 @@ export const useMediaDetector = (files) => {
       }
 
       setMediaInfo(info);
+      mediaInfoRef.current = info; // Update ref
       setValidationErrors(errors);
       setLoading(false);
+      isProcessingRef.current = false;
     };
 
     processFiles();
 
-    // Cleanup previews on unmount
+    // Cleanup previews on unmount or when files change
     return () => {
-      mediaInfo.forEach(item => {
+      // Cleanup previous mediaInfo using ref to avoid dependency issues
+      mediaInfoRef.current.forEach(item => {
         if (item.preview && item.preview.startsWith('blob:')) {
           URL.revokeObjectURL(item.preview);
         }
       });
     };
-  }, [files]);
+  }, [filesKey]);
 
   /**
    * Validates media files for a specific post type and platform

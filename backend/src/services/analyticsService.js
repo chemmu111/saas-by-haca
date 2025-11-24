@@ -6,10 +6,11 @@
  */
 
 // Import Instagram functions from dedicated service
-import { 
+import {
   fetchInstagramPostMetrics as fetchIGPostMetrics,
   fetchInstagramFollowerCount as fetchIGFollowerCount
 } from './instagramPostMetricsService.js';
+import { fetchInstagramAnalytics } from './instagramInsightsService.js';
 
 /**
  * Fetch engagement metrics for a post from Instagram Graph API
@@ -29,7 +30,7 @@ export async function fetchFacebookPostMetrics(fbPostId, pageAccessToken) {
     }
 
     const url = `https://graph.facebook.com/v18.0/${fbPostId}?fields=likes.summary(true),comments.summary(true),shares,reactions.summary(true)&access_token=${pageAccessToken}`;
-    
+
     const response = await fetch(url);
     if (!response.ok) {
       console.error('Error fetching Facebook post metrics:', response.status, response.statusText);
@@ -37,7 +38,7 @@ export async function fetchFacebookPostMetrics(fbPostId, pageAccessToken) {
     }
 
     const data = await response.json();
-    
+
     return {
       likes: data.likes?.summary?.total_count || data.reactions?.summary?.total_count || 0,
       comments: data.comments?.summary?.total_count || 0,
@@ -71,7 +72,7 @@ export async function fetchFacebookFollowerCount(pageId, pageAccessToken) {
     }
 
     const url = `https://graph.facebook.com/v18.0/${pageId}?fields=fan_count&access_token=${pageAccessToken}`;
-    
+
     const response = await fetch(url);
     if (!response.ok) {
       console.error('Error fetching Facebook follower count:', response.status, response.statusText);
@@ -151,5 +152,44 @@ export async function updateClientFollowerCount(client) {
   }
 }
 
+/**
+ * Update all client stats (followers, posts, engagement rate)
+ */
+export async function updateClientStats(client) {
+  try {
+    if (!client || !client.pageAccessToken || client.platform !== 'instagram' || !client.igUserId) {
+      return null;
+    }
 
+    // Use the existing fetchInstagramAnalytics service which gets everything
+    const igData = await fetchInstagramAnalytics(client.igUserId, client.pageAccessToken, client);
 
+    if (igData && igData.success && igData.data) {
+      const data = igData.data;
+
+      // Calculate engagement rate
+      const totalEngagements = data.media?.totalEngagements || 0;
+      const totalFollowers = data.account?.follower_count || 0;
+      const totalReach = data.account?.reach || 0;
+
+      let engagementRate = '0%';
+      if (totalReach > 0) {
+        engagementRate = ((totalEngagements / totalReach) * 100).toFixed(2) + '%';
+      } else if (totalFollowers > 0) {
+        engagementRate = ((totalEngagements / totalFollowers) * 100).toFixed(2) + '%';
+      }
+
+      return {
+        followerCount: totalFollowers,
+        totalPosts: data.media?.total || 0,
+        engagementRate: engagementRate,
+        statsLastUpdated: new Date()
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error updating client stats:', error);
+    return null;
+  }
+}

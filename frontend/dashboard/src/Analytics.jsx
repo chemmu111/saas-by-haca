@@ -1,32 +1,101 @@
-import { useState, useEffect, useRef } from 'react';
-import { 
-  TrendingUp, FileText, Calendar, BarChart2, Instagram, Facebook, Users, 
-  ArrowUp, Heart, Eye, Download, TrendingDown, MessageCircle, Share2, 
-  Bookmark, Calendar as CalendarIcon, X, RefreshCw
+import { useState, useEffect, useRef, useMemo } from 'react';
+import {
+  TrendingUp, FileText, Calendar, BarChart2, Instagram, Facebook, Users,
+  ArrowUp, Heart, Eye, Download, TrendingDown, X, RefreshCw, AlertTriangle,
+  MessageSquare, Share2, Save, Clock, Hash, Activity, Zap, Award, LayoutGrid
 } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area, ComposedChart, Scatter
+} from 'recharts';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import Layout from './Layout.jsx';
+import TokenCountdown from './components/TokenCountdown.jsx';
+
+const ANALYTICS_VERSION = 'vPRO-2025-11-22';
+
+// Token Expired Modal Component
+const TokenExpiredModal = ({ show, onClose, onReconnect }) => {
+  if (!show) return null;
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+        <div className="flex items-start gap-4 mb-4">
+          <div className="p-3 bg-red-100 rounded-full">
+            <AlertTriangle className="text-red-600" size={28} />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-xl font-bold text-slate-900 mb-2">Instagram Token Expired</h3>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              Your Instagram access token has expired. Please reconnect your Instagram account to continue.
+            </p>
+          </div>
+        </div>
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+          <p className="text-xs text-amber-800 leading-relaxed">
+            <strong>Why?</strong> Instagram tokens expire after 60 days for security. Reconnecting takes only 30 seconds!
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={onReconnect}
+            className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm"
+          >
+            Reconnect Instagram
+          </button>
+          <button
+            onClick={onClose}
+            className="px-4 py-3 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors font-medium"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const Analytics = () => {
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [selectedClient, setSelectedClient] = useState(null);
   const [error, setError] = useState(null);
   const [dateRange, setDateRange] = useState('last30');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
-  const [exportingPDF, setExportingPDF] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [metadata, setMetadata] = useState(null);
+  const [showTokenExpiredModal, setShowTokenExpiredModal] = useState(false);
+  const [tokenStatus, setTokenStatus] = useState(null);
+  const [exportingPDF, setExportingPDF] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(null);
   const dashboardRef = useRef(null);
+
+  useEffect(() => {
+    console.log(`📊 Analytics Dashboard - Version: ${ANALYTICS_VERSION}`);
+    const cacheKeys = Object.keys(localStorage).filter(k =>
+      k.includes('analytics') || k.includes('dummy') || k.includes('cache')
+    );
+    cacheKeys.forEach(key => localStorage.removeItem(key));
+    console.log('✅ Old cache cleared');
+  }, []);
 
   useEffect(() => {
     if (!refreshing) {
       fetchAnalytics();
     }
-  }, [selectedClient, dateRange, customStartDate, customEndDate]);
+  }, [dateRange, customStartDate, customEndDate]);
+
+  // Auto-refresh analytics every 100 seconds
+  useEffect(() => {
+    const autoRefreshInterval = setInterval(() => {
+      console.log('🔄 Auto-refreshing analytics data...');
+      fetchAnalytics();
+    }, 100000); // 100 seconds
+
+    return () => clearInterval(autoRefreshInterval);
+  }, [dateRange, customStartDate, customEndDate]);
 
   const getDateRangeParams = () => {
     const today = new Date();
@@ -34,153 +103,132 @@ const Analytics = () => {
     let startDate = '';
     let endDate = today.toISOString().split('T')[0];
 
-    if (dateRange === 'today') {
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-      startDate = todayStart.toISOString().split('T')[0];
-    } else if (dateRange === 'last7') {
-      const last7Days = new Date();
-      last7Days.setDate(last7Days.getDate() - 7);
-      last7Days.setHours(0, 0, 0, 0);
-      startDate = last7Days.toISOString().split('T')[0];
-    } else if (dateRange === 'last30') {
-      const last30Days = new Date();
-      last30Days.setDate(last30Days.getDate() - 30);
-      last30Days.setHours(0, 0, 0, 0);
-      startDate = last30Days.toISOString().split('T')[0];
-    } else if (dateRange === 'custom') {
-      startDate = customStartDate;
-      endDate = customEndDate || endDate;
+    switch (dateRange) {
+      case 'today':
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        startDate = todayStart.toISOString().split('T')[0];
+        break;
+      case 'last7':
+        const last7 = new Date();
+        last7.setDate(last7.getDate() - 7);
+        last7.setHours(0, 0, 0, 0);
+        startDate = last7.toISOString().split('T')[0];
+        break;
+      case 'last30':
+        const last30 = new Date();
+        last30.setDate(last30.getDate() - 30);
+        last30.setHours(0, 0, 0, 0);
+        startDate = last30.toISOString().split('T')[0];
+        break;
+      case 'custom':
+        startDate = customStartDate;
+        endDate = customEndDate || endDate;
+        break;
     }
-
     return { startDate, endDate };
   };
 
-  // Helper function to normalize media URLs
-  // Converts old ngrok URLs or relative paths to current backend URL
-  const normalizeMediaUrl = (url) => {
-    if (!url) return url;
-    
+  // Check token status before fetching analytics
+  const checkTokenStatus = async (clientId) => {
     try {
-      const backendUrl = window.location.origin;
-      
-      // If it's already a full URL, check if it's from an old ngrok domain
-      if (url.startsWith('http://') || url.startsWith('https://')) {
-        const urlObj = new URL(url);
-        
-        // If it's an ngrok URL, replace with current backend URL
-        if (urlObj.hostname.includes('ngrok')) {
-          // Extract the path (e.g., /uploads/filename.png)
-          return `${backendUrl}${urlObj.pathname}`;
+      const token = localStorage.getItem('auth_token');
+      const backendUrl = window.location.port === '3000' ? 'http://localhost:5000' : window.location.origin;
+
+      const response = await fetch(`${backendUrl}/api/auth/token/check/${clientId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const status = await response.json();
+        setTokenStatus(status);
+
+        if (status.isExpired) {
+          setShowTokenExpiredModal(true);
+          return false;
         }
-        
-        // If it's localhost but different port, use current backend
-        if (urlObj.hostname === 'localhost' && urlObj.port !== window.location.port) {
-          return `${backendUrl}${urlObj.pathname}`;
-        }
-        
-        // Otherwise return as-is
-        return url;
+        return true;
       }
-      
-      // If it's a relative path (starts with /uploads/ or /api/images/)
-      if (url.startsWith('/uploads/') || url.startsWith('/api/images/')) {
-        // Convert /api/images/ to /uploads/ for consistency
-        const normalizedPath = url.startsWith('/api/images/') 
-          ? url.replace('/api/images/', '/uploads/')
-          : url;
-        return `${backendUrl}${normalizedPath}`;
-      }
-      
-      // If it's just a filename, assume it's in uploads
-      if (!url.includes('/') && !url.includes('http')) {
-        return `${backendUrl}/uploads/${url}`;
-      }
-      
-      return url;
-    } catch (error) {
-      console.warn('Error normalizing media URL:', url, error);
-      // Fallback: try to construct URL with current backend
-      const backendUrl = window.location.origin;
-      if (url.startsWith('/')) {
-        return `${backendUrl}${url}`;
-      }
-      return url;
+    } catch (err) {
+      console.error('Error checking token status:', err);
     }
+    return true; // Continue if check fails
   };
 
   const fetchAnalytics = async () => {
     try {
       setLoading(true);
       setError(null);
-      
+      setLastUpdated(new Date());
       const token = localStorage.getItem('auth_token');
       if (!token) {
         setError('Please login to view analytics');
         setLoading(false);
         return;
       }
-
-      const backendUrl = window.location.origin;
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+      // Auto-refresh client data every 100 seconds
+      const backendUrl = window.location.port === '3000' ? 'http://localhost:5000' : window.location.origin;
+      const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+      const dateParams = getDateRangeParams();
+      const buildUrl = (endpoint) => {
+        const params = new URLSearchParams({ _t: Date.now(), refresh: refreshing ? 'true' : 'false' });
+        if (dateParams.startDate) params.append('startDate', dateParams.startDate);
+        if (dateParams.endDate) params.append('endDate', dateParams.endDate);
+        return `${backendUrl}${endpoint}?${params.toString()}`;
       };
-
-      // Fetch real Instagram analytics from new endpoints
-      const [overviewRes, trendsRes, postsRes, clientPerfRes, mainRes] = await Promise.all([
-        fetch(`${backendUrl}/api/analytics/overview${refreshing ? '?refresh=true' : ''}`, { headers }),
-        fetch(`${backendUrl}/api/analytics/trends`, { headers }),
-        fetch(`${backendUrl}/api/analytics/posts?limit=10`, { headers }),
-        fetch(`${backendUrl}/api/analytics/client-performance`, { headers }),
-        // Also fetch main analytics for scheduled/draft counts
-        fetch(`${backendUrl}/api/analytics`, { headers })
-      ]);
-
-      const [overview, trends, posts, clientPerf, main] = await Promise.all([
-        overviewRes.json(),
-        trendsRes.json(),
-        postsRes.json(),
-        clientPerfRes.json(),
-        mainRes.json()
-      ]);
-
-      // Merge real Instagram data with existing analytics
-      if (overview.success && main.success) {
-        const mergedAnalytics = {
-          ...main.data,
-          // Override with real Instagram data
-          totalPosts: overview.data.totalPosts || main.data.totalPosts || 0,
-          publishedPosts: overview.data.publishedPosts || main.data.publishedPosts || 0,
-          scheduledPosts: overview.data.scheduledPosts || main.data.scheduledPosts || 0,
-          draftPosts: overview.data.draftPosts || main.data.draftPosts || 0,
-          totalFollowers: overview.data.totalFollowers || main.data.totalFollowers || 0,
-          totalViews: overview.data.totalViews || main.data.totalViews || 0,
-          totalEngagements: overview.data.totalEngagements || main.data.totalEngagements || 0,
-          engagementRate: overview.data.engagementRate || main.data.engagementRate || '0.00',
-          followerGrowth: overview.data.followerGrowth || 0,
-          // Use real trends
-          engagementTrend: trends.success ? trends.data.engagementTrend : (main.data.engagementTrend || []),
-          followersTrend: trends.success ? trends.data.followerTrend : (main.data.followersTrend || []),
-          // Use real recent posts
-          recentPosts: posts.success ? posts.data : (main.data.recentPosts || []),
-          // Client performance
-          clientAnalytics: clientPerf.success ? clientPerf.data : (main.data.clientAnalytics || [])
-        };
-
-        setAnalytics(mergedAnalytics);
-      } else if (main.success) {
-        // Fallback to main analytics if new endpoints fail
-        setAnalytics(main.data);
-      } else {
-        setError('Failed to load analytics');
+      const response = await fetch(buildUrl('/api/analytics'), { headers, cache: 'no-store' });
+      if (!response.ok) {
+        if (response.status === 401) {
+          const data = await response.json();
+          if (data.needReLogin) {
+            setShowTokenExpiredModal(true);
+            setError('Instagram token expired');
+            return;
+          }
+        }
+        throw new Error(`API error: ${response.status}`);
       }
-    } catch (error) {
-      console.error('Error fetching analytics:', error);
-      setError(error.message || 'Failed to load analytics. Please try again.');
+      const result = await response.json();
+      if (result.needReLogin || result.error === 'instagram_token_expired') {
+        setShowTokenExpiredModal(true);
+        setError('Instagram token expired');
+        return;
+      }
+      if (!result.success || !result.data) {
+        throw new Error('Invalid API response');
+      }
+      const data = result.data;
+      const meta = result.metadata || {};
+      setAnalytics({
+        totalPosts: data.totalPosts || 0,
+        totalFollowers: data.totalFollowers || 0,
+        totalViews: data.totalViews || 0,
+        totalEngagements: data.totalEngagements || 0,
+        engagementRate: data.engagementRate || 0,
+        followerGrowth: data.followerGrowth || 0,
+        totalLikes: data.totalLikes || 0,
+        totalComments: data.totalComments || 0,
+        totalShares: data.totalShares || 0,
+        totalSaves: data.totalSaves || 0,
+        publishedPosts: data.publishedPosts || 0,
+        scheduledPosts: data.scheduledPosts || 0,
+        draftPosts: data.draftPosts || 0,
+        postsByPlatform: data.postsByPlatform || {},
+        postsByType: data.postsByType || {},
+        engagementTrend: data.engagementTrend || [],
+        followersTrend: data.followersTrend || [],
+        topPost: data.topPost,
+        recentPosts: data.recentPosts || [],
+      });
+      setMetadata(meta);
+    } catch (err) {
+      console.error('❌ Error fetching analytics:', err);
+      setError(err.message || 'Failed to fetch analytics');
+      console.error('Debug - Analytics Fetch Error:', err);
     } finally {
       setLoading(false);
       setRefreshing(false);
+      console.log('Debug - Analytics Fetch Complete. Loading: false, Error:', error, 'Analytics:', analytics);
     }
   };
 
@@ -190,117 +238,160 @@ const Analytics = () => {
   };
 
   const handleExportPDF = async () => {
-    if (!dashboardRef.current) return;
-
+    setExportingPDF(true);
     try {
-      setExportingPDF(true);
-      const canvas = await html2canvas(dashboardRef.current, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#f8fafc'
-      });
-
+      const element = dashboardRef.current;
+      const canvas = await html2canvas(element, { scale: 2, useCORS: true, logging: false });
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgWidth = 210;
-      const pageHeight = 297;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
-
-      const fileName = `analytics-report-${new Date().toISOString().split('T')[0]}.pdf`;
-      pdf.save(fileName);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`Analytics-Report-${new Date().toISOString().split('T')[0]}.pdf`);
+      console.log('✅ PDF exported successfully');
     } catch (error) {
-      console.error('Error exporting PDF:', error);
-      alert('Failed to export PDF. Please try again.');
+      console.error('❌ Error exporting PDF:', error);
+      setError('Failed to export PDF');
     } finally {
       setExportingPDF(false);
     }
   };
 
-  // Calculate percentages
-  let totalPlatformPosts = 0;
-  let instagramPercent = 0;
-  let facebookPercent = 0;
-  let maxTypeValue = 0;
-  
-  // Calculate maxTypeValue including Instagram media types
-  if (analytics?.postsByType) {
-    maxTypeValue = Math.max(
-      analytics.postsByType.post || 0,
-      analytics.postsByType.story || 0,
-      analytics.postsByType.reel || 0,
-      analytics.postsByType.IMAGE || 0,
-      analytics.postsByType.VIDEO || 0,
-      analytics.postsByType.REELS || 0,
-      analytics.postsByType.CAROUSEL_ALBUM || 0
+  const getChartData = () => {
+    if (!analytics) return { engagement: [], followers: [] };
+    return {
+      engagement: (analytics.engagementTrend || []).map(item => ({
+        date: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        engagements: item.engagements || 0,
+        views: item.views || 0
+      })),
+      followers: (analytics.followersTrend || []).map(item => ({
+        date: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        followers: item.followers || 0
+      }))
+    };
+  };
+
+  // PRO Analytics Calculations
+  const proInsights = useMemo(() => {
+    if (!analytics) return null;
+
+    const posts = analytics.detailedPosts || [];
+
+    // 1. Best & Worst Performing Posts
+    const sortedByEngagement = [...posts].sort((a, b) =>
+      (b.metrics?.engagement || 0) - (a.metrics?.engagement || 0)
     );
-  }
+    const bestPost = sortedByEngagement[0] || null;
+    const worstPost = sortedByEngagement[sortedByEngagement.length - 1] || null;
 
-  if (analytics) {
-    totalPlatformPosts = (analytics.postsByPlatform?.instagram || 0) + (analytics.postsByPlatform?.facebook || 0);
-    instagramPercent = totalPlatformPosts > 0 ? ((analytics.postsByPlatform?.instagram || 0) / totalPlatformPosts) * 100 : 0;
-    facebookPercent = totalPlatformPosts > 0 ? ((analytics.postsByPlatform?.facebook || 0) / totalPlatformPosts) * 100 : 0;
-  }
+    // 2. Average Engagement
+    const totalEngagement = posts.reduce((sum, p) => sum + (p.metrics?.engagement || 0), 0);
+    const avgEngagement = posts.length > 0 ? Math.round(totalEngagement / posts.length) : 0;
 
-  // Format chart data
-  const engagementTrendData = analytics?.engagementTrend?.map(item => ({
-    date: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    engagements: item.engagements || 0,
-    views: item.views || 0
-  })) || [];
+    // 3. Most Active Posting Day
+    const dayCounts = {};
+    posts.forEach(p => {
+      const day = new Date(p.timestamp).toLocaleDateString('en-US', { weekday: 'long' });
+      dayCounts[day] = (dayCounts[day] || 0) + 1;
+    });
+    const mostActiveDay = Object.entries(dayCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
 
-  const followerTrendData = analytics?.followersTrend?.map(item => ({
-    date: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    followers: item.followers || 0
-  })) || [];
+    // 4. Top Post Type
+    const typeCounts = {};
+    const typeEngagement = {};
+    posts.forEach(p => {
+      const type = p.media_type === 'CAROUSEL_ALBUM' ? 'CAROUSEL' : p.media_type;
+      typeCounts[type] = (typeCounts[type] || 0) + 1;
+      typeEngagement[type] = (typeEngagement[type] || 0) + (p.metrics?.engagement || 0);
+    });
+    const topType = Object.entries(typeEngagement).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
 
-  // Empty State
-  if (!analytics && !loading) {
-    return (
-      <Layout>
-        <div className="p-6 bg-slate-50">
-          <div className="max-w-7xl mx-auto">
-            <div className="mb-8">
-              <h1 className="text-3xl font-bold text-slate-900 mb-2">Analytics Dashboard</h1>
-              <p className="text-slate-600">View your social media performance metrics</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
-              <BarChart2 className="mx-auto text-slate-400 mb-4" size={48} />
-              <h3 className="text-lg font-semibold text-slate-900 mb-2">No analytics data available</h3>
-              <p className="text-slate-600 mb-6">Start creating posts to see your analytics here</p>
-              <a
-                href="/dashboard/posts"
-                className="inline-block px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm"
-              >
-                Create Your First Post
-              </a>
-            </div>
-          </div>
-        </div>
-      </Layout>
-    );
-  }
+    // 5. Content Quality Insights
+    let totalCaptionLength = 0;
+    let totalHashtags = 0;
+    const hashtagStats = {};
 
+    posts.forEach(p => {
+      const caption = p.caption || '';
+      totalCaptionLength += caption.length;
+
+      const hashtags = caption.match(/#[a-z0-9_]+/gi) || [];
+      totalHashtags += hashtags.length;
+
+      hashtags.forEach(tag => {
+        const t = tag.toLowerCase();
+        if (!hashtagStats[t]) hashtagStats[t] = { count: 0, engagement: 0 };
+        hashtagStats[t].count++;
+        hashtagStats[t].engagement += (p.metrics?.engagement || 0);
+      });
+    });
+
+    const avgCaptionLength = posts.length > 0 ? Math.round(totalCaptionLength / posts.length) : 0;
+    const avgHashtagCount = posts.length > 0 ? Math.round(totalHashtags / posts.length) : 0;
+
+    const sortedHashtags = Object.entries(hashtagStats)
+      .map(([tag, stats]) => ({ tag, ...stats, avgEng: Math.round(stats.engagement / stats.count) }))
+      .sort((a, b) => b.avgEng - a.avgEng);
+
+    // 6. Posting Frequency Heatmap (Day vs Hour)
+    const heatmapData = [];
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    // Initialize grid
+    for (let d = 0; d < 7; d++) {
+      for (let h = 0; h < 24; h++) {
+        heatmapData.push({ day: days[d], hour: h, count: 0 });
+      }
+    }
+    posts.forEach(p => {
+      const date = new Date(p.timestamp);
+      const dayIndex = date.getDay();
+      const hour = date.getHours();
+      const entry = heatmapData.find(d => d.day === days[dayIndex] && d.hour === hour);
+      if (entry) entry.count++;
+    });
+
+    // 7. Post Type Performance
+    const postTypePerformance = Object.keys(typeCounts).map(type => ({
+      name: type,
+      count: typeCounts[type],
+      engagement: Math.round(typeEngagement[type] / typeCounts[type]),
+      totalEng: typeEngagement[type]
+    }));
+
+    // 8. Engagement Distribution
+    const engagementDist = [
+      { name: 'Likes', value: analytics.totalLikes, color: '#F43F5E' }, // Rose 500
+      { name: 'Comments', value: analytics.totalComments, color: '#3B82F6' }, // Blue 500
+      { name: 'Saves', value: analytics.totalSaves, color: '#EAB308' }, // Yellow 500
+      { name: 'Shares', value: analytics.totalShares, color: '#10B981' } // Emerald 500
+    ].filter(d => d.value > 0);
+
+    return {
+      bestPost,
+      worstPost,
+      avgEngagement,
+      mostActiveDay,
+      topType,
+      avgCaptionLength,
+      avgHashtagCount,
+      bestHashtags: sortedHashtags.slice(0, 5),
+      worstHashtags: sortedHashtags.slice(-5).reverse(),
+      heatmapData: heatmapData.filter(d => d.count > 0), // Optimization for scatter chart
+      postTypePerformance,
+      engagementDist
+    };
+  }, [analytics]);
+
+  // Loading State
   if (loading) {
     return (
       <Layout>
         <div className="p-6 bg-slate-50">
-          <div className="max-w-7xl mx-auto">
+          <div className="max-w-7xl mx-auto space-y-6">
             <div className="text-center py-12">
               <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-              <p className="mt-4 text-gray-600">Loading analytics...</p>
+              <p className="mt-4 text-slate-600">Loading analytics...</p>
             </div>
           </div>
         </div>
@@ -308,7 +399,8 @@ const Analytics = () => {
     );
   }
 
-  if (error) {
+  // Error State
+  if (error && !showTokenExpiredModal) {
     return (
       <Layout>
         <div className="p-6 bg-slate-50">
@@ -329,546 +421,473 @@ const Analytics = () => {
     );
   }
 
+  // Empty State
+  if (!analytics) {
+    return (
+      <Layout>
+        <div className="p-6 bg-slate-50">
+          <div className="max-w-7xl mx-auto">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
+              <BarChart2 className="mx-auto text-slate-400 mb-4" size={48} />
+              <h3 className="text-lg font-semibold text-slate-900 mb-2">No analytics data available</h3>
+              <p className="text-slate-600 mb-6">Start creating posts to see your analytics here</p>
+
+              <button
+                onClick={fetchAnalytics}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Refresh Analytics
+              </button>
+
+              <div className="mt-8 p-4 bg-slate-100 rounded-lg text-left text-xs font-mono text-slate-600 overflow-auto max-h-40">
+                <p className="font-bold mb-2">Debug Info:</p>
+                <p>Loading: {loading ? 'true' : 'false'}</p>
+                <p>Error: {error ? error : 'null'}</p>
+                <p>Analytics: {analytics ? 'Object' : 'null'}</p>
+                <p>Token Expired Modal: {showTokenExpiredModal ? 'true' : 'false'}</p>
+                <p>Date Range: {dateRange}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  const chartData = getChartData();
+
   return (
     <Layout>
       <div className="p-4 lg:p-6 bg-slate-50" ref={dashboardRef}>
         <div className="max-w-7xl mx-auto space-y-6">
-          {/* Header with Date Range Picker and Export Button */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight text-slate-900 mb-2">Analytics Dashboard</h1>
-              <p className="text-sm text-slate-600">View your social media performance metrics</p>
-            </div>
-            <div className="flex items-center gap-3 flex-wrap">
-              {/* Date Range Picker */}
-              <div className="relative">
-                <select
-                  value={dateRange}
-                  onChange={(e) => {
-                    setDateRange(e.target.value);
-                    if (e.target.value !== 'custom') {
-                      setShowCustomDatePicker(false);
-                    } else {
-                      setShowCustomDatePicker(true);
-                    }
-                  }}
-                  className="px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 bg-white text-slate-900 text-sm shadow-sm hover:border-slate-400 transition-colors"
-                >
-                  <option value="today">Today</option>
-                  <option value="last7">Last 7 days</option>
-                  <option value="last30">Last 30 days</option>
-                  <option value="custom">Custom Range</option>
-                </select>
-                
-                {showCustomDatePicker && (
-                  <div className="absolute top-full left-0 mt-2 bg-white border border-slate-200 rounded-lg shadow-lg p-4 z-10">
-                    <div className="flex gap-2">
-                      <input
-                        type="date"
-                        value={customStartDate}
-                        onChange={(e) => setCustomStartDate(e.target.value)}
-                        className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                      />
-                      <input
-                        type="date"
-                        value={customEndDate}
-                        onChange={(e) => setCustomEndDate(e.target.value)}
-                        className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                      />
-                    </div>
-                  </div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Analytics Dashboard</h1>
+              <div className="flex items-center gap-3">
+                <p className="text-sm text-gray-600">Template Version: {ANALYTICS_VERSION}</p>
+                {lastUpdated && (
+                  <>
+                    <span className="text-gray-400">•</span>
+                    <p className="text-sm text-gray-600 flex items-center gap-1">
+                      <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                      Auto-refresh: Last updated {new Date(lastUpdated).toLocaleTimeString()}
+                    </p>
+                  </>
                 )}
               </div>
-
-              {/* Refresh Button */}
+            </div>
+            <div className="flex items-center gap-3">
+              {/* Token Expiry Warning */}
+              {tokenStatus && tokenStatus.isExpiringSoon && !tokenStatus.isExpired && (
+                <div className="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg text-sm font-medium flex items-center gap-2">
+                  <AlertTriangle size={16} />
+                  <span>Token expires in {tokenStatus.expiresInDays} days. Reconnect soon.</span>
+                </div>
+              )}
+              <select
+                value={dateRange}
+                onChange={(e) => {
+                  setDateRange(e.target.value);
+                  setShowCustomDatePicker(e.target.value === 'custom');
+                }}
+                className="px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-slate-900 text-sm"
+              >
+                <option value="today">Today</option>
+                <option value="last7">Last 7 days</option>
+                <option value="last30">Last 30 days</option>
+                <option value="custom">Custom Range</option>
+              </select>
               <button
                 onClick={handleRefresh}
                 disabled={refreshing}
-                className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium shadow-sm disabled:opacity-50 flex items-center gap-2"
               >
                 <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
-                Refresh Data
+                {refreshing ? 'Fetching...' : 'Refresh'}
               </button>
-
-              {/* Export PDF Button */}
               <button
                 onClick={handleExportPDF}
                 disabled={exportingPDF}
-                className="px-4 py-2.5 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm disabled:opacity-50 flex items-center gap-2"
               >
                 <Download size={16} />
-                Export PDF Report
+                {exportingPDF ? 'Exporting...' : 'Export PDF'}
               </button>
             </div>
           </div>
 
-          {/* Client Filter */}
-          {analytics.clientAnalytics && analytics.clientAnalytics.length > 0 && (
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-              <label className="block text-sm font-medium text-slate-700 mb-2">Filter By Client</label>
-              <select
-                value={selectedClient || ''}
-                onChange={(e) => setSelectedClient(e.target.value || null)}
-                className="w-full sm:w-auto px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-slate-900 text-sm"
-              >
-                <option value="">All Clients</option>
-                {analytics.clientAnalytics.map(client => (
-                  <option key={client.clientId} value={client.clientId}>
-                    {client.clientName}
-                  </option>
-                ))}
-              </select>
+          {/* Custom Date Picker */}
+          {showCustomDatePicker && (
+            <div className="bg-white border border-slate-200 rounded-lg p-4 flex gap-3 items-center">
+              <label className="text-sm font-medium text-slate-700">Start:</label>
+              <input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+              <label className="text-sm font-medium text-slate-700">End:</label>
+              <input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
             </div>
           )}
 
-          {/* Stats Cards - 8 columns */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4">
-            {/* Total Posts Card */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 hover:shadow-md hover:border-slate-300 transition-all duration-200 group">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-blue-50 rounded-xl group-hover:bg-blue-100 transition-colors">
+          {/* Performance Summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 relative overflow-hidden group hover:shadow-md transition-all">
+              <div className="absolute right-0 top-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                <FileText size={80} className="text-blue-600" />
+              </div>
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-3 bg-blue-50 rounded-xl group-hover:scale-110 transition-transform">
                   <FileText className="text-blue-600" size={24} />
                 </div>
+                <span className="text-xs font-bold tracking-wider text-blue-600 uppercase bg-blue-50 px-2 py-1 rounded-full">Posts</span>
               </div>
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Total Posts</h3>
-              <p className="text-3xl font-bold text-slate-900">{analytics.totalPosts || 0}</p>
+              <h3 className="text-sm font-medium text-slate-500 mb-1">Total Posts</h3>
+              <p className="text-3xl font-bold text-slate-900">{analytics.totalPosts}</p>
             </div>
 
-            {/* Published Card */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 hover:shadow-md hover:border-slate-300 transition-all duration-200 group">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-emerald-50 rounded-xl group-hover:bg-emerald-100 transition-colors">
-                  <TrendingUp className="text-emerald-600" size={24} />
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 relative overflow-hidden group hover:shadow-md transition-all">
+              <div className="absolute right-0 top-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                <Users size={80} className="text-emerald-600" />
+              </div>
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-3 bg-emerald-50 rounded-xl group-hover:scale-110 transition-transform">
+                  <Users className="text-emerald-600" size={24} />
                 </div>
+                <span className="text-xs font-bold tracking-wider text-emerald-600 uppercase bg-emerald-50 px-2 py-1 rounded-full">Audience</span>
               </div>
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Published</h3>
-              <p className="text-3xl font-bold text-slate-900">{analytics.publishedPosts || 0}</p>
+              <h3 className="text-sm font-medium text-slate-500 mb-1">Total Followers</h3>
+              <p className="text-3xl font-bold text-slate-900">{analytics.totalFollowers.toLocaleString()}</p>
             </div>
 
-            {/* Scheduled Card */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 hover:shadow-md hover:border-slate-300 transition-all duration-200 group">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-amber-50 rounded-xl group-hover:bg-amber-100 transition-colors">
-                  <Calendar className="text-amber-600" size={24} />
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 relative overflow-hidden group hover:shadow-md transition-all">
+              <div className="absolute right-0 top-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                <Eye size={80} className="text-purple-600" />
+              </div>
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-3 bg-purple-50 rounded-xl group-hover:scale-110 transition-transform">
+                  <Eye className="text-purple-600" size={24} />
                 </div>
+                <span className="text-xs font-bold tracking-wider text-purple-600 uppercase bg-purple-50 px-2 py-1 rounded-full">Reach</span>
               </div>
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Scheduled</h3>
-              <p className="text-3xl font-bold text-slate-900">{analytics.scheduledPosts || 0}</p>
+              <h3 className="text-sm font-medium text-slate-500 mb-1">Total Views</h3>
+              <p className="text-3xl font-bold text-slate-900">{analytics.totalViews.toLocaleString()}</p>
             </div>
 
-            {/* Draft Posts Card */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 hover:shadow-md hover:border-slate-300 transition-all duration-200 group">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-violet-50 rounded-xl group-hover:bg-violet-100 transition-colors">
-                  <BarChart2 className="text-violet-600" size={24} />
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 relative overflow-hidden group hover:shadow-md transition-all">
+              <div className="absolute right-0 top-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                <Activity size={80} className="text-rose-600" />
+              </div>
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-3 bg-rose-50 rounded-xl group-hover:scale-110 transition-transform">
+                  <Activity className="text-rose-600" size={24} />
                 </div>
+                <span className="text-xs font-bold tracking-wider text-rose-600 uppercase bg-rose-50 px-2 py-1 rounded-full">Quality</span>
               </div>
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Draft Posts</h3>
-              <p className="text-3xl font-bold text-slate-900">{analytics.draftPosts || 0}</p>
+              <h3 className="text-sm font-medium text-slate-500 mb-1">Engagement Rate</h3>
+              <p className="text-3xl font-bold text-slate-900">{parseFloat(analytics.engagementRate).toFixed(1)}%</p>
             </div>
+          </div>
 
-            {/* Total Views Card */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 hover:shadow-md hover:border-slate-300 transition-all duration-200 group">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-cyan-50 rounded-xl group-hover:bg-cyan-100 transition-colors">
-                  <Eye className="text-cyan-600" size={24} />
-                </div>
-              </div>
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Total Views</h3>
-              <p className="text-3xl font-bold text-slate-900">
-                {(analytics.totalViews || 0).toLocaleString()}
-              </p>
-            </div>
-
-            {/* Total Followers Card */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 hover:shadow-md hover:border-slate-300 transition-all duration-200 group">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-indigo-50 rounded-xl group-hover:bg-indigo-100 transition-colors">
-                  <Users className="text-indigo-600" size={24} />
-                </div>
-              </div>
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Total Followers</h3>
-              <p className="text-3xl font-bold text-slate-900">
-                {(analytics.totalFollowers || 0).toLocaleString()}
-              </p>
-            </div>
-
-            {/* Engagement Rate Card */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 hover:shadow-md hover:border-slate-300 transition-all duration-200 group">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-rose-50 rounded-xl group-hover:bg-rose-100 transition-colors">
-                  <Heart className="text-rose-600" size={24} />
-                </div>
-              </div>
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Engagement Rate</h3>
-              <p className="text-3xl font-bold text-slate-900">
-                {analytics.engagementRate ? `${parseFloat(analytics.engagementRate).toFixed(1)}%` : '0.0%'}
-              </p>
-            </div>
-
-            {/* Follower Growth Card */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 hover:shadow-md hover:border-slate-300 transition-all duration-200 group">
-              <div className="flex items-center justify-between mb-4">
-                <div className={`p-3 rounded-xl transition-colors ${
-                  (analytics.followerGrowth || 0) >= 0 
-                    ? 'bg-green-50 group-hover:bg-green-100' 
-                    : 'bg-red-50 group-hover:bg-red-100'
-                }`}>
-                  {(analytics.followerGrowth || 0) >= 0 ? (
-                    <TrendingUp className="text-green-600" size={24} />
+          {/* --- PRO SECTION: DEEP INSIGHTS --- */}
+          {proInsights && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* Best Performing Post */}
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <Award size={64} className="text-yellow-500" />
+                  </div>
+                  <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">Best Performing Post</h3>
+                  {proInsights.bestPost ? (
+                    <div className="flex gap-4">
+                      {proInsights.bestPost.thumbnail_url && (
+                        <img
+                          src={proInsights.bestPost.thumbnail_url}
+                          alt="Best Post"
+                          className="w-20 h-20 object-cover rounded-lg shadow-sm"
+                        />
+                      )}
+                      <div>
+                        <div className="text-2xl font-bold text-slate-900">{proInsights.bestPost.metrics?.engagement}</div>
+                        <div className="text-xs text-slate-500 mb-1">Total Engagements</div>
+                        <div className="flex items-center gap-1 text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full w-fit">
+                          <Heart size={12} /> {proInsights.bestPost.metrics?.likes}
+                          <MessageSquare size={12} className="ml-1" /> {proInsights.bestPost.metrics?.comments}
+                        </div>
+                      </div>
+                    </div>
                   ) : (
-                    <TrendingDown className="text-red-600" size={24} />
+                    <div className="text-slate-400 text-sm">No data available</div>
                   )}
                 </div>
-              </div>
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Follower Growth</h3>
-              <p className="text-3xl font-bold text-slate-900">
-                {(analytics.followerGrowth || 0) >= 0 ? '+' : ''}{analytics.followerGrowth || 0}
-              </p>
-            </div>
-          </div>
 
-          {/* Charts Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Daily Engagement Trend */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-slate-900 mb-6">Daily Engagement Trend</h2>
-              {engagementTrendData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={engagementTrendData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="date" stroke="#64748b" fontSize={12} />
-                    <YAxis stroke="#64748b" fontSize={12} />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px' }}
-                      labelStyle={{ color: '#1e293b', fontWeight: 'bold' }}
-                    />
-                    <Legend />
-                    <Line type="monotone" dataKey="engagements" stroke="#3b82f6" strokeWidth={2} name="Engagements" />
-                    <Line type="monotone" dataKey="views" stroke="#10b981" strokeWidth={2} name="Views" />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-[300px] flex items-center justify-center text-slate-500">
-                  <div className="text-center">
-                    <BarChart2 className="mx-auto text-slate-400 mb-2" size={32} />
-                    <p>No engagement data available</p>
+                {/* Worst Performing Post */}
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <TrendingDown size={64} className="text-red-500" />
                   </div>
-                </div>
-              )}
-            </div>
-
-            {/* Followers Growth Trend */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-slate-900 mb-6">Followers Growth Trend</h2>
-              {followerTrendData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={followerTrendData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="date" stroke="#64748b" fontSize={12} />
-                    <YAxis stroke="#64748b" fontSize={12} />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px' }}
-                      labelStyle={{ color: '#1e293b', fontWeight: 'bold' }}
-                    />
-                    <Line type="monotone" dataKey="followers" stroke="#8b5cf6" strokeWidth={2} name="Followers" />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-[300px] flex items-center justify-center text-slate-500">
-                  <div className="text-center">
-                    <Users className="mx-auto text-slate-400 mb-2" size={32} />
-                    <p>No follower data available</p>
-                    <p className="text-sm text-slate-400 mt-1">Follower metrics will appear here when available</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Distribution Charts Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Platform Distribution */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-slate-900 mb-6">Platform Distribution</h2>
-              <div className="space-y-5">
-                {/* Instagram Bar */}
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm font-semibold text-slate-700">Instagram</span>
-                    <span className="text-sm font-bold text-slate-900">{analytics.postsByPlatform?.instagram || 0}</span>
-                  </div>
-                  <div className="relative w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                    <div 
-                      className="absolute top-0 left-0 h-full bg-purple-600 rounded-full transition-all duration-700 ease-out shadow-sm"
-                      style={{ width: `${Math.max(instagramPercent, 2)}%` }}
-                    ></div>
-                  </div>
-                  <div className="flex justify-between items-center mt-1.5">
-                    <span className="text-xs font-medium text-slate-500">{instagramPercent.toFixed(1)}%</span>
-                  </div>
-                </div>
-
-                {/* Facebook Bar */}
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm font-semibold text-slate-700">Facebook</span>
-                    <span className="text-sm font-bold text-slate-900">{analytics.postsByPlatform?.facebook || 0}</span>
-                  </div>
-                  <div className="relative w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                    <div 
-                      className="absolute top-0 left-0 h-full bg-blue-600 rounded-full transition-all duration-700 ease-out shadow-sm"
-                      style={{ width: `${Math.max(facebookPercent, 2)}%` }}
-                    ></div>
-                  </div>
-                  <div className="flex justify-between items-center mt-1.5">
-                    <span className="text-xs font-medium text-slate-500">{facebookPercent.toFixed(1)}%</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Post Type Distribution Chart */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-slate-900 mb-6">Post Type Distribution</h2>
-              <div className="space-y-5">
-                {/* Use Instagram media types if available, otherwise use DB post types */}
-                {(analytics.postsByType?.IMAGE || analytics.postsByType?.VIDEO || analytics.postsByType?.REELS || analytics.postsByType?.CAROUSEL_ALBUM) ? (
-                  <>
-                    {/* IMAGE Bar */}
-                    {(analytics.postsByType?.IMAGE || 0) > 0 && (
-                      <div>
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-sm font-semibold text-slate-700">Image Posts</span>
-                          <span className="text-sm font-bold text-slate-900">{analytics.postsByType.IMAGE || 0}</span>
-                        </div>
-                        <div className="relative w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                          <div 
-                            className="absolute top-0 left-0 h-full bg-blue-600 rounded-full transition-all duration-700 ease-out shadow-sm"
-                            style={{ width: maxTypeValue > 0 ? `${Math.max(((analytics.postsByType.IMAGE || 0) / maxTypeValue) * 100, 2)}%` : '2%' }}
-                          ></div>
-                        </div>
-                      </div>
-                    )}
-                    {/* VIDEO Bar */}
-                    {(analytics.postsByType?.VIDEO || 0) > 0 && (
-                      <div>
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-sm font-semibold text-slate-700">Video Posts</span>
-                          <span className="text-sm font-bold text-slate-900">{analytics.postsByType.VIDEO || 0}</span>
-                        </div>
-                        <div className="relative w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                          <div 
-                            className="absolute top-0 left-0 h-full bg-red-600 rounded-full transition-all duration-700 ease-out shadow-sm"
-                            style={{ width: maxTypeValue > 0 ? `${Math.max(((analytics.postsByType.VIDEO || 0) / maxTypeValue) * 100, 2)}%` : '2%' }}
-                          ></div>
-                        </div>
-                      </div>
-                    )}
-                    {/* REELS Bar */}
-                    {(analytics.postsByType?.REELS || 0) > 0 && (
-                      <div>
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-sm font-semibold text-slate-700">Reels</span>
-                          <span className="text-sm font-bold text-slate-900">{analytics.postsByType.REELS || 0}</span>
-                        </div>
-                        <div className="relative w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                          <div 
-                            className="absolute top-0 left-0 h-full bg-pink-600 rounded-full transition-all duration-700 ease-out shadow-sm"
-                            style={{ width: maxTypeValue > 0 ? `${Math.max(((analytics.postsByType.REELS || 0) / maxTypeValue) * 100, 2)}%` : '2%' }}
-                          ></div>
-                        </div>
-                      </div>
-                    )}
-                    {/* CAROUSEL Bar */}
-                    {(analytics.postsByType?.CAROUSEL_ALBUM || 0) > 0 && (
-                      <div>
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-sm font-semibold text-slate-700">Carousel Posts</span>
-                          <span className="text-sm font-bold text-slate-900">{analytics.postsByType.CAROUSEL_ALBUM || 0}</span>
-                        </div>
-                        <div className="relative w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                          <div 
-                            className="absolute top-0 left-0 h-full bg-purple-600 rounded-full transition-all duration-700 ease-out shadow-sm"
-                            style={{ width: maxTypeValue > 0 ? `${Math.max(((analytics.postsByType.CAROUSEL_ALBUM || 0) / maxTypeValue) * 100, 2)}%` : '2%' }}
-                          ></div>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    {/* Posts Bar */}
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-semibold text-slate-700">Posts</span>
-                        <span className="text-sm font-bold text-slate-900">{analytics.postsByType?.post || 0}</span>
-                      </div>
-                      <div className="relative w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                        <div 
-                          className="absolute top-0 left-0 h-full bg-blue-600 rounded-full transition-all duration-700 ease-out shadow-sm"
-                          style={{ width: maxTypeValue > 0 ? `${Math.max(((analytics.postsByType?.post || 0) / maxTypeValue) * 100, 2)}%` : '2%' }}
-                        ></div>
-                      </div>
-                    </div>
-                    {/* Stories Bar */}
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-semibold text-slate-700">Stories</span>
-                        <span className="text-sm font-bold text-slate-900">{analytics.postsByType?.story || 0}</span>
-                      </div>
-                      <div className="relative w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                        <div 
-                          className="absolute top-0 left-0 h-full bg-violet-600 rounded-full transition-all duration-700 ease-out shadow-sm"
-                          style={{ width: maxTypeValue > 0 ? `${Math.max(((analytics.postsByType?.story || 0) / maxTypeValue) * 100, 2)}%` : '2%' }}
-                        ></div>
-                      </div>
-                    </div>
-                    {/* Reels Bar */}
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-semibold text-slate-700">Reels</span>
-                        <span className="text-sm font-bold text-slate-900">{analytics.postsByType?.reel || 0}</span>
-                      </div>
-                      <div className="relative w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                        <div 
-                          className="absolute top-0 left-0 h-full bg-pink-600 rounded-full transition-all duration-700 ease-out shadow-sm"
-                          style={{ width: maxTypeValue > 0 ? `${Math.max(((analytics.postsByType?.reel || 0) / maxTypeValue) * 100, 2)}%` : '2%' }}
-                        ></div>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Client Performance Table */}
-          {analytics.clientAnalytics && analytics.clientAnalytics.length > 0 && (
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-slate-900 mb-6">Client Performance</h2>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-slate-200">
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Client Name</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Platform</th>
-                      <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">Total Posts</th>
-                      <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">Published</th>
-                      <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">Scheduled</th>
-                      <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">Engagement Rate</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {analytics.clientAnalytics.map((client) => (
-                      <tr key={client.clientId} className="border-b border-slate-100 hover:bg-slate-50">
-                        <td className="py-3 px-4 text-sm text-slate-900">{client.clientName}</td>
-                        <td className="py-3 px-4 text-sm text-slate-600 capitalize">{client.platform}</td>
-                        <td className="py-3 px-4 text-sm text-slate-900 text-right">{client.totalPosts || 0}</td>
-                        <td className="py-3 px-4 text-sm text-slate-900 text-right">{client.publishedPosts || 0}</td>
-                        <td className="py-3 px-4 text-sm text-slate-900 text-right">{client.scheduledPosts || 0}</td>
-                        <td className="py-3 px-4 text-sm text-slate-900 text-right font-semibold">
-                          {client.engagementRate ? `${parseFloat(client.engagementRate).toFixed(1)}%` : '0.0%'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Recent Posts */}
-          {analytics.recentPosts && analytics.recentPosts.length > 0 && (
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-slate-900 mb-5">Recent Posts</h2>
-              <div className="space-y-3">
-                {analytics.recentPosts.map((post) => (
-                  <div key={post.id || post._id} className="flex items-start gap-4 p-4 border border-slate-200 rounded-lg hover:bg-slate-50/50 hover:border-slate-300 transition-all duration-200">
-                    {/* Thumbnail */}
-                    {(post.thumbnail_url || (post.mediaUrls && post.mediaUrls[0])) && (
-                      <div className="flex-shrink-0">
+                  <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">Needs Improvement</h3>
+                  {proInsights.worstPost ? (
+                    <div className="flex gap-4">
+                      {proInsights.worstPost.thumbnail_url && (
                         <img
-                          src={normalizeMediaUrl(post.thumbnail_url || post.mediaUrls[0])}
-                          alt="Post thumbnail"
-                          className="w-20 h-20 object-cover rounded-lg border border-slate-200"
-                          onError={(e) => {
-                            e.target.src = 'https://via.placeholder.com/80x80?text=No+Image';
-                          }}
+                          src={proInsights.worstPost.thumbnail_url}
+                          alt="Worst Post"
+                          className="w-20 h-20 object-cover rounded-lg shadow-sm grayscale opacity-80"
                         />
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-900 mb-3 line-clamp-2">{post.caption || 'No caption'}</p>
-                      <div className="flex items-center gap-3 flex-wrap mb-2">
-                        <span className="inline-flex items-center gap-1.5 text-xs text-slate-600 bg-slate-50 px-2.5 py-1 rounded-md">
-                          <Users size={12} className="text-slate-400" /> {post.clientName || 'Unknown'}
-                        </span>
-                        <span className="inline-flex items-center gap-1.5 text-xs text-slate-600 bg-slate-50 px-2.5 py-1 rounded-md">
-                          {post.platform === 'instagram' || post.media_type ? (
-                            <Instagram size={12} className="text-purple-600" />
-                          ) : (
-                            <Facebook size={12} className="text-blue-600" />
-                          )}
-                          <span className="capitalize">{post.platform || 'instagram'}</span>
-                        </span>
-                        <span className="text-xs text-slate-600 bg-slate-50 px-2.5 py-1 rounded-md capitalize">
-                          {post.postType || post.media_type || 'Post'}
-                        </span>
-                        {post.timestamp && (
-                          <span className="text-xs text-slate-500">
-                            {new Date(post.timestamp).toLocaleDateString()}
-                          </span>
-                        )}
-                      </div>
-                      {/* Instagram Metrics */}
-                      {post.metrics && (
-                        <div className="flex items-center gap-4 mt-2 text-xs text-slate-600">
-                          {post.metrics.likes > 0 && (
-                            <span className="inline-flex items-center gap-1">
-                              <Heart size={14} className="text-rose-500" />
-                              {post.metrics.likes.toLocaleString()}
-                            </span>
-                          )}
-                          {post.metrics.comments > 0 && (
-                            <span className="inline-flex items-center gap-1">
-                              <MessageCircle size={14} className="text-blue-500" />
-                              {post.metrics.comments.toLocaleString()}
-                            </span>
-                          )}
-                          {post.metrics.reach > 0 && (
-                            <span className="inline-flex items-center gap-1">
-                              <Eye size={14} className="text-cyan-500" />
-                              {post.metrics.reach.toLocaleString()} reach
-                            </span>
-                          )}
-                          {post.metrics.video_views > 0 && (
-                            <span className="inline-flex items-center gap-1">
-                              <Eye size={14} className="text-purple-500" />
-                              {post.metrics.video_views.toLocaleString()} video views
-                            </span>
-                          )}
+                      )}
+                      <div>
+                        <div className="text-2xl font-bold text-slate-900">{proInsights.worstPost.metrics?.engagement}</div>
+                        <div className="text-xs text-slate-500 mb-1">Total Engagements</div>
+                        <div className="text-xs text-slate-400">
+                          Consider archiving or analyzing why this didn't resonate.
                         </div>
-                      )}
-                      {post.permalink && (
-                        <a
-                          href={post.permalink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-blue-600 hover:text-blue-700 mt-2 inline-block"
-                        >
-                          View on Instagram →
-                        </a>
-                      )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-slate-400 text-sm">No data available</div>
+                  )}
+                </div>
+
+                {/* Average Engagement */}
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-indigo-50 rounded-xl">
+                      <Activity className="text-indigo-600" size={24} />
+                    </div>
+                    <span className="text-xs font-medium text-slate-400">PER POST</span>
+                  </div>
+                  <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">Avg. Engagement</h3>
+                  <p className="text-3xl font-bold text-slate-900">{proInsights.avgEngagement}</p>
+                  <p className="text-xs text-slate-500 mt-1">Based on last {analytics.detailedPosts?.length || 0} posts</p>
+                </div>
+
+                {/* Most Active Day */}
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-orange-50 rounded-xl">
+                      <Calendar className="text-orange-600" size={24} />
                     </div>
                   </div>
-                ))}
+                  <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">Best Posting Day</h3>
+                  <p className="text-3xl font-bold text-slate-900">{proInsights.mostActiveDay}</p>
+                  <p className="text-xs text-slate-500 mt-1">When you are most consistent</p>
+                </div>
+
+                {/* Top Post Type */}
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-pink-50 rounded-xl">
+                      <LayoutGrid className="text-pink-600" size={24} />
+                    </div>
+                  </div>
+                  <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">Top Format</h3>
+                  <p className="text-3xl font-bold text-slate-900">{proInsights.topType}</p>
+                  <p className="text-xs text-slate-500 mt-1">Format with highest engagement</p>
+                </div>
+
+                {/* Content Quality Score (Calculated) */}
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-teal-50 rounded-xl">
+                      <Zap className="text-teal-600" size={24} />
+                    </div>
+                  </div>
+                  <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">Avg Caption Length</h3>
+                  <p className="text-3xl font-bold text-slate-900">{proInsights.avgCaptionLength} <span className="text-sm font-normal text-slate-500">chars</span></p>
+                  <p className="text-xs text-slate-500 mt-1">Hashtags per post: {proInsights.avgHashtagCount}</p>
+                </div>
               </div>
-            </div>
+
+              {/* --- CHARTS SECTION --- */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Engagement vs Followers */}
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                  <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+                    <TrendingUp size={20} className="text-blue-600" />
+                    Engagement vs Reach
+                  </h2>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <AreaChart data={chartData.engagement}>
+                      <defs>
+                        <linearGradient id="colorEng" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
+                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="colorView" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8} />
+                          <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                      <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                      <Tooltip
+                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                      />
+                      <Legend />
+                      <Area type="monotone" dataKey="engagements" stroke="#3b82f6" fillOpacity={1} fill="url(#colorEng)" name="Engagements" />
+                      <Area type="monotone" dataKey="views" stroke="#8b5cf6" fillOpacity={1} fill="url(#colorView)" name="Reach/Views" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Post Type Performance */}
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                  <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+                    <BarChart2 size={20} className="text-purple-600" />
+                    Performance by Format
+                  </h2>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={proInsights.postTypePerformance} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                      <XAxis type="number" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                      <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} width={80} />
+                      <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                      <Legend />
+                      <Bar dataKey="engagement" fill="#8b5cf6" radius={[0, 4, 4, 0]} name="Avg Engagement" barSize={20} />
+                      <Bar dataKey="count" fill="#cbd5e1" radius={[0, 4, 4, 0]} name="Post Count" barSize={20} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Engagement Distribution (Donut) */}
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                  <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+                    <Heart size={20} className="text-rose-500" />
+                    Engagement Mix
+                  </h2>
+                  <div className="flex items-center justify-center" style={{ minHeight: '300px', width: '100%' }}>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={proInsights.engagementDist}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={100}
+                          paddingAngle={5}
+                          dataKey="value"
+                        >
+                          {proInsights.engagementDist.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                        <Legend verticalAlign="bottom" height={36} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Hashtag Performance */}
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                  <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <Hash size={20} className="text-slate-600" />
+                    Top Hashtags
+                  </h2>
+                  <div className="space-y-4">
+                    {proInsights.bestHashtags.map((tag, i) => (
+                      <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <span className="w-6 h-6 flex items-center justify-center bg-white rounded-full text-xs font-bold text-slate-500 border border-slate-200">
+                            {i + 1}
+                          </span>
+                          <span className="font-medium text-slate-700">#{tag.tag}</span>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-bold text-slate-900">{tag.avgEng} avg. eng</div>
+                          <div className="text-xs text-slate-500">Used {tag.count} times</div>
+                        </div>
+                      </div>
+                    ))}
+                    {proInsights.bestHashtags.length === 0 && (
+                      <div className="text-center text-slate-500 py-8">No hashtags found in recent posts</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* --- POST METRICS TABLE --- */}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-slate-100">
+                  <h2 className="text-lg font-bold text-gray-900">Recent Post Performance</h2>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+                        <th className="p-4 font-semibold">Post</th>
+                        <th className="p-4 font-semibold">Date</th>
+                        <th className="p-4 font-semibold">Type</th>
+                        <th className="p-4 font-semibold text-right">Likes</th>
+                        <th className="p-4 font-semibold text-right">Comments</th>
+                        <th className="p-4 font-semibold text-right">Saves</th>
+                        <th className="p-4 font-semibold text-right">Reach</th>
+                        <th className="p-4 font-semibold text-right">Engagement</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {(analytics.detailedPosts || []).map((post) => (
+                        <tr key={post.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="p-4">
+                            <div className="flex items-center gap-3">
+                              {post.thumbnail_url && (
+                                <img
+                                  src={post.thumbnail_url}
+                                  alt="Post"
+                                  className="w-10 h-10 rounded object-cover border border-slate-200"
+                                />
+                              )}
+                              <div className="max-w-[200px] truncate text-sm font-medium text-slate-900">
+                                {post.caption || 'No caption'}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-4 text-sm text-slate-600">
+                            {new Date(post.timestamp).toLocaleDateString()}
+                          </td>
+                          <td className="p-4">
+                            <span className="px-2 py-1 bg-slate-100 text-slate-600 text-xs rounded-full font-medium">
+                              {post.media_type}
+                            </span>
+                          </td>
+                          <td className="p-4 text-sm text-slate-600 text-right">{post.metrics?.likes || 0}</td>
+                          <td className="p-4 text-sm text-slate-600 text-right">{post.metrics?.comments || 0}</td>
+                          <td className="p-4 text-sm text-slate-600 text-right">{post.metrics?.saved || 0}</td>
+                          <td className="p-4 text-sm text-slate-600 text-right">{post.metrics?.reach || post.metrics?.views || '-'}</td>
+                          <td className="p-4 text-right">
+                            <span className="font-bold text-slate-900">{post.metrics?.engagement || 0}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
           )}
         </div>
       </div>
-    </Layout>
+
+      {/* Token Expired Modal */}
+      <TokenExpiredModal
+        show={showTokenExpiredModal}
+        onClose={() => setShowTokenExpiredModal(false)}
+        onReconnect={() => {
+          setShowTokenExpiredModal(false);
+          window.location.href = '/dashboard/clients';
+        }}
+      />
+    </Layout >
   );
 };
 

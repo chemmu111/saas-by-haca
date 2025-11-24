@@ -12,7 +12,7 @@ export const usePlatformValidation = (selectedClient, platform, postType) => {
       if (savedPort) {
         return `http://localhost:${savedPort}`;
       }
-      return 'http://localhost:5001';
+      return 'http://localhost:5000';
     }
     return window.location.origin;
   };

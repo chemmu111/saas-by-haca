@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Client Count API</title>
+</head>
+<body>
+    <h1>Client Count API Test</h1>
+    <button onclick="testAPI()">Test /api/clients/count</button>
+    <pre id="result"></pre>
+
+    <script>
+        async function testAPI() {
+            const token = localStorage.getItem('auth_token');
+            if (!token) {
+                document.getElementById('result').textContent = 'ERROR: No auth_token in localStorage. Please login first.';
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:5000/api/clients/count', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+                document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('result').textContent = 'ERROR: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

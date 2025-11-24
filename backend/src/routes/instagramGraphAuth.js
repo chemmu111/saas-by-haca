@@ -1,4 +1,5 @@
 import express from 'express';
+import { exchangeForLongLivedToken } from '../services/instagramTokenService.js';
 
 const router = express.Router();
 
@@ -6,7 +7,7 @@ const router = express.Router();
 router.get('/login', (req, res) => {
   const FB_APP_ID = process.env.FB_APP_ID || '';
   const REDIRECT_URI = process.env.OAUTH_REDIRECT_URI || 'http://localhost:5000/auth/instagram/callback';
-  
+
   // Instagram Graph API scopes
   const SCOPES = [
     'pages_show_list',
@@ -16,8 +17,8 @@ router.get('/login', (req, res) => {
   ].join(',');
 
   if (!FB_APP_ID) {
-    return res.status(500).json({ 
-      error: 'FB_APP_ID not configured. Please set FB_APP_ID in .env file.' 
+    return res.status(500).json({
+      error: 'FB_APP_ID not configured. Please set FB_APP_ID in .env file.'
     });
   }
 
@@ -58,8 +59,8 @@ router.get('/callback', async (req, res) => {
     const REDIRECT_URI = process.env.OAUTH_REDIRECT_URI || 'http://localhost:5000/auth/instagram/callback';
 
     if (!FB_APP_ID || !FB_APP_SECRET) {
-      return res.status(500).json({ 
-        error: 'Facebook OAuth not configured. Please set FB_APP_ID and FB_APP_SECRET in .env file.' 
+      return res.status(500).json({
+        error: 'Facebook OAuth not configured. Please set FB_APP_ID and FB_APP_SECRET in .env file.'
       });
     }
 
@@ -96,23 +97,31 @@ router.get('/callback', async (req, res) => {
     console.log('  Access Token:', accessToken.substring(0, 20) + '...');
     console.log('  Expires In:', expiresIn, 'seconds');
 
+    // Exchange for long-lived token
+    console.log('🔄 Exchanging short-lived token for long-lived token...');
+    let finalAccessToken = accessToken;
+    let finalExpiresIn = expiresIn;
+    let tokenType = 'short-lived';
+
+    try {
+      const longLivedData = await exchangeForLongLivedToken(accessToken);
+      finalAccessToken = longLivedData.accessToken;
+      finalExpiresIn = longLivedData.expiresIn;
+      tokenType = 'long-lived';
+      console.log('✅ Successfully exchanged for long-lived token');
+    } catch (exchangeError) {
+      console.error('⚠️ Failed to exchange for long-lived token, using short-lived token:', exchangeError.message);
+      // We continue with short-lived token but log the error
+    }
+
     // Next steps information
     const nextSteps = {
-      shortLivedToken: {
-        token: accessToken,
-        expiresIn: expiresIn,
-        note: 'This is a short-lived token (typically 1 hour). You need to exchange it for a long-lived token.'
-      },
-      exchangeForLongLived: {
-        endpoint: 'https://graph.facebook.com/v18.0/oauth/access_token',
-        method: 'GET',
-        params: {
-          grant_type: 'fb_exchange_token',
-          client_id: FB_APP_ID,
-          client_secret: FB_APP_SECRET,
-          fb_exchange_token: accessToken
-        },
-        note: 'Exchange short-lived token for long-lived token (60 days)'
+      tokenInfo: {
+        type: tokenType,
+        expiresIn: finalExpiresIn,
+        note: tokenType === 'long-lived'
+          ? 'This is a long-lived token (60 days). It will be auto-refreshed.'
+          : 'This is a SHORT-LIVED token. Exchange failed.'
       },
       connectInstagramAccount: {
         step1: 'Get user\'s Facebook Pages: GET /me/accounts',
@@ -125,11 +134,12 @@ router.get('/callback', async (req, res) => {
     // Return success response with token and next steps
     res.json({
       success: true,
-      access_token: accessToken,
-      expires_in: expiresIn,
+      access_token: finalAccessToken,
+      expires_in: finalExpiresIn,
       token_type: tokenData.token_type || 'bearer',
+      is_long_lived: tokenType === 'long-lived',
       next_steps: nextSteps,
-      message: 'Access token received. See next_steps for instructions on exchanging for long-lived token and connecting Instagram account.'
+      message: 'Access token received. ' + (tokenType === 'long-lived' ? 'Long-lived token secured.' : 'Warning: Short-lived token only.')
     });
 
   } catch (error) {

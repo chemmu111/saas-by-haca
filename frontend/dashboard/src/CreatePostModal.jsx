@@ -9,6 +9,9 @@ import {
 // Import our custom hooks
 import { useMediaDetector } from './hooks/useMediaDetector';
 import { useClientCapabilities } from './hooks/useClientCapabilities';
+import { useAIHashtags } from './hooks/useAIHashtags';
+import { useScheduling } from './hooks/useScheduling';
+import AIGenerator from './components/AIGenerator.jsx';
 
 const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
   // Get backend URL helper
@@ -18,7 +21,7 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
       if (savedPort) {
         return `http://localhost:${savedPort}`;
       }
-      return 'http://localhost:5001';
+      return 'http://localhost:5000';
     }
     return window.location.origin;
   };
@@ -26,7 +29,10 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
   // State management
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0, fileName: '' });
+  const [publishProgress, setPublishProgress] = useState({ step: '', message: '' });
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  const [publishResult, setPublishResult] = useState(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -48,7 +54,10 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
   const [currentStep, setCurrentStep] = useState('compose'); // compose, crop, preview, publish
   const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
   const [showCropper, setShowCropper] = useState(false);
+
   const [showInsights, setShowInsights] = useState(false);
+  const [showAIGenerator, setShowAIGenerator] = useState(false);
+  const [aiGeneratorType, setAiGeneratorType] = useState('caption'); // 'caption' or 'hashtag'
 
   // File input refs
   const fileInputRef = useRef(null);
@@ -60,6 +69,8 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
   );
   const { clientPermissions, availablePlatforms, availablePostTypes, validateSelection } =
     useClientCapabilities(formData.clientId, formData.platform, formData.postType);
+  const { suggestions: hashtagSuggestions, loading: hashtagsLoading, generateHashtags, clearSuggestions } = useAIHashtags();
+  const { getSuggestedTimes, validateScheduledTime } = useScheduling();
 
   // Show toast notification
   const showToast = (message, type = 'success') => {
@@ -94,6 +105,46 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
       });
     }
   }, [editingPost, isOpen]);
+
+  // Get available platforms for selected client
+  const getAvailablePlatforms = () => {
+    const selectedClientData = clients.find(c => c._id === formData.clientId);
+    if (!selectedClientData) {
+      return ['instagram', 'facebook', 'both'];
+    }
+
+    const platforms = [];
+    if (selectedClientData.platform === 'instagram' || selectedClientData.platform === 'manual') {
+      platforms.push('instagram');
+    }
+    if (selectedClientData.platform === 'facebook' || selectedClientData.platform === 'manual') {
+      platforms.push('facebook');
+    }
+    if (platforms.length >= 2 || selectedClientData.platform === 'manual') {
+      platforms.push('both');
+    }
+
+    return platforms.length > 0 ? platforms : ['instagram', 'facebook', 'both'];
+  };
+
+  // Get available post types based on selected platform
+  const getAvailablePostTypes = () => {
+    const platform = formData.platform;
+
+    if (platform === 'facebook') {
+      return ['post']; // Facebook only supports regular posts
+    }
+
+    if (platform === 'instagram') {
+      return ['post', 'story', 'reel']; // Instagram supports all types
+    }
+
+    if (platform === 'both') {
+      return ['post']; // When posting to both, only regular posts work
+    }
+
+    return ['post', 'story', 'reel']; // Default: all types
+  };
 
   const fetchClients = async () => {
     try {
@@ -187,6 +238,11 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
   // Generate AI hashtags
   const handleGenerateHashtags = async () => {
     await generateHashtags(formData.caption, formData.hashtags);
+    // Show suggestions modal or add to form
+    if (hashtagSuggestions.length > 0) {
+      // You can add logic here to show suggestions or auto-add them
+      showToast(`Generated ${hashtagSuggestions.length} hashtag suggestions!`, 'success');
+    }
   };
 
   // Handle cropping
@@ -287,14 +343,23 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
 
     try {
       setLoading(true);
+      setPublishProgress({ step: 'upload', message: 'Preparing media files...' });
 
-      // Upload media files
+      // Upload media files with progress
       const mediaUrls = [];
-      for (const media of formData.mediaFiles) {
+      const filesToUpload = formData.mediaFiles.filter(m => m.file && !m.url);
+      const totalFiles = filesToUpload.length;
+
+      for (let i = 0; i < formData.mediaFiles.length; i++) {
+        const media = formData.mediaFiles[i];
         if (media.url) {
           mediaUrls.push(media.url);
         } else if (media.file) {
-          const url = await uploadMedia(media.file);
+          setPublishProgress({
+            step: 'upload',
+            message: `Uploading ${media.file.name} (${i + 1}/${totalFiles})...`
+          });
+          const url = await uploadMedia(media.file, i, totalFiles);
           mediaUrls.push(url);
         }
       }
@@ -314,8 +379,10 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
 
       if (formData.scheduleType === 'schedule') {
         postData.scheduledTime = new Date(formData.scheduledTime).toISOString();
+        setPublishProgress({ step: 'saving', message: 'Saving scheduled post...' });
       } else {
         postData.publishImmediately = true;
+        setPublishProgress({ step: 'publishing', message: 'Publishing to Instagram...' });
       }
 
       const token = localStorage.getItem('auth_token');
@@ -338,11 +405,18 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
 
       const result = await response.json();
 
+      if (postData.publishImmediately && !editingPost) {
+        setPublishProgress({ step: 'processing', message: 'Processing media on Instagram...' });
+      }
+
       if (result.success) {
         if (postData.publishImmediately && !editingPost) {
+          setPublishProgress({ step: 'complete', message: 'Post published successfully!' });
           // Show insights for immediate publish
           setShowInsights(true);
           setPublishResult(result.data);
+        } else {
+          setPublishProgress({ step: 'complete', message: 'Post saved successfully!' });
         }
 
         const successMessage = editingPost
@@ -357,16 +431,27 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
 
         // Close modal after a delay if not showing insights
         if (!postData.publishImmediately || editingPost) {
-          setTimeout(() => onClose(), 1500);
+          setTimeout(() => {
+            setPublishProgress({ step: '', message: '' });
+            setUploadProgress({ current: 0, total: 0, fileName: '' });
+            onClose();
+          }, 1500);
         }
       } else {
+        setPublishProgress({ step: 'error', message: result.error || 'Failed to save post' });
         showToast(result.error || 'Failed to save post', 'error');
       }
     } catch (err) {
       console.error('Error saving post:', err);
+      setPublishProgress({ step: 'error', message: err.message || 'Failed to save post' });
       showToast(err.message || 'Failed to save post', 'error');
     } finally {
       setLoading(false);
+      // Clear progress after a delay
+      setTimeout(() => {
+        setPublishProgress({ step: '', message: '' });
+        setUploadProgress({ current: 0, total: 0, fileName: '' });
+      }, 3000);
     }
   };
 
@@ -374,17 +459,28 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
   const handleSaveDraft = async () => {
     try {
       setLoading(true);
+      setPublishProgress({ step: 'upload', message: 'Uploading media files...' });
 
-      // Upload media files
+      // Upload media files with progress
       const mediaUrls = [];
-      for (const media of formData.mediaFiles) {
+      const filesToUpload = formData.mediaFiles.filter(m => m.file && !m.url);
+      const totalFiles = filesToUpload.length;
+
+      for (let i = 0; i < formData.mediaFiles.length; i++) {
+        const media = formData.mediaFiles[i];
         if (media.url) {
           mediaUrls.push(media.url);
         } else if (media.file) {
-          const url = await uploadMedia(media.file);
+          setPublishProgress({
+            step: 'upload',
+            message: `Uploading ${media.file.name} (${i + 1}/${totalFiles})...`
+          });
+          const url = await uploadMedia(media.file, i, totalFiles);
           mediaUrls.push(url);
         }
       }
+
+      setPublishProgress({ step: 'saving', message: 'Saving draft...' });
 
       const postData = {
         client: formData.clientId,
@@ -413,19 +509,30 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
       const result = await response.json();
 
       if (result.success) {
+        setPublishProgress({ step: 'complete', message: 'Draft saved successfully!' });
         showToast('Post saved as draft', 'success');
         if (onSuccess) {
           onSuccess();
         }
-        setTimeout(() => onClose(), 1500);
+        setTimeout(() => {
+          setPublishProgress({ step: '', message: '' });
+          setUploadProgress({ current: 0, total: 0, fileName: '' });
+          onClose();
+        }, 1500);
       } else {
+        setPublishProgress({ step: 'error', message: result.error || 'Failed to save draft' });
         showToast(result.error || 'Failed to save draft', 'error');
       }
     } catch (err) {
       console.error('Error saving draft:', err);
+      setPublishProgress({ step: 'error', message: err.message || 'Failed to save draft' });
       showToast('Failed to save draft', 'error');
     } finally {
       setLoading(false);
+      setTimeout(() => {
+        setPublishProgress({ step: '', message: '' });
+        setUploadProgress({ current: 0, total: 0, fileName: '' });
+      }, 3000);
     }
   };
 
@@ -453,17 +560,81 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
     }
   };
 
+  // Helper function to get post insights from publish result
+  const getPostInsights = (publishResult) => {
+    if (!publishResult) return null;
+
+    const insights = {
+      status: publishResult.status,
+      publishedAt: publishResult.publishedTime,
+      platforms: []
+    };
+
+    // Instagram insights
+    if (publishResult.instagramPostId) {
+      insights.platforms.push({
+        platform: 'instagram',
+        postId: publishResult.instagramPostId,
+        url: publishResult.instagramPostUrl,
+        success: true
+      });
+    }
+
+    // Facebook insights
+    if (publishResult.facebookPostId) {
+      insights.platforms.push({
+        platform: 'facebook',
+        postId: publishResult.facebookPostId,
+        url: publishResult.facebookPostUrl,
+        success: true
+      });
+    }
+
+    // Handle partial failures
+    if (publishResult.publishingErrors) {
+      insights.errors = publishResult.publishingErrors;
+    }
+
+    return insights;
+  };
+
+  // Helper function to open post URL
+  const openPostUrl = (platform, url) => {
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
   // Handle publish now button
   const handlePublishNow = async () => {
     if (editingPost && editingPost.status === 'scheduled') {
-      // Publish existing scheduled post
-      const result = await publishPost(editingPost._id);
-      if (result.success) {
-        setShowInsights(true);
-        showToast('Post published successfully', 'success');
-        if (onSuccess) onSuccess();
-      } else {
-        showToast(result.error, 'error');
+      try {
+        setLoading(true);
+        const token = localStorage.getItem('auth_token');
+        const backendUrl = getBackendUrl();
+
+        const response = await fetch(`${backendUrl}/api/posts/${editingPost._id}/publish`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          setPublishResult(result.data);
+          setShowInsights(true);
+          showToast('Post published successfully', 'success');
+          if (onSuccess) onSuccess();
+        } else {
+          showToast(result.error || 'Failed to publish post', 'error');
+        }
+      } catch (err) {
+        console.error('Error publishing post:', err);
+        showToast('Failed to publish post', 'error');
+      } finally {
+        setLoading(false);
       }
     }
   };
@@ -496,6 +667,7 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
     setShowCropper(false);
     setShowInsights(false);
     setSelectedMediaIndex(0);
+    setPublishResult(null);
     resetCrop();
 
     onClose();
@@ -610,7 +782,7 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
                               {getAvailablePlatforms().map(platform => (
                                 <option key={platform} value={platform}>
                                   {platform === 'instagram' ? 'Instagram' :
-                                   platform === 'facebook' ? 'Facebook' : 'Both Platforms'}
+                                    platform === 'facebook' ? 'Facebook' : 'Both Platforms'}
                                 </option>
                               ))}
                             </select>
@@ -640,9 +812,9 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
                               {getAvailablePostTypes().map(type => (
                                 <option key={type} value={type}>
                                   {type === 'post' ? 'Feed Post' :
-                                   type === 'story' ? 'Story' :
-                                   type === 'reel' ? 'Reel' :
-                                   type === 'carousel' ? 'Carousel' : type}
+                                    type === 'story' ? 'Story' :
+                                      type === 'reel' ? 'Reel' :
+                                        type === 'carousel' ? 'Carousel' : type}
                                 </option>
                               ))}
                             </select>
@@ -666,11 +838,10 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
                                   key={format.value}
                                   type="button"
                                   onClick={() => setFormData(prev => ({ ...prev, format: format.value }))}
-                                  className={`p-3 rounded-lg border-2 text-left transition-all ${
-                                    formData.format === format.value
-                                      ? 'border-blue-500 bg-blue-50'
-                                      : 'border-gray-200 hover:border-gray-300'
-                                  }`}
+                                  className={`p-3 rounded-lg border-2 text-left transition-all ${formData.format === format.value
+                                    ? 'border-blue-500 bg-blue-50'
+                                    : 'border-gray-200 hover:border-gray-300'
+                                    }`}
                                 >
                                   <div className="font-medium text-sm">{format.label}</div>
                                   <div className="text-xs text-gray-500">{format.desc}</div>
@@ -698,8 +869,8 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
                           <p className="text-gray-600 mb-2">Click to upload or drag and drop</p>
                           <p className="text-sm text-gray-500">
                             {formData.postType === 'reel' ? 'MP4, MOV videos up to 100MB' :
-                             formData.postType === 'carousel' ? 'JPEG, PNG images (min 2 files)' :
-                             'Images or videos'}
+                              formData.postType === 'carousel' ? 'JPEG, PNG images (min 2 files)' :
+                                'Images or videos'}
                           </p>
                         </div>
 
@@ -796,12 +967,15 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
                           <span className="text-sm text-gray-500">{formData.caption.length}/2200</span>
                           <button
                             type="button"
-                            onClick={handleGenerateHashtags}
-                            disabled={hashtagsLoading || !formData.caption.trim()}
+                            onClick={() => {
+                              setAiGeneratorType('caption');
+                              setShowAIGenerator(true);
+                            }}
+                            disabled={loading}
                             className="flex items-center gap-2 px-3 py-1 bg-purple-100 text-purple-600 rounded-lg hover:bg-purple-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                           >
-                            {hashtagsLoading ? <Loader size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                            AI Suggest
+                            <Sparkles size={14} />
+                            AI Magic
                           </button>
                         </div>
                       </div>
@@ -831,6 +1005,17 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
                             className="px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
                           >
                             <Plus size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAiGeneratorType('hashtag');
+                              setShowAIGenerator(true);
+                            }}
+                            className="px-4 py-3 bg-purple-100 text-purple-600 rounded-xl hover:bg-purple-200 transition-colors"
+                            title="AI Hashtags"
+                          >
+                            <Sparkles size={16} />
                           </button>
                         </div>
 
@@ -1072,60 +1257,102 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
 
               {/* Modal Footer */}
               {currentStep === 'compose' && (
-                <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex items-center justify-between rounded-b-2xl">
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={(e) => handleSubmit(e, true)}
-                      disabled={loading}
-                      className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50"
-                    >
-                      <Save size={16} />
-                      Save Draft
-                    </button>
-                  </div>
+                <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 rounded-b-2xl">
+                  {/* Progress Indicator */}
+                  {(loading || uploadProgress.total > 0 || publishProgress.step) && (
+                    <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      {uploadProgress.total > 0 && (
+                        <div className="mb-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-medium text-blue-900">
+                              Uploading {uploadProgress.fileName}...
+                            </span>
+                            <span className="text-sm text-blue-700">
+                              {uploadProgress.current} / {uploadProgress.total}
+                            </span>
+                          </div>
+                          <div className="w-full bg-blue-200 rounded-full h-2">
+                            <div
+                              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                              style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {publishProgress.step && (
+                        <div className="flex items-center gap-3">
+                          <Loader size={20} className="animate-spin text-blue-600" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-blue-900">
+                              {publishProgress.step === 'upload' && '📤 Uploading media files...'}
+                              {publishProgress.step === 'saving' && '💾 Saving post...'}
+                              {publishProgress.step === 'publishing' && '🚀 Publishing to Instagram...'}
+                              {publishProgress.step === 'processing' && '⏳ Processing on Instagram...'}
+                              {publishProgress.step === 'complete' && '✅ Complete!'}
+                              {publishProgress.step === 'error' && '❌ Error'}
+                            </p>
+                            <p className="text-xs text-blue-700 mt-1">{publishProgress.message}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={handleClose}
-                      className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-                      disabled={loading}
-                    >
-                      Cancel
-                    </button>
-
-                    {editingPost && editingPost.status === 'scheduled' && (
+                  <div className="flex items-center justify-between">
+                    <div className="flex gap-3">
                       <button
                         type="button"
-                        onClick={handlePublishNow}
-                        disabled={publishing}
-                        className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                        onClick={(e) => handleSubmit(e, true)}
+                        disabled={loading}
+                        className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50"
                       >
-                        {publishing ? <Loader size={16} className="animate-spin" /> : 'Publish Now'}
+                        <Save size={16} />
+                        Save Draft
                       </button>
-                    )}
+                    </div>
 
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                    >
-                      {loading && <Loader size={16} className="animate-spin" />}
-                      {editingPost ? 'Update Post' : (
-                        formData.scheduleType === 'schedule' ? (
-                          <>
-                            <Calendar size={16} />
-                            Schedule Post
-                          </>
-                        ) : (
-                          <>
-                            <Send size={16} />
-                            Publish Now
-                          </>
-                        )
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={handleClose}
+                        className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                        disabled={loading}
+                      >
+                        Cancel
+                      </button>
+
+                      {editingPost && editingPost.status === 'scheduled' && (
+                        <button
+                          type="button"
+                          onClick={handlePublishNow}
+                          disabled={publishing}
+                          className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                        >
+                          {publishing ? <Loader size={16} className="animate-spin" /> : 'Publish Now'}
+                        </button>
                       )}
-                    </button>
+
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                      >
+                        {loading && <Loader size={16} className="animate-spin" />}
+                        {editingPost ? 'Update Post' : (
+                          formData.scheduleType === 'schedule' ? (
+                            <>
+                              <Calendar size={16} />
+                              Schedule Post
+                            </>
+                          ) : (
+                            <>
+                              <Send size={16} />
+                              Publish Now
+                            </>
+                          )
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1134,19 +1361,59 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
         </div>
       </div>
 
+
+
+      {/* AI Generator Modal */}
+      {
+        showAIGenerator && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden relative">
+              <button
+                onClick={() => setShowAIGenerator(false)}
+                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+              >
+                <X size={20} />
+              </button>
+              <div className="p-6">
+                <h3 className="text-lg font-bold text-slate-900 mb-4">
+                  {aiGeneratorType === 'caption' ? 'Generate Caption' : 'Generate Hashtags'}
+                </h3>
+                <AIGenerator
+                  type={aiGeneratorType}
+                  onSelect={(text) => {
+                    if (aiGeneratorType === 'caption') {
+                      setFormData(prev => ({ ...prev, caption: prev.caption ? prev.caption + '\n\n' + text : text }));
+                    } else {
+                      const tags = text.match(/#[\w]+/g) || [];
+                      const cleanTags = tags.map(t => t.slice(1));
+                      setFormData(prev => ({
+                        ...prev,
+                        hashtags: [...new Set([...prev.hashtags, ...cleanTags])]
+                      }));
+                    }
+                    setShowAIGenerator(false);
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        )
+      }
+
       {/* Toast Notifications */}
-      {toast.show && (
-        <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 ${
-          toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
-        }`}>
-          {toast.type === 'success' ? (
-            <CheckCircle size={20} />
-          ) : (
-            <AlertCircle size={20} />
-          )}
-          <span>{toast.message}</span>
-        </div>
-      )}
+      {
+        toast.show && (
+          <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 ${toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+            }`}>
+            {toast.type === 'success' ? (
+              <CheckCircle size={20} />
+            ) : (
+              <AlertCircle size={20} />
+            )}
+            <span>{toast.message}</span>
+          </div>
+        )
+      }
     </>
   );
 };

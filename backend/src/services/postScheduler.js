@@ -18,14 +18,30 @@ export async function processScheduledPosts() {
     console.log(`⏰ Checking for scheduled posts at ${now.toISOString()} (${now.toLocaleString()})...`);
     
     // Find posts scheduled for now or in the past
+    // Use $lte to catch posts that are due (including those scheduled for the exact current minute)
     const scheduledPosts = await Post.find({
       status: 'scheduled',
       scheduledTime: { $lte: now }
     }).populate('client');
+    
+    // Also check for posts scheduled within the next minute (to catch edge cases)
+    const nextMinute = new Date(now.getTime() + 60000);
+    const upcomingPosts = await Post.find({
+      status: 'scheduled',
+      scheduledTime: { $gt: now, $lte: nextMinute }
+    }).populate('client');
+    
+    // Combine both (deduplicate by _id)
+    const allDuePosts = [...scheduledPosts];
+    upcomingPosts.forEach(post => {
+      if (!allDuePosts.find(p => p._id.toString() === post._id.toString())) {
+        allDuePosts.push(post);
+      }
+    });
 
-    console.log(`⏰ Found ${scheduledPosts.length} scheduled post(s) ready to publish`);
+    console.log(`⏰ Found ${allDuePosts.length} scheduled post(s) ready to publish`);
 
-    if (scheduledPosts.length === 0) {
+    if (allDuePosts.length === 0) {
       // Log some debug info about scheduled posts
       const allScheduled = await Post.find({ status: 'scheduled' }).select('_id scheduledTime').limit(5);
       if (allScheduled.length > 0) {
@@ -38,7 +54,7 @@ export async function processScheduledPosts() {
       }
     }
 
-    for (const post of scheduledPosts) {
+    for (const post of allDuePosts) {
       try {
         console.log(`📅 Publishing scheduled post: ${post._id}`);
         console.log(`  Scheduled for: ${post.scheduledTime} (${new Date(post.scheduledTime).toLocaleString()})`);
@@ -72,75 +88,93 @@ export async function processScheduledPosts() {
         console.log(`  📊 Publish results:`, JSON.stringify(results, null, 2));
 
         // Determine if posting succeeded based on platform requirements
-        let postingSucceeded = false;
-        let postingFailed = false;
+        // Only mark as published if at least one platform successfully published (has postId)
+        const instagramSuccess = results.instagram && results.instagram.postId;
+        const facebookSuccess = results.facebook && results.facebook.postId;
+        
+        let finalStatus = 'failed';
         const errorMessages = [];
 
-        // Check Instagram posting status
-        if (post.platform === 'instagram' || post.platform === 'both') {
-          if (results.instagram && results.instagram.success) {
-            postingSucceeded = true;
-          } else {
-            postingFailed = true;
+        // Determine final status based on what was requested vs what succeeded
+        if (post.platform === 'instagram') {
+          finalStatus = instagramSuccess ? 'published' : 'failed';
+          if (!instagramSuccess) {
             const instagramError = results.errors.find(e => e.platform === 'instagram');
-            if (instagramError) {
-              errorMessages.push(`Instagram: ${instagramError.error}`);
-            } else {
-              errorMessages.push('Instagram: Posting failed');
-            }
+            errorMessages.push(instagramError ? `Instagram: ${instagramError.error}` : 'Instagram: Posting failed - no post ID returned');
           }
-        }
-
-        // Check Facebook posting status
-        if (post.platform === 'facebook' || post.platform === 'both') {
-          if (results.facebook && results.facebook.success) {
-            postingSucceeded = true;
-          } else {
-            // Only mark as failed if Instagram also failed (for 'both' platform)
-            // or if Facebook is the only platform
-            if (post.platform === 'facebook' || (post.platform === 'both' && !results.instagram)) {
-              postingFailed = true;
-            }
+        } else if (post.platform === 'facebook') {
+          finalStatus = facebookSuccess ? 'published' : 'failed';
+          if (!facebookSuccess) {
             const facebookError = results.errors.find(e => e.platform === 'facebook');
-            if (facebookError) {
-              errorMessages.push(`Facebook: ${facebookError.error}`);
-            } else if (post.platform === 'facebook') {
-              errorMessages.push('Facebook: Posting failed');
-            }
+            errorMessages.push(facebookError ? `Facebook: ${facebookError.error}` : 'Facebook: Posting failed - no post ID returned');
+          }
+        } else if (post.platform === 'both') {
+          // For 'both', need at least one to succeed
+          finalStatus = (instagramSuccess || facebookSuccess) ? 'published' : 'failed';
+          if (!instagramSuccess) {
+            const instagramError = results.errors.find(e => e.platform === 'instagram');
+            errorMessages.push(instagramError ? `Instagram: ${instagramError.error}` : 'Instagram: Posting failed - no post ID returned');
+          }
+          if (!facebookSuccess) {
+            const facebookError = results.errors.find(e => e.platform === 'facebook');
+            errorMessages.push(facebookError ? `Facebook: ${facebookError.error}` : 'Facebook: Posting failed - no post ID returned');
           }
         }
 
         // Update post status based on posting results
-        const updateData = {};
+        const updateData = {
+          status: finalStatus,
+          publishedTime: finalStatus === 'published' ? new Date() : undefined
+        };
 
-        if (postingSucceeded) {
+        if (finalStatus === 'published') {
           // At least one platform succeeded
-          updateData.status = 'published';
-          updateData.publishedTime = new Date();
-          
-          if (results.instagram) {
+          if (instagramSuccess) {
             updateData.instagramPostId = results.instagram.postId;
+            updateData.instagramPostUrl = results.instagram.url;
+          } else {
+            // Clear Instagram IDs if publishing failed
+            updateData.instagramPostId = null;
+            updateData.instagramPostUrl = null;
           }
-          if (results.facebook) {
+          
+          if (facebookSuccess) {
             updateData.facebookPostId = results.facebook.postId;
+            updateData.facebookPostUrl = results.facebook.url;
+          } else {
+            // Clear Facebook IDs if publishing failed
+            updateData.facebookPostId = null;
+            updateData.facebookPostUrl = null;
           }
           
           // If there were partial failures (e.g., 'both' platform but one failed)
           // Store error message but still mark as published
           if (errorMessages.length > 0) {
             updateData.errorMessage = `Partial success. Errors: ${errorMessages.join('; ')}`;
+            updateData.publishingErrors = results.errors.map(e => e.error);
             console.log(`  ⚠️ Post published with partial failures: ${updateData.errorMessage}`);
           } else {
             // Clear any previous error messages on success
             updateData.errorMessage = null;
+            updateData.publishingErrors = [];
           }
-        } else if (postingFailed) {
-          // All required platforms failed
-          updateData.status = 'failed';
-          updateData.errorMessage = errorMessages.join('; ');
-          console.error(`  ❌ Post failed: ${updateData.errorMessage}`);
         } else {
-          // This shouldn't happen, but handle it
+          // All required platforms failed
+          updateData.errorMessage = errorMessages.join('; ');
+          updateData.publishingErrors = results.errors.map(e => e.error);
+          console.error(`  ❌ Post failed: ${updateData.errorMessage}`);
+        }
+        
+        // Log the final status for debugging
+        console.log(`  📊 Final Status: ${finalStatus}`);
+        console.log(`  📊 Instagram Success: ${instagramSuccess ? 'Yes' : 'No'}`);
+        console.log(`  📊 Facebook Success: ${facebookSuccess ? 'Yes' : 'No'}`);
+        if (errorMessages.length > 0) {
+          console.log(`  ❌ Errors: ${errorMessages.join(', ')}`);
+        }
+        
+        // Handle edge case (shouldn't happen)
+        if (!finalStatus) {
           updateData.status = 'failed';
           updateData.errorMessage = 'Unknown error during posting';
           console.error(`  ❌ Post failed: Unknown error`);
@@ -176,15 +210,15 @@ export function startScheduler() {
     return;
   }
 
-  console.log('⏰ Starting post scheduler (checking every 60 seconds)...');
+  console.log('⏰ Starting post scheduler (checking every 30 seconds)...');
   
   // Process immediately on start
   processScheduledPosts();
   
-  // Then check every 60 seconds
+  // Then check every 30 seconds for more accurate timing
   schedulerInterval = setInterval(() => {
     processScheduledPosts();
-  }, 60 * 1000); // 60 seconds
+  }, 30 * 1000); // 30 seconds - more frequent checks for better accuracy
 }
 
 /**

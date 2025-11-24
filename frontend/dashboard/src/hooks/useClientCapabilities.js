@@ -20,7 +20,7 @@ export const useClientCapabilities = (selectedClientId, platform, postType) => {
       if (savedPort) {
         return `http://localhost:${savedPort}`;
       }
-      return 'http://localhost:5001';
+      return 'http://localhost:5000';
     }
     return window.location.origin;
   };
@@ -49,9 +49,25 @@ export const useClientCapabilities = (selectedClientId, platform, postType) => {
           }
         });
 
-        const clientResult = await clientResponse.json();
-        if (clientResult.success) {
-          setClientData(clientResult.data);
+        if (!clientResponse.ok) {
+          if (clientResponse.status === 404) {
+            console.warn(`Client ${selectedClientId} not found`);
+            setError('Client not found');
+            setClientData(null);
+          } else {
+            const errorText = await clientResponse.text();
+            console.error('Error fetching client:', clientResponse.status, errorText);
+            setError('Failed to fetch client data');
+            setClientData(null);
+          }
+        } else {
+          const clientResult = await clientResponse.json();
+          if (clientResult.success) {
+            setClientData(clientResult.data);
+          } else {
+            setError(clientResult.error || 'Failed to fetch client data');
+            setClientData(null);
+          }
         }
 
         // Fetch client permissions

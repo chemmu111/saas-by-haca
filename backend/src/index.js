@@ -4,6 +4,10 @@ import helmet from 'helmet';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { connectDB } from './database/connection.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import authRouter from './routes/auth.js';
 import clientsRouter from './routes/clients.js';
 import oauthRouter from './routes/oauth.js';
@@ -15,11 +19,16 @@ import instagramGraphAuthRouter from './routes/instagramGraphAuth.js';
 import tagsRouter from './routes/tags.js';
 import analyticsRouter from './routes/analytics.js';
 import reportsRouter from './routes/reports.js';
-import { connectDB } from './database/connection.js';
+import tokenRefreshRouter from './routes/tokenRefresh.js';
+import settingsRouter from './routes/settings.js';
+import foldersRouter from './routes/folders.js';
+import captionsRouter from './routes/captions.js';
+import aiRouter from './routes/ai.js';
+import adminRouter from './routes/admin.js';
 
+// Create Express app
 const app = express();
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+
 // Serve static files from frontend/public
 const publicDir = path.resolve(__dirname, '../../frontend/public');
 
@@ -79,22 +88,45 @@ const uploadsDir = path.resolve(__dirname, '../uploads');
 
 // Add middleware to set proper headers for all static files
 app.use('/uploads', (req, res, next) => {
-  // Set CORS and caching headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // Set comprehensive CORS headers
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Cache-Control', 'public, max-age=31536000');
   res.setHeader('Accept-Ranges', 'bytes');
-  
+
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   // Log file requests for debugging
-  console.log(`📂 Uploads request: ${req.path}`);
-  
+  console.log(`📂 Uploads request: ${req.path} (Origin: ${origin || 'none'})`);
+
   next();
 }, express.static(uploadsDir, {
   // Enable proper MIME types
   setHeaders: (res, filePath) => {
     const ext = path.extname(filePath).toLowerCase();
-    
+
+    // Ensure correct Content-Type for images
+    if (ext === '.png') {
+      res.setHeader('Content-Type', 'image/png');
+    } else if (ext === '.jpg' || ext === '.jpeg') {
+      res.setHeader('Content-Type', 'image/jpeg');
+    } else if (ext === '.gif') {
+      res.setHeader('Content-Type', 'image/gif');
+    } else if (ext === '.webp') {
+      res.setHeader('Content-Type', 'image/webp');
+    }
     // Ensure correct Content-Type for videos (critical for Instagram)
-    if (ext === '.mp4') {
+    else if (ext === '.mp4') {
       res.setHeader('Content-Type', 'video/mp4');
     } else if (ext === '.mov') {
       res.setHeader('Content-Type', 'video/quicktime');
@@ -103,11 +135,33 @@ app.use('/uploads', (req, res, next) => {
     } else if (ext === '.avi') {
       res.setHeader('Content-Type', 'video/x-msvideo');
     }
-    
+
     // Log what we're serving
     console.log(`   ✅ Serving: ${path.basename(filePath)} (${res.getHeader('Content-Type')})`);
   }
 }));
+
+// Handle missing upload files - return 404 after static middleware
+app.use('/uploads', (req, res, next) => {
+  // Only handle if request hasn't been handled by static middleware
+  if (!res.headersSent) {
+    const filename = path.basename(req.path);
+    console.warn(`⚠️  File not found in uploads: ${filename} (requested: ${req.path})`);
+
+    // Check if file actually exists
+    const filePath = path.join(uploadsDir, filename);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        success: false,
+        error: 'File not found',
+        filename: filename,
+        path: req.path,
+        message: 'The requested media file does not exist on the server'
+      });
+    }
+  }
+  next();
+});
 
 // DEPRECATED: Redirect /api/images to /uploads for backward compatibility
 // Instagram should use /uploads directly
@@ -115,7 +169,7 @@ app.get('/api/images/:filename', (req, res) => {
   const filename = req.params.filename;
   console.log(`⚠️  DEPRECATED: /api/images/${filename} - Redirecting to /uploads/${filename}`);
   console.log('   Please update URLs to use /uploads directly');
-  
+
   // Permanent redirect to /uploads
   res.redirect(301, `/uploads/${filename}`);
 });
@@ -209,6 +263,12 @@ app.use('/auth/instagram', instagramGraphAuthRouter);
 app.use('/api/tags', tagsRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/reports', reportsRouter);
+app.use('/api/token-refresh', tokenRefreshRouter);
+app.use('/api/settings', settingsRouter);
+app.use('/api/folders', foldersRouter);
+app.use('/api/captions', captionsRouter);
+app.use('/api/ai', aiRouter);
+app.use('/api/admin', adminRouter);
 
 // Global error handler - ensures all errors return JSON
 app.use((error, req, res, next) => {
@@ -240,18 +300,28 @@ async function start() {
       console.error('Missing MONGODB_URI. Create a backend/.env file with your MongoDB connection string.');
       process.exit(1);
     }
-    
+
     // Connect to MongoDB database
     await connectDB(MONGODB_URI);
-    
+
     // Start the post scheduler (processes scheduled posts)
     try {
       const { startScheduler } = await import('./services/postScheduler.js');
       startScheduler();
     } catch (error) {
-      console.error('Failed to start post scheduler:', error);
+      console.warn('⚠️ Failed to start post scheduler:', error.message);
+      // Continue even if scheduler fails
     }
-    
+
+    // Start the token monitoring cron job
+    try {
+      const { initTokenMonitoringCron } = await import('./cron/tokenCron.js');
+      initTokenMonitoringCron();
+    } catch (error) {
+      console.warn('⚠️ Failed to start token monitoring cron:', error.message);
+      // Continue even if cron fails
+    }
+
     // Start the server on port 5000 only
     const server = app.listen(PORT, () => {
       console.log(`🚀 API listening on http://localhost:${PORT}`);

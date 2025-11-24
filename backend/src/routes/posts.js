@@ -68,7 +68,7 @@ const upload = multer({
     const isVideo = allowedVideoTypes.test(ext);
     const isAudio = allowedAudioTypes.test(ext);
     const isValidMimeType = allowedMimeTypes[file.mimetype];
-    
+
     if ((isImage || isVideo || isAudio) && isValidMimeType) {
       return cb(null, true);
     } else {
@@ -112,7 +112,7 @@ router.post('/upload', (req, res, next) => {
     // Check if file was uploaded (could be from 'image', 'video', or 'media' field)
     // With upload.any(), files are in req.files array
     const file = req.files && req.files.length > 0 ? req.files[0] : req.file;
-    
+
     if (!file) {
       return res.status(400).json({
         success: false,
@@ -129,7 +129,7 @@ router.post('/upload', (req, res, next) => {
     // Validate file size based on file type
     const fileSizeInMB = file.size / (1024 * 1024);
     const maxSizeMB = 100; // Maximum size for all files
-    
+
     // For video files: must be between 1MB and 100MB
     if (isVideo) {
       const minVideoSizeMB = 1;
@@ -140,7 +140,7 @@ router.post('/upload', (req, res, next) => {
         });
       }
     }
-    
+
     // Maximum size check for all files
     if (fileSizeInMB > maxSizeMB) {
       const fileTypeName = isVideo ? 'Video' : isImage ? 'Image' : 'File';
@@ -180,17 +180,28 @@ router.post('/upload', (req, res, next) => {
 // GET /api/posts - Get all posts for the authenticated user
 router.get('/', async (req, res) => {
   try {
-    const { status, clientId, limit, skip } = req.query;
-    
+    const { status, clientId, limit, skip, folder, search } = req.query;
+
     // Build query
     const query = { createdBy: req.user.sub };
-    
+
     if (status) {
       query.status = status;
     }
-    
+
     if (clientId) {
       query.client = clientId;
+    }
+
+    if (folder) {
+      query.folder = folder;
+    }
+
+    if (search) {
+      query.$or = [
+        { content: { $regex: search, $options: 'i' } },
+        { caption: { $regex: search, $options: 'i' } }
+      ];
     }
 
     // Parse pagination
@@ -206,9 +217,9 @@ router.get('/', async (req, res) => {
 
     const total = await Post.countDocuments(query);
 
-    res.json({ 
-      success: true, 
-      data: posts, 
+    res.json({
+      success: true,
+      data: posts,
       count: posts.length,
       total,
       limit: limitNum,
@@ -217,6 +228,200 @@ router.get('/', async (req, res) => {
   } catch (error) {
     console.error('Error fetching posts:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch posts' });
+  }
+});
+
+// GET /api/posts/calendar - Get calendar data for a specific month
+router.get('/calendar', async (req, res) => {
+  try {
+    const { month, clientId, platform, status } = req.query;
+    const userId = req.user.sub;
+
+    // Parse month (YYYY-MM format)
+    let startDate, endDate;
+    if (month) {
+      const [year, monthNum] = month.split('-').map(Number);
+      startDate = new Date(year, monthNum - 1, 1);
+      endDate = new Date(year, monthNum, 0, 23, 59, 59, 999);
+    } else {
+      // Default to current month
+      const now = new Date();
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    }
+
+    // Build query
+    const query = {
+      createdBy: userId,
+      scheduledTime: {
+        $gte: startDate,
+        $lte: endDate
+      }
+    };
+
+    if (clientId) {
+      query.client = clientId;
+    }
+
+    if (platform) {
+      query.platform = platform;
+    }
+
+    if (status) {
+      query.status = status;
+    } else {
+      // Default to scheduled posts for calendar
+      query.status = { $in: ['scheduled', 'published'] };
+    }
+
+    // Fetch posts with client info
+    const posts = await Post.find(query)
+      .populate('client', 'name email platform')
+      .sort({ scheduledTime: 1 })
+      .select('-createdBy')
+      .lean();
+
+    // Group posts by day
+    const postsByDay = {};
+    posts.forEach(post => {
+      if (post.scheduledTime) {
+        const dateKey = new Date(post.scheduledTime).toISOString().split('T')[0];
+        if (!postsByDay[dateKey]) {
+          postsByDay[dateKey] = [];
+        }
+        postsByDay[dateKey].push(post);
+      }
+    });
+
+    // Calculate statistics
+    const stats = {
+      total: posts.length,
+      scheduled: posts.filter(p => p.status === 'scheduled').length,
+      published: posts.filter(p => p.status === 'published').length,
+      draft: posts.filter(p => p.status === 'draft').length,
+      reels: posts.filter(p => p.type === 'REEL' || p.type === 'REELS').length,
+      photos: posts.filter(p => p.type === 'IMAGE' || p.type === 'CAROUSEL_ALBUM').length,
+      videos: posts.filter(p => p.type === 'VIDEO').length
+    };
+
+    res.json({
+      success: true,
+      data: {
+        month: month || `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}`,
+        postsByDay,
+        stats,
+        posts: posts // Include full posts array for detailed views
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching calendar data:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch calendar data' });
+  }
+});
+
+// GET /api/posts/upcoming - Get upcoming scheduled posts
+router.get('/upcoming', async (req, res) => {
+  try {
+    const { limit = 10, clientId, platform } = req.query;
+    const userId = req.user.sub;
+
+    const query = {
+      createdBy: userId,
+      status: 'scheduled',
+      scheduledTime: { $gte: new Date() }
+    };
+
+    if (clientId) {
+      query.client = clientId;
+    }
+
+    if (platform) {
+      query.platform = platform;
+    }
+
+    const posts = await Post.find(query)
+      .populate('client', 'name email platform')
+      .sort({ scheduledTime: 1 })
+      .limit(parseInt(limit))
+      .select('-createdBy')
+      .lean();
+
+    res.json({
+      success: true,
+      data: posts,
+      count: posts.length
+    });
+  } catch (error) {
+    console.error('Error fetching upcoming posts:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch upcoming posts' });
+  }
+});
+
+// PUT /api/posts/:id/reschedule - Reschedule a post
+router.put('/:id/reschedule', async (req, res) => {
+  try {
+    const { scheduledTime } = req.body;
+    const userId = req.user.sub;
+
+    if (!scheduledTime) {
+      return res.status(400).json({
+        success: false,
+        error: 'scheduledTime is required'
+      });
+    }
+
+    const newScheduledTime = new Date(scheduledTime);
+    if (isNaN(newScheduledTime.getTime())) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid scheduledTime format'
+      });
+    }
+
+    // Check if the new time is in the future
+    if (newScheduledTime <= new Date()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Scheduled time must be in the future'
+      });
+    }
+
+    const post = await Post.findOne({
+      _id: req.params.id,
+      createdBy: userId
+    });
+
+    if (!post) {
+      return res.status(404).json({
+        success: false,
+        error: 'Post not found'
+      });
+    }
+
+    // Update scheduled time
+    post.scheduledTime = newScheduledTime;
+    post.status = 'scheduled';
+    await post.save();
+
+    const updatedPost = await Post.findById(post._id)
+      .populate('client', 'name email platform')
+      .select('-createdBy')
+      .lean();
+
+    res.json({
+      success: true,
+      message: 'Post rescheduled successfully',
+      data: updatedPost
+    });
+  } catch (error) {
+    console.error('Error rescheduling post:', error);
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid post ID'
+      });
+    }
+    res.status(500).json({ success: false, error: 'Failed to reschedule post' });
   }
 });
 
@@ -362,7 +567,7 @@ router.post('/', async (req, res) => {
         error: 'Content or caption is required'
       });
     }
-    
+
     // Use caption if content is not provided
     const postContent = content || caption || '';
 
@@ -423,7 +628,7 @@ router.post('/', async (req, res) => {
     // Validate format if provided
     const validFormats = ['square', 'portrait', 'landscape', 'reel', 'story', 'carousel-square', 'carousel-vertical'];
     let finalFormat = format || 'square';
-    
+
     // Auto-set format based on postType if not provided or invalid
     if (postType === 'reel') {
       finalFormat = 'reel';
@@ -481,7 +686,7 @@ router.post('/', async (req, res) => {
       console.log('  Platform:', post.platform);
       console.log('  Media URLs:', post.mediaUrls);
       console.log('');
-      
+
       try {
         const { publishPost } = await import('../services/postingService.js');
         const clientDoc = await Client.findById(client);
@@ -494,67 +699,108 @@ router.post('/', async (req, res) => {
           );
 
           const publishResults = await Promise.race([publishPromise, timeoutPromise]);
-          
+
           // Update post status based on publishing results
-          let finalStatus = 'published';
+          // Only mark as published if at least one platform successfully published
+          let finalStatus = 'failed';
           const errors = [];
-          
+
+          // Check if Instagram was successfully published
+          const instagramSuccess = publishResults.instagram && publishResults.instagram.postId;
+          // Check if Facebook was successfully published
+          const facebookSuccess = publishResults.facebook && publishResults.facebook.postId;
+
+          // Determine final status based on what was requested vs what succeeded
+          if (post.platform === 'instagram') {
+            finalStatus = instagramSuccess ? 'published' : 'failed';
+          } else if (post.platform === 'facebook') {
+            finalStatus = facebookSuccess ? 'published' : 'failed';
+          } else if (post.platform === 'both') {
+            // For 'both', need at least one to succeed
+            finalStatus = (instagramSuccess || facebookSuccess) ? 'published' : 'failed';
+          }
+
+          // Collect all errors
           if (publishResults.errors && publishResults.errors.length > 0) {
-            // Some platforms failed
-            const allFailed = (post.platform === 'instagram' && !publishResults.instagram) ||
-                             (post.platform === 'facebook' && !publishResults.facebook) ||
-                             (post.platform === 'both' && !publishResults.instagram && !publishResults.facebook);
-            
-            if (allFailed) {
-              finalStatus = 'failed';
-              errors.push(...publishResults.errors.map(e => e.error));
-            } else {
-              finalStatus = 'published'; // Partial success
+            errors.push(...publishResults.errors.map(e => e.error));
+          }
+
+          // If status is failed, make sure we have error messages
+          if (finalStatus === 'failed' && errors.length === 0) {
+            if (post.platform === 'instagram' || post.platform === 'both') {
+              if (!instagramSuccess) {
+                errors.push('Instagram publishing failed - no post ID returned');
+              }
             }
-            
-            // Check for aspect ratio errors and send email
-            const aspectRatioError = publishResults.errors.find(e => e.isAspectRatioError && e.platform === 'instagram');
-            if (aspectRatioError) {
-              try {
-                // Get user information
-                const user = await User.findById(req.user.sub);
-                if (user && user.email) {
-                  // Send email about aspect ratio error
-                  await sendInstagramAspectRatioErrorEmail(
-                    user.email,
-                    user.name || 'User',
-                    aspectRatioError.error,
-                    aspectRatioError.mediaUrl || (post.mediaUrls && post.mediaUrls[0]) || '',
-                    aspectRatioError.postType || post.postType || 'post'
-                  );
-                  console.log('📧 Aspect ratio error email sent to:', user.email);
-                }
-              } catch (emailError) {
-                console.error('❌ Error sending aspect ratio error email:', emailError);
-                // Don't fail the request if email fails
+            if (post.platform === 'facebook' || post.platform === 'both') {
+              if (!facebookSuccess) {
+                errors.push('Facebook publishing failed - no post ID returned');
               }
             }
           }
-          
+
+          // Check for aspect ratio errors and send email
+          const aspectRatioError = publishResults.errors?.find(e => e.isAspectRatioError && e.platform === 'instagram');
+          if (aspectRatioError) {
+            try {
+              // Get user information
+              const user = await User.findById(req.user.sub);
+              if (user && user.email) {
+                // Send email about aspect ratio error
+                await sendInstagramAspectRatioErrorEmail(
+                  user.email,
+                  user.name || 'User',
+                  aspectRatioError.error,
+                  aspectRatioError.mediaUrl || (post.mediaUrls && post.mediaUrls[0]) || '',
+                  aspectRatioError.postType || post.postType || 'post'
+                );
+                console.log('📧 Aspect ratio error email sent to:', user.email);
+              }
+            } catch (emailError) {
+              console.error('❌ Error sending aspect ratio error email:', emailError);
+              // Don't fail the request if email fails
+            }
+          }
+
           // Update post with publishing results
           post.status = finalStatus;
           post.publishedTime = new Date();
-          if (publishResults.instagram) {
+
+          // Only set IDs if publishing actually succeeded
+          if (instagramSuccess) {
             post.instagramPostId = publishResults.instagram.postId;
             post.instagramPostUrl = publishResults.instagram.url;
+          } else {
+            // Clear Instagram IDs if publishing failed
+            post.instagramPostId = undefined;
+            post.instagramPostUrl = undefined;
           }
-          if (publishResults.facebook) {
+
+          if (facebookSuccess) {
             post.facebookPostId = publishResults.facebook.postId;
             post.facebookPostUrl = publishResults.facebook.url;
+          } else {
+            // Clear Facebook IDs if publishing failed
+            post.facebookPostId = undefined;
+            post.facebookPostUrl = undefined;
           }
+
           if (errors.length > 0) {
             post.publishingErrors = errors;
           }
-          
+
+          // Log the final status for debugging
+          console.log(`  📊 Final Status: ${finalStatus}`);
+          console.log(`  📊 Instagram Success: ${instagramSuccess ? 'Yes' : 'No'}`);
+          console.log(`  📊 Facebook Success: ${facebookSuccess ? 'Yes' : 'No'}`);
+          if (errors.length > 0) {
+            console.log(`  ❌ Errors: ${errors.join(', ')}`);
+          }
+
           await post.save();
-          
+
           // Check if there's an aspect ratio error to return to frontend
-          const aspectRatioError = publishResults.errors?.find(e => e.isAspectRatioError && e.platform === 'instagram');
+          // (aspectRatioError was already declared above)
           if (aspectRatioError) {
             const postData = post.toObject();
             delete postData.createdBy;
@@ -576,7 +822,7 @@ router.post('/', async (req, res) => {
         post.status = 'failed';
         post.publishingErrors = [publishError.message];
         await post.save();
-        
+
         // Check if it's an aspect ratio error
         if (publishError.isAspectRatioError) {
           const postData = post.toObject();
@@ -623,22 +869,22 @@ router.post('/', async (req, res) => {
 // PUT /api/posts/:id - Update a post
 router.put('/:id', async (req, res) => {
   try {
-    const { 
-      content, 
-      platform, 
-      client, 
-      scheduledTime, 
+    const {
+      content,
+      platform,
+      client,
+      scheduledTime,
       mediaUrls,
       musicUrl,
       musicTitle,
       musicArtist,
-      caption, 
-      hashtags, 
+      caption,
+      hashtags,
       tags,
       location,
       status,
       postType,
-      format 
+      format
     } = req.body;
 
     // Find post
@@ -660,7 +906,7 @@ router.put('/:id', async (req, res) => {
     // For published posts, only allow editing caption, hashtags, and tags (metadata)
     if (post.status === 'published') {
       console.log('  ⚠️ Post is published - limited editing allowed');
-      
+
       // Only update metadata fields for published posts
       if (caption !== undefined) {
         post.caption = caption.trim();
@@ -679,17 +925,17 @@ router.put('/:id', async (req, res) => {
           };
         }).filter(tag => tag.name) : [];
       }
-      
+
       await post.save();
       await post.populate('client', 'name email platform');
-      
+
       const postData = post.toObject();
       delete postData.createdBy;
-      
-      return res.json({ 
-        success: true, 
+
+      return res.json({
+        success: true,
         data: postData,
-        message: 'Published post metadata updated (Instagram does not allow editing media after publish)' 
+        message: 'Published post metadata updated (Instagram does not allow editing media after publish)'
       });
     }
 
@@ -830,8 +1076,8 @@ router.put('/:id', async (req, res) => {
     const postData = post.toObject();
     delete postData.createdBy;
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       data: postData,
       message: 'Post updated successfully'
     });
@@ -869,16 +1115,16 @@ router.delete('/:id', async (req, res) => {
     // If published, we remove it from our database (Instagram post remains on their platform)
     await Post.deleteOne({ _id: req.params.id });
 
-    const statusMessage = post.status === 'published' 
+    const statusMessage = post.status === 'published'
       ? 'Post deleted from database (Instagram post remains on platform)'
       : post.status === 'scheduled'
-      ? 'Scheduled post deleted and will not be published'
-      : 'Draft post deleted';
+        ? 'Scheduled post deleted and will not be published'
+        : 'Draft post deleted';
 
     console.log(`  ✅ ${statusMessage}`);
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: 'Post deleted successfully',
       info: statusMessage
     });
@@ -1010,7 +1256,7 @@ router.post('/:id/publish', async (req, res) => {
         const instagramError = results.errors.find(e => e.platform === 'instagram');
         if (instagramError) {
           errorMessages.push(`Instagram: ${instagramError.error}`);
-          
+
           // Check if it's an aspect ratio error and send email
           if (instagramError.isAspectRatioError) {
             try {
@@ -1064,14 +1310,14 @@ router.post('/:id/publish', async (req, res) => {
       // At least one platform succeeded
       updateData.status = 'published';
       updateData.publishedTime = new Date();
-      
+
       if (results.instagram) {
         updateData.instagramPostId = results.instagram.postId;
       }
       if (results.facebook) {
         updateData.facebookPostId = results.facebook.postId;
       }
-      
+
       // If there were partial failures (e.g., 'both' platform but one failed)
       // Store error message but still mark as published
       if (errorMessages.length > 0) {
@@ -1109,7 +1355,7 @@ router.post('/:id/publish', async (req, res) => {
       data: postData,
       results
     };
-    
+
     // Add aspect ratio error info if present
     if (aspectRatioError) {
       responseData.aspectRatioError = {
@@ -1123,7 +1369,7 @@ router.post('/:id/publish', async (req, res) => {
     res.json(responseData);
   } catch (error) {
     console.error('Error publishing post:', error);
-    
+
     // Update post status to failed
     try {
       const post = await Post.findById(req.params.id);
@@ -1148,7 +1394,7 @@ router.get('/clients/:clientId/permissions', async (req, res) => {
   try {
     const { clientId } = req.params;
     const result = await getClientPermissions(clientId, req.user.sub);
-    
+
     if (result.success) {
       return res.json(result);
     } else {
@@ -1167,7 +1413,7 @@ router.get('/clients/:clientId/permissions', async (req, res) => {
 router.get('/clients/:clientId/permissions-old', async (req, res) => {
   try {
     const { clientId } = req.params;
-    
+
     // Verify client belongs to the user
     const client = await Client.findOne({
       _id: clientId,
@@ -1209,7 +1455,7 @@ router.get('/clients/:clientId/permissions-old', async (req, res) => {
       // Test Instagram Business Account access
       const igTestUrl = `https://graph.facebook.com/v22.0/${client.igUserId}?fields=id,username&access_token=${client.pageAccessToken}`;
       const igTestResponse = await fetch(igTestUrl);
-      
+
       if (igTestResponse.ok) {
         const igData = await igTestResponse.json();
         diagnostics.canAccessInstagram = true;
@@ -1223,7 +1469,7 @@ router.get('/clients/:clientId/permissions-old', async (req, res) => {
         } catch (e) {
           errorJson = null;
         }
-        
+
         if (errorJson?.error?.code === 10) {
           diagnostics.errors.push({
             type: 'permission_denied',
@@ -1246,7 +1492,7 @@ router.get('/clients/:clientId/permissions-old', async (req, res) => {
       if (client.pageId) {
         const pageTestUrl = `https://graph.facebook.com/v22.0/${client.pageId}?fields=id,name&access_token=${client.pageAccessToken}`;
         const pageTestResponse = await fetch(pageTestUrl);
-        
+
         if (pageTestResponse.ok) {
           const pageData = await pageTestResponse.json();
           diagnostics.canAccessPage = true;
@@ -1260,7 +1506,7 @@ router.get('/clients/:clientId/permissions-old', async (req, res) => {
           } catch (e) {
             errorJson = null;
           }
-          
+
           if (errorJson?.error?.code === 10) {
             diagnostics.errors.push({
               type: 'permission_denied',
@@ -1304,6 +1550,65 @@ router.get('/clients/:clientId/permissions-old', async (req, res) => {
       success: false,
       error: error.message || 'Failed to check permissions'
     });
+  }
+});
+
+// DELETE /api/posts/bulk - Bulk delete posts
+router.delete('/bulk', async (req, res) => {
+  try {
+    const { postIds } = req.body;
+
+    if (!Array.isArray(postIds) || postIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'No post IDs provided' });
+    }
+
+    const result = await Post.deleteMany({
+      _id: { $in: postIds },
+      createdBy: req.user.sub
+    });
+
+    res.json({
+      success: true,
+      message: `${result.deletedCount} posts deleted`,
+      deletedCount: result.deletedCount
+    });
+  } catch (error) {
+    console.error('Error bulk deleting posts:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete posts' });
+  }
+});
+
+// PUT /api/posts/bulk-schedule - Bulk schedule posts
+router.put('/bulk-schedule', async (req, res) => {
+  try {
+    const { posts } = req.body; // Array of { id, scheduledTime }
+
+    if (!Array.isArray(posts) || posts.length === 0) {
+      return res.status(400).json({ success: false, error: 'No posts provided' });
+    }
+
+    const results = [];
+    for (const item of posts) {
+      try {
+        if (!item.id || !item.scheduledTime) continue;
+
+        await Post.findOneAndUpdate(
+          { _id: item.id, createdBy: req.user.sub },
+          {
+            scheduledTime: new Date(item.scheduledTime),
+            status: 'scheduled'
+          }
+        );
+        results.push({ id: item.id, success: true });
+      } catch (err) {
+        results.push({ id: item.id, success: false, error: err.message });
+      }
+    }
+
+    res.json({ success: true, results });
+  } catch (error) {
+    console.error('Error bulk scheduling posts:', error);
+    res.status(500).json({ success: false, error: 'Failed to schedule posts' });
   }
 });
 

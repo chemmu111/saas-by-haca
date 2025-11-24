@@ -3,9 +3,13 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import ErrorBoundary from './ErrorBoundary.jsx';
 import Dashboard from './Dashboard.jsx';
 import Clients from './Clients.jsx';
+import ClientDashboard from './ClientDashboard.jsx';
 import Posts from './Posts.jsx';
+import Calendar from './Calendar.jsx';
 import Analytics from './Analytics.jsx';
 import Reports from './Reports.jsx';
+import Settings from './Settings.jsx';
+import AdminTokenMonitor from './AdminTokenMonitor.jsx';
 
 // Helper function to get backend URL
 const getBackendUrl = () => {
@@ -18,8 +22,8 @@ const getBackendUrl = () => {
     if (savedPort) {
       return `http://localhost:${savedPort}`;
     }
-    // Default to 5001 (common when 5000 is busy)
-    return 'http://localhost:5001';
+    // Default to 5000 (your backend port)
+    return 'http://localhost:5000';
   }
   // Production or already on backend server
   return window.location.origin;
@@ -43,7 +47,7 @@ const AuthGuard = ({ children }) => {
 
 const App = () => {
   console.log('App component rendering, current path:', window.location.pathname);
-  
+
   return (
     <ErrorBoundary>
       <BrowserRouter
@@ -56,9 +60,13 @@ const App = () => {
           <Routes>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/dashboard/clients" element={<Clients />} />
+            <Route path="/dashboard/clients/:clientId" element={<ClientDashboard />} />
             <Route path="/dashboard/posts" element={<Posts />} />
+            <Route path="/dashboard/calendar" element={<Calendar />} />
             <Route path="/dashboard/analytics" element={<Analytics />} />
             <Route path="/dashboard/reports" element={<Reports />} />
+            <Route path="/dashboard/settings" element={<Settings />} />
+            <Route path="/dashboard/admin/tokens" element={<AdminTokenMonitor />} />
             <Route path="/clients" element={<Clients />} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             {/* Catch-all route - redirect unmatched routes to dashboard */}
