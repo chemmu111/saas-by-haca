@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X, LogOut, LayoutDashboard, Users, FileText, TrendingUp, FileCheck, Calendar, Image, FileType, Settings, Shield } from 'lucide-react';
+import { Menu, X, LogOut, LayoutDashboard, Users, FileText, TrendingUp, FileCheck, Calendar, Image, FileType, Settings } from 'lucide-react';
 
 const Layout = ({ children }) => {
   const [userName, setUserName] = useState('User');
-  const [userRole, setUserRole] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     return window.innerWidth >= 1024;
   });
@@ -20,7 +19,6 @@ const Layout = ({ children }) => {
         if (parts.length === 3) {
           const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
           setUserName(payload.name || 'User');
-          setUserRole(payload.role);
         }
       } catch (e) {
         console.error('Error decoding token:', e);
@@ -68,14 +66,11 @@ const Layout = ({ children }) => {
     { icon: Users, label: 'Clients', path: '/dashboard/clients' },
     { icon: FileText, label: 'Posts', path: '/dashboard/posts' },
     { icon: Calendar, label: 'Calendar', path: '/dashboard/calendar' },
+    { icon: Image, label: 'Media Library', path: '/dashboard/media' },
+    { icon: FileType, label: 'Templates', path: '/dashboard/templates' },
     { icon: TrendingUp, label: 'Analytics', path: '/dashboard/analytics' },
     { icon: FileCheck, label: 'Reports', path: '/dashboard/reports' },
     { icon: Settings, label: 'Settings', path: '/dashboard/settings' },
-  ];
-
-  // Admin-only menu items
-  const adminMenuItems = [
-    { icon: Shield, label: 'Token Monitor', path: '/dashboard/admin/tokens' },
   ];
 
   const isActive = (path) => {
@@ -122,38 +117,6 @@ const Layout = ({ children }) => {
               </button>
             );
           })}
-
-          {/* Admin-only menu items */}
-          {userRole === 'admin' && adminMenuItems.length > 0 && (
-            <>
-              <div className="my-4 border-t border-gray-200"></div>
-              <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Admin
-              </div>
-              {adminMenuItems.map((item, index) => {
-                const Icon = item.icon;
-                const active = isActive(item.path);
-                return (
-                  <button
-                    key={`admin-${index}`}
-                    onClick={() => {
-                      navigate(item.path);
-                      if (window.innerWidth < 1024) {
-                        setSidebarOpen(false);
-                      }
-                    }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${active
-                      ? 'bg-blue-50 text-blue-600 font-medium'
-                      : 'text-gray-700 hover:bg-gray-50'
-                      }`}
-                  >
-                    <Icon size={20} />
-                    <span>{item.label}</span>
-                  </button>
-                );
-              })}
-            </>
-          )}
         </nav>
       </aside>
 

@@ -2,12 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Layout from './Layout.jsx';
 import DeleteConfirmModal from './DeleteConfirmModal.jsx';
 import CreatePostModal from './CreatePostModal.jsx';
-import FolderSidebar from './components/FolderSidebar.jsx';
-import {
-  FileText, Calendar, Clock, CheckCircle, XCircle, Edit, Trash2, Filter, Plus,
-  Instagram, Facebook, Image as ImageIcon, Send, AlertCircle, Video,
-  Search, Grid, List, MoreHorizontal, Copy, Save, CheckSquare, Square
-} from 'lucide-react';
+import { FileText, Calendar, Clock, CheckCircle, XCircle, Edit, Trash2, Filter, Plus, Instagram, Facebook, Image as ImageIcon, Send, AlertCircle, Video } from 'lucide-react';
 
 const Posts = () => {
   const [posts, setPosts] = useState([]);
@@ -16,11 +11,6 @@ const Posts = () => {
   const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
-  const [folderFilter, setFolderFilter] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'list'
-  const [selectedPosts, setSelectedPosts] = useState(new Set());
-
   const [deletingId, setDeletingId] = useState(null);
   const [editingPost, setEditingPost] = useState(null);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
@@ -31,27 +21,72 @@ const Posts = () => {
   const getBackendUrl = () => {
     if (window.location.port === '3000') {
       const savedPort = localStorage.getItem('backend_port');
-      return savedPort ? `http://localhost:${savedPort}` : 'http://localhost:5000';
+      if (savedPort) {
+        return `http://localhost:${savedPort}`;
+      }
+      return 'http://localhost:5000';
     }
     return window.location.origin;
   };
 
   const normalizeMediaUrl = (url) => {
     if (!url || typeof url !== 'string') return null;
+
     try {
       const backendUrl = getBackendUrl();
-      if (url.startsWith('http')) return url;
-      if (url.startsWith('/uploads/')) return `${backendUrl}${url}`;
-      if (url.startsWith('uploads/')) return `${backendUrl}/${url}`;
-      return `${backendUrl}/uploads/${url}`;
-    } catch (e) {
+
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        const urlObj = new URL(url);
+        if (urlObj.hostname.includes('ngrok')) {
+          return `${backendUrl}${urlObj.pathname}`;
+        }
+        if (urlObj.hostname === 'localhost' && urlObj.port !== '5000' && urlObj.port !== '3000') {
+          return `${backendUrl}${urlObj.pathname}`;
+        }
+        if (urlObj.hostname === 'localhost' && urlObj.port === '5000') {
+          return url;
+        }
+        return url;
+      }
+
+      if (url.startsWith('/uploads/') || url.startsWith('/api/images/')) {
+        const normalizedPath = url.startsWith('/api/images/')
+          ? url.replace('/api/images/', '/uploads/')
+          : url;
+        return `${backendUrl}${normalizedPath}`;
+      }
+
+      if (!url.includes('/') && !url.includes('http')) {
+        return `${backendUrl}/uploads/${url}`;
+      }
+
+      if (url.startsWith('uploads/')) {
+        return `${backendUrl}/${url}`;
+      }
+
+      if (url.startsWith('/')) {
+        return `${backendUrl}${url}`;
+      }
+
+      return url;
+    } catch (error) {
+      console.warn('Error normalizing media URL:', url, error);
+      const backendUrl = getBackendUrl();
+      if (url.startsWith('/')) {
+        return `${backendUrl}${url}`;
+      }
+      if (!url.includes('http')) {
+        return `${backendUrl}/uploads/${url}`;
+      }
       return url;
     }
   };
 
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
+    setTimeout(() => {
+      setToast({ show: false, message: '', type: 'success' });
+    }, 3000);
   };
 
   const fetchPosts = useCallback(async () => {
@@ -65,9 +100,9 @@ const Posts = () => {
 
       const backendUrl = getBackendUrl();
       const queryParams = new URLSearchParams();
-      if (statusFilter !== 'all') queryParams.append('status', statusFilter);
-      if (folderFilter) queryParams.append('folder', folderFilter);
-      if (searchQuery) queryParams.append('search', searchQuery);
+      if (statusFilter !== 'all') {
+        queryParams.append('status', statusFilter);
+      }
 
       const response = await fetch(`${backendUrl}/api/posts?${queryParams.toString()}`, {
         headers: {
@@ -77,7 +112,21 @@ const Posts = () => {
       });
 
       if (response.status === 401) {
+        localStorage.removeItem('auth_token');
         window.location.href = '/login.html';
+        return;
+      }
+
+      if (!response.ok) {
+        let errorMessage = `Failed to fetch posts (${response.status})`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (e) {
+          errorMessage = response.statusText || errorMessage;
+        }
+        setError(errorMessage);
+        console.error('Error fetching posts:', response.status, errorMessage);
         return;
       }
 
@@ -90,49 +139,37 @@ const Posts = () => {
       }
     } catch (err) {
       console.error('Error fetching posts:', err);
-      setError('Failed to load posts.');
+      setError('Failed to load posts. Please try again.');
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, folderFilter, searchQuery]);
+  }, [statusFilter]);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchPosts();
-    }, 300); // Debounce search
-    return () => clearTimeout(timer);
-  }, [fetchPosts]);
-
-  const handleSelectPost = (id) => {
-    const newSelected = new Set(selectedPosts);
-    if (newSelected.has(id)) newSelected.delete(id);
-    else newSelected.add(id);
-    setSelectedPosts(newSelected);
-  };
-
-  const handleBulkDelete = async () => {
-    if (!window.confirm(`Delete ${selectedPosts.size} posts?`)) return;
+  const fetchClients = useCallback(async () => {
     try {
       const token = localStorage.getItem('auth_token');
       const backendUrl = getBackendUrl();
-      const res = await fetch(`${backendUrl}/api/posts/bulk`, {
-        method: 'DELETE',
+
+      const response = await fetch(`${backendUrl}/api/clients`, {
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ postIds: Array.from(selectedPosts) })
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
-      const data = await res.json();
-      if (data.success) {
-        showToast(`${data.deletedCount} posts deleted`);
-        setSelectedPosts(new Set());
-        fetchPosts();
+
+      const result = await response.json();
+      if (result.success) {
+        setClients(result.data || []);
       }
     } catch (err) {
-      showToast('Bulk delete failed', 'error');
+      console.error('Error fetching clients:', err);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchPosts();
+    fetchClients();
+  }, [fetchPosts, fetchClients]);
 
   const handleDeleteClick = (post) => {
     setPostToDelete(post);
@@ -141,218 +178,467 @@ const Posts = () => {
 
   const handleDeleteConfirm = async () => {
     if (!postToDelete) return;
+
     setDeletingId(postToDelete._id);
     try {
       const token = localStorage.getItem('auth_token');
+      if (!token) {
+        window.location.href = '/login.html';
+        return;
+      }
+
       const backendUrl = getBackendUrl();
       const response = await fetch(`${backendUrl}/api/posts/${postToDelete._id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
+
       const result = await response.json();
+
       if (result.success) {
-        setPosts(prev => prev.filter(p => p._id !== postToDelete._id));
-        showToast('Post deleted successfully');
+        setPosts(prev => prev.filter(post => post._id !== postToDelete._id));
+        showToast(result.message || 'Post deleted successfully', 'success');
         setDeleteModalOpen(false);
+        setPostToDelete(null);
       } else {
-        showToast(result.error || 'Failed to delete', 'error');
+        showToast(result.error || 'Failed to delete post', 'error');
       }
     } catch (err) {
-      showToast('Failed to delete post', 'error');
+      console.error('Error deleting post:', err);
+      showToast('Failed to delete post. Please try again.', 'error');
     } finally {
       setDeletingId(null);
     }
   };
 
+  const handleDeleteCancel = () => {
+    setDeleteModalOpen(false);
+    setPostToDelete(null);
+  };
+
+  const handleEdit = (post) => {
+    setEditingPost(post);
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setEditingPost(null);
+    setShowModal(false);
+  };
+
   const getStatusBadge = (status) => {
     switch (status) {
-      case 'draft': return <span className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium"><XCircle size={12} /> Draft</span>;
-      case 'scheduled': return <span className="flex items-center gap-1 px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs font-medium"><Clock size={12} /> Scheduled</span>;
-      case 'published': return <span className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium"><CheckCircle size={12} /> Published</span>;
-      default: return null;
+      case 'draft':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-full text-xs font-semibold">
+            <XCircle size={12} />
+            Draft
+          </span>
+        );
+      case 'scheduled':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-yellow-100 text-yellow-700 rounded-full text-xs font-semibold">
+            <Clock size={12} />
+            Scheduled
+          </span>
+        );
+      case 'published':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 text-green-700 rounded-full text-xs font-semibold">
+            <CheckCircle size={12} />
+            Published
+          </span>
+        );
+      default:
+        return null;
     }
+  };
+
+  const getPlatformIcon = (platform) => {
+    switch (platform) {
+      case 'instagram':
+        return <Instagram size={16} className="text-purple-600" />;
+      case 'facebook':
+        return <Facebook size={16} className="text-blue-600" />;
+      case 'both':
+        return (
+          <div className="flex gap-1">
+            <Instagram size={16} className="text-purple-600" />
+            <Facebook size={16} className="text-blue-600" />
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   return (
     <Layout>
-      <div className="flex h-[calc(100vh-64px)]">
-        {/* Sidebar */}
-        <FolderSidebar activeFolder={folderFilter} onSelectFolder={setFolderFilter} />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+              <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl">
+                <FileText className="text-white" size={24} />
+              </div>
+              Posts Management
+            </h1>
+            <p className="text-gray-600 mt-2 ml-14">Create and manage your social media content</p>
+          </div>
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+          >
+            <Plus size={20} />
+            <span className="font-semibold">Create Post</span>
+          </button>
+        </div>
 
-        {/* Main Content */}
-        <div className="flex-1 overflow-y-auto bg-slate-50 p-6">
-          {/* Header */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Posts Library</h1>
-              <p className="text-slate-500 text-sm">Manage, schedule, and publish your content</p>
+        {/* Toast Notification */}
+        {toast.show && (
+          <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 ${toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+            }`}>
+            {toast.type === 'success' ? (
+              <CheckCircle size={20} />
+            ) : (
+              <AlertCircle size={20} />
+            )}
+            <span>{toast.message}</span>
+          </div>
+        )}
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-center gap-2">
+            <AlertCircle size={20} />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Create/Edit Post Modal */}
+        <CreatePostModal
+          isOpen={showModal}
+          onClose={handleCloseModal}
+          editingPost={editingPost}
+          onSuccess={() => {
+            fetchPosts();
+            setShowModal(false);
+          }}
+        />
+
+        {/* Status Filter */}
+        <div className="mb-8 bg-white rounded-2xl shadow-sm border border-gray-200 p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-center gap-2 text-gray-700 font-medium">
+              <Filter size={18} />
+              <span>Filter by Status</span>
             </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setStatusFilter('all')}
+                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'all'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setStatusFilter('draft')}
+                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'draft'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+              >
+                Draft
+              </button>
+              <button
+                onClick={() => setStatusFilter('scheduled')}
+                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'scheduled'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+              >
+                Scheduled
+              </button>
+              <button
+                onClick={() => setStatusFilter('published')}
+                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'published'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+              >
+                Published
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Posts Grid */}
+        {loading ? (
+          <div className="text-center py-12">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <p className="mt-4 text-gray-600">Loading posts...</p>
+          </div>
+        ) : posts.length === 0 ? (
+          <div className="text-center py-16 bg-gradient-to-br from-gray-50 to-white rounded-2xl border-2 border-dashed border-gray-300">
+            <div className="inline-flex p-4 bg-gradient-to-br from-blue-100 to-purple-100 rounded-2xl mb-4">
+              <FileText className="text-gray-500" size={48} />
+            </div>
+            <h3 className="mt-4 text-xl font-bold text-gray-900">No posts found</h3>
+            <p className="mt-2 text-gray-600 max-w-md mx-auto">
+              {statusFilter === 'all'
+                ? 'Get started by creating your first post to engage with your audience'
+                : `No ${statusFilter} posts found. Try a different filter or create a new post.`}
+            </p>
             <button
               onClick={() => setShowModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm font-medium"
+              className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-semibold"
             >
-              <Plus size={18} /> Create Post
+              <Plus size={20} />
+              Create Your First Post
             </button>
           </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {posts.map((post) => {
+              const firstMediaUrl = post.mediaUrls && Array.isArray(post.mediaUrls) && post.mediaUrls.length > 0
+                ? post.mediaUrls[0]
+                : null;
 
-          {/* Toolbar */}
-          <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm mb-6 flex flex-wrap items-center gap-3">
-            {/* Search */}
-            <div className="relative flex-1 min-w-[200px]">
-              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search posts..."
-                className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
+              const normalizedMediaUrl = firstMediaUrl ? normalizeMediaUrl(firstMediaUrl) : null;
 
-            {/* Status Filter */}
-            <div className="flex bg-slate-100 rounded-lg p-1">
-              {['all', 'draft', 'scheduled', 'published'].map(status => (
-                <button
-                  key={status}
-                  onClick={() => setStatusFilter(status)}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium capitalize transition-all ${statusFilter === status ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                    }`}
+              const hasVideoExtension = normalizedMediaUrl && /\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(normalizedMediaUrl);
+              const isReel = post.postType === 'reel';
+              const isVideo = hasVideoExtension || isReel;
+
+              return (
+                <div
+                  key={post._id}
+                  className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-xl transition-shadow duration-300 group"
                 >
-                  {status}
-                </button>
-              ))}
-            </div>
-
-            {/* View Toggle */}
-            <div className="flex bg-slate-100 rounded-lg p-1">
-              <button
-                onClick={() => setViewMode('grid')}
-                className={`p-1.5 rounded-md ${viewMode === 'grid' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}
-              >
-                <Grid size={18} />
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={`p-1.5 rounded-md ${viewMode === 'list' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}
-              >
-                <List size={18} />
-              </button>
-            </div>
-
-            {/* Bulk Actions */}
-            {selectedPosts.size > 0 && (
-              <button
-                onClick={handleBulkDelete}
-                className="flex items-center gap-2 px-3 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100"
-              >
-                <Trash2 size={16} /> Delete ({selectedPosts.size})
-              </button>
-            )}
-          </div>
-
-          {/* Posts Grid/List */}
-          {loading ? (
-            <div className="text-center py-12 text-slate-500">Loading posts...</div>
-          ) : posts.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-xl border border-dashed border-slate-300">
-              <FileText className="mx-auto text-slate-300 mb-3" size={48} />
-              <h3 className="text-lg font-medium text-slate-900">No posts found</h3>
-              <p className="text-slate-500 text-sm">Try adjusting your filters or create a new post.</p>
-            </div>
-          ) : (
-            <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-4"}>
-              {posts.map(post => {
-                const firstMedia = post.mediaUrls?.[0];
-                const normalizedMedia = normalizeMediaUrl(firstMedia);
-                const isSelected = selectedPosts.has(post._id);
-
-                if (viewMode === 'list') {
-                  return (
-                    <div key={post._id} className={`bg-white p-4 rounded-xl border ${isSelected ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-slate-200'} shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow`}>
-                      <button onClick={() => handleSelectPost(post._id)} className="text-slate-400 hover:text-indigo-600">
-                        {isSelected ? <CheckSquare size={20} className="text-indigo-600" /> : <Square size={20} />}
-                      </button>
-                      <div className="w-16 h-16 bg-slate-100 rounded-lg overflow-hidden flex-shrink-0">
-                        {normalizedMedia ? (
-                          <img src={normalizedMedia} alt="" className="w-full h-full object-cover" />
+                  {/* Media Preview */}
+                  <div className="relative h-48 bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden">
+                    {normalizedMediaUrl ? (
+                      <>
+                        {isVideo ? (
+                          <>
+                            {failedMediaUrls.has(normalizedMediaUrl) ? (
+                              <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-100 text-gray-400">
+                                <Video size={48} className="mb-2" />
+                                <p className="text-xs text-center px-2">Video not available</p>
+                              </div>
+                            ) : (
+                              <video
+                                src={normalizedMediaUrl}
+                                className="w-full h-full object-cover"
+                                muted
+                                playsInline
+                                preload="metadata"
+                                crossOrigin="anonymous"
+                              onError={(e) => {
+                                // Silently handle missing media - placeholders will show
+                                setFailedMediaUrls(prev => new Set(prev).add(normalizedMediaUrl));
+                                e.target.style.display = 'none';
+                              }}
+                              />
+                            )}
+                            {!failedMediaUrls.has(normalizedMediaUrl) && (
+                              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20">
+                                <div className="bg-white bg-opacity-90 rounded-full p-3 shadow-lg">
+                                  <Video className="text-purple-600" size={24} fill="currentColor" />
+                                </div>
+                              </div>
+                            )}
+                          </>
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-slate-400"><ImageIcon size={24} /></div>
+                          failedMediaUrls.has(normalizedMediaUrl) ? (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-100 text-gray-400">
+                              <ImageIcon size={48} className="mb-2" />
+                              <p className="text-xs text-center px-2">Image not available</p>
+                            </div>
+                          ) : (
+                            <img
+                              src={normalizedMediaUrl}
+                              alt="Post media"
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                              crossOrigin="anonymous"
+                              onError={(e) => {
+                                // Silently handle missing media - placeholders will show
+                                setFailedMediaUrls(prev => new Set(prev).add(normalizedMediaUrl));
+                                e.target.style.display = 'none';
+                              }}
+                            />
+                          )
+                        )}
+                      </>
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                        {post.postType === 'reel' ? (
+                          <Video size={48} />
+                        ) : (
+                          <ImageIcon size={48} />
                         )}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-slate-900 truncate">{post.caption || 'No caption'}</p>
-                        <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
-                          {getStatusBadge(post.status)}
-                          <span>{new Date(post.createdAt).toLocaleDateString()}</span>
-                          {post.client && <span className="px-2 py-0.5 bg-slate-100 rounded-full">{post.client.name}</span>}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => { setEditingPost(post); setShowModal(true); }} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"><Edit size={16} /></button>
-                        <button onClick={() => handleDeleteClick(post)} className="p-2 hover:bg-red-50 text-slate-500 hover:text-red-600 rounded-lg"><Trash2 size={16} /></button>
-                      </div>
-                    </div>
-                  );
-                }
+                    )}
 
-                return (
-                  <div key={post._id} className={`bg-white rounded-xl border ${isSelected ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-slate-200'} shadow-sm overflow-hidden hover:shadow-lg transition-all group`}>
-                    <div className="relative h-48 bg-slate-100">
-                      {normalizedMedia ? (
-                        <img src={normalizedMedia} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-slate-400"><ImageIcon size={48} /></div>
-                      )}
-                      <div className="absolute top-3 left-3 flex gap-2">
-                        <button onClick={(e) => { e.stopPropagation(); handleSelectPost(post._id); }} className="bg-white/90 p-1 rounded text-slate-600 hover:text-indigo-600">
-                          {isSelected ? <CheckSquare size={16} className="text-indigo-600" /> : <Square size={16} />}
-                        </button>
-                      </div>
-                      <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => { setEditingPost(post); setShowModal(true); }} className="bg-white/90 p-1.5 rounded-lg text-slate-700 hover:text-indigo-600 shadow-sm"><Edit size={14} /></button>
-                        <button onClick={() => handleDeleteClick(post)} className="bg-white/90 p-1.5 rounded-lg text-slate-700 hover:text-red-600 shadow-sm"><Trash2 size={14} /></button>
-                      </div>
-                      <div className="absolute bottom-3 left-3">
-                        {getStatusBadge(post.status)}
-                      </div>
+                    {/* Status & Platform Badges */}
+                    <div className="absolute top-3 left-3 flex items-center gap-2">
+                      {getStatusBadge(post.status)}
+                      {getPlatformIcon(post.platform)}
                     </div>
-                    <div className="p-4">
-                      <p className="text-sm text-slate-600 line-clamp-2 mb-3 h-10">{post.caption || 'No caption'}</p>
-                      <div className="flex items-center justify-between text-xs text-slate-500 border-t border-slate-100 pt-3">
-                        <div className="flex items-center gap-1">
-                          {post.platform === 'instagram' ? <Instagram size={14} /> : <Facebook size={14} />}
-                          {post.client?.name}
-                        </div>
-                        <span>{new Date(post.createdAt).toLocaleDateString()}</span>
-                      </div>
+
+                    {/* Action Buttons */}
+                    <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => handleEdit(post)}
+                        className="p-2 bg-white/90 backdrop-blur-sm text-gray-700 rounded-lg hover:bg-white transition-colors shadow-md"
+                        title="Edit post"
+                      >
+                        <Edit size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteClick(post)}
+                        disabled={deletingId === post._id}
+                        className="p-2 bg-white/90 backdrop-blur-sm text-red-600 rounded-lg hover:bg-white transition-colors shadow-md disabled:opacity-50"
+                        title="Delete post"
+                      >
+                        {deletingId === post._id ? (
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                        ) : (
+                          <Trash2 size={16} />
+                        )}
+                      </button>
                     </div>
+
+                    {/* Media Count */}
+                    {post.mediaUrls && post.mediaUrls.length > 1 && (
+                      <div className="absolute bottom-3 right-3 px-2 py-1 bg-black/60 backdrop-blur-sm text-white text-xs font-medium rounded-lg">
+                        +{post.mediaUrls.length - 1} more
+                      </div>
+                    )}
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+
+                  {/* Card Content */}
+                  <div className="p-5">
+                    {/* Header */}
+                    <div className="mb-4">
+                      <h3 className="font-bold text-gray-900 text-lg mb-1 line-clamp-1">
+                        {post.client?.name || 'Unknown Client'}
+                      </h3>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {post.postType && (
+                          <span className="px-2.5 py-1 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 rounded-lg text-xs font-semibold capitalize">
+                            {post.postType}
+                          </span>
+                        )}
+                        {post.format && (
+                          <span className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-semibold">
+                            {post.format === 'square' && '1:1'}
+                            {post.format === 'portrait' && '4:5'}
+                            {post.format === 'landscape' && '1.91:1'}
+                            {post.format === 'reel' && '9:16'}
+                            {post.format === 'story' && '9:16'}
+                            {post.format === 'carousel-square' && 'Carousel 1:1'}
+                            {post.format === 'carousel-vertical' && 'Carousel 4:5'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Caption */}
+                    <div className="mb-4">
+                      <p className="text-gray-700 text-sm line-clamp-3 leading-relaxed">
+                        {post.caption || post.content || 'No caption'}
+                      </p>
+                    </div>
+
+                    {/* Hashtags */}
+                    {post.hashtags && post.hashtags.length > 0 && (
+                      <div className="mb-4 flex flex-wrap gap-1.5">
+                        {post.hashtags.slice(0, 3).map((tag, index) => (
+                          <span
+                            key={index}
+                            className="px-2.5 py-1 bg-gradient-to-r from-blue-50 to-purple-50 text-blue-700 rounded-lg text-xs font-medium border border-blue-100"
+                          >
+                            #{tag}
+                          </span>
+                        ))}
+                        {post.hashtags.length > 3 && (
+                          <span className="px-2.5 py-1 bg-gray-100 text-gray-600 rounded-lg text-xs font-medium">
+                            +{post.hashtags.length - 3}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Post Details */}
+                    <div className="pt-4 border-t border-gray-100 space-y-2">
+                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                        <Calendar size={14} />
+                        <span>{formatDate(post.createdAt)}</span>
+                      </div>
+                      {post.scheduledTime && (
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <Clock size={14} />
+                          <span>Scheduled: {formatDate(post.scheduledTime)}</span>
+                        </div>
+                      )}
+                      {post.publishedTime && (
+                        <div className="flex items-center gap-2 text-xs text-green-600 font-medium">
+                          <Send size={14} />
+                          <span>Published: {formatDate(post.publishedTime)}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Error Message */}
+                    {post.status === 'failed' && post.errorMessage && (
+                      <div className="mt-4 pt-4 border-t border-red-100">
+                        <div className="bg-red-50 border-l-4 border-red-400 rounded-r-lg p-3">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={16} />
+                            <div className="flex-1">
+                              <p className="text-xs font-semibold text-red-800 mb-1">Publishing Failed</p>
+                              <p className="text-xs text-red-700 line-clamp-2">{post.errorMessage}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {toast.show && (
-        <div className={`fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg text-white text-sm font-medium ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
-          {toast.message}
-        </div>
-      )}
-
-      <CreatePostModal
-        isOpen={showModal}
-        onClose={() => { setShowModal(false); setEditingPost(null); }}
-        editingPost={editingPost}
-        onSuccess={() => { fetchPosts(); setShowModal(false); setEditingPost(null); }}
-      />
-
+      {/* Delete Confirmation Modal */}
       <DeleteConfirmModal
         isOpen={deleteModalOpen}
-        onClose={() => setDeleteModalOpen(false)}
+        onClose={handleDeleteCancel}
         onConfirm={handleDeleteConfirm}
-        postTitle={postToDelete?.caption}
-        isDeleting={!!deletingId}
+        postTitle={postToDelete?.caption || postToDelete?.content}
+        postStatus={postToDelete?.status}
+        isDeleting={deletingId === postToDelete?._id}
       />
     </Layout>
   );
