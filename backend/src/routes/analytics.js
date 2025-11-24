@@ -184,6 +184,9 @@ router.get('/', async (req, res) => {
     let totalFollowers = 0;
     let totalAccountReach = 0; // Account-level reach (daily trend)
     let igTotalViews = 0;
+    let igTotalVideoViews = 0;
+    let igTotalVideoEngagements = 0;
+    let igTotalVideoCount = 0;
     let igTotalEngagements = 0;
     let igTotalLikes = 0;
     let igTotalComments = 0;
@@ -241,17 +244,22 @@ router.get('/', async (req, res) => {
           if (data.media) {
             const mediaViews = data.media.totalViews || 0;
             const reelCount = (data.media.postsByType?.REELS || 0) + (data.media.postsByType?.REEL || 0);
+            const videoCount = data.media.totalVideoCount || 0;
             igTotalViews += mediaViews;
             igTotalEngagements += data.media.totalEngagements || 0;
             igTotalLikes += data.media.totalLikes || 0;
             igTotalComments += data.media.totalComments || 0;
             igTotalShares += data.media.totalShares || 0;
             igTotalSaves += data.media.totalSaves || 0;
+            igTotalVideoViews += data.media.totalVideoViews || 0;
+            igTotalVideoEngagements += data.media.totalVideoEngagements || 0;
+            igTotalVideoCount += videoCount;
 
             // Log views extraction for debugging
             console.log(`   📊 Instagram API Response:`);
             console.log(`      Total Views: ${mediaViews}`);
             console.log(`      REEL Count: ${reelCount}`);
+            console.log(`      VIDEO Count: ${videoCount}`);
             console.log(`      Posts by Type:`, data.media.postsByType || {});
             if (mediaViews === 0 && reelCount > 0) {
               console.log(`      ⚠️  WARNING: ${reelCount} REEL(s) found but 0 views!`);
@@ -272,7 +280,7 @@ router.get('/', async (req, res) => {
             if (data.recentPosts && Array.isArray(data.recentPosts)) {
               const reelsViews = data.recentPosts
                 .filter(p => p.media_type === 'REEL' || p.media_type === 'REELS')
-                .reduce((sum, p) => sum + (p.metrics?.plays || p.metrics?.views || 0), 0);
+                .reduce((sum, p) => sum + (p.metrics?.views || 0), 0);
 
               if (reelsViews > 0 && mediaViews === 0) {
                 console.log(`   ⚠️  Using views from recentPosts: ${reelsViews}`);
@@ -309,6 +317,42 @@ router.get('/', async (req, res) => {
       } catch (error) {
         console.error(`   ❌ Error fetching IG data for client ${client._id}:`, error.message);
       }
+    }
+
+    // After fetching Instagram data, sync view counts back to our posts collection
+    if (allDetailedPosts.length > 0) {
+      console.log(`\n🔄 Syncing view counts for ${allDetailedPosts.length} Instagram media item(s)...`);
+      for (const mediaItem of allDetailedPosts) {
+        try {
+          const post = await Post.findOne({ instagramPostId: mediaItem.id });
+          if (!post) {
+            continue;
+          }
+
+          const metrics = mediaItem.metrics || {};
+          const views =
+            metrics.views ??
+            mediaItem.view_count ??
+            0;
+          const viewsPresent = typeof metrics.views_present === 'boolean'
+            ? metrics.views_present
+            : typeof views === 'number';
+          const viewsPending = metrics.views_pending ?? false;
+
+          post.engagement = {
+            ...(post.engagement || {}),
+            views,
+            views_present: viewsPresent,
+            views_pending: viewsPending,
+            lastUpdated: new Date()
+          };
+
+          await post.save();
+        } catch (syncError) {
+          console.error(`   ❌ Failed to sync view count for media ${mediaItem.id}:`, syncError.message);
+        }
+      }
+      console.log('✅ View counts synced with database.');
     }
 
     // USE ONLY INSTAGRAM DATA - NO DATABASE FALLBACKS
@@ -406,14 +450,18 @@ router.get('/', async (req, res) => {
         CAROUSEL_ALBUM: postsByTypeFromIG.CAROUSEL_ALBUM || 0,
         REELS: postsByTypeFromIG.REELS || 0,
       },
-      // Real engagement metrics - ONLY FROM INSTAGRAM API (NO DATABASE FALLBACKS)
-      totalEngagements: igTotalEngagements, // Instagram API only
-      totalViews: igTotalViews, // Instagram API only (REEL/REELS plays)
-      totalReach: totalAccountReach, // Account-level reach
-      totalLikes: igTotalLikes, // Instagram API only
-      totalComments: igTotalComments, // Instagram API only
-      totalShares: igTotalShares, // Instagram API only
-      totalSaves: igTotalSaves, // Instagram API only
+      // Real engagement metrics - primarily Instagram API, with view fallback when needed
+      totalEngagements: igTotalEngagements,
+      totalViews: totalViews, // Uses IG data, falls back to DB reel views when IG returns 0
+      totalReach: totalAccountReach,
+      totalLikes: igTotalLikes,
+      totalComments: igTotalComments,
+      totalShares: igTotalShares,
+      totalSaves: igTotalSaves,
+      totalVideoCount: igTotalVideoCount,
+      totalVideoViews: igTotalVideoViews,
+      totalVideoEngagements: igTotalVideoEngagements,
+      totalReelCount: (postsByTypeFromIG.REELS || 0) + (postsByTypeFromIG.REEL || 0),
       totalFollowers: totalFollowers, // Instagram API only
       engagementRate: engagementRate,
       // Follower growth - from Instagram API (calculated from trend data)
@@ -477,7 +525,9 @@ router.get('/', async (req, res) => {
     console.log('   Total Posts:', analytics.totalPosts, '(from Instagram API)');
     console.log('   Published:', analytics.publishedPosts, '(from Database)');
     console.log('   Total Followers:', analytics.totalFollowers, '(from Instagram API)');
-    console.log('   Total Views:', analytics.totalViews, '(from Instagram API - REEL/REELS only)');
+    console.log('   Total Views:', analytics.totalViews, '(from Instagram API)');
+    console.log('   Total Video Views:', analytics.totalVideoViews, '(from Instagram API)');
+    console.log('   Total Video Engagements:', analytics.totalVideoEngagements);
     console.log('   Total Engagements:', analytics.totalEngagements, '(from Instagram API)');
     console.log('   Total Likes:', analytics.totalLikes, '(from Instagram API)');
     console.log('   Total Comments:', analytics.totalComments, '(from Instagram API)');

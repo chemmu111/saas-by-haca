@@ -29,8 +29,21 @@ import adminRouter from './routes/admin.js';
 // Create Express app
 const app = express();
 
-// Serve static files from frontend/public
-const publicDir = path.resolve(__dirname, '../../frontend/public');
+// Resolve frontend build directory (prefer dist build, fallback to raw frontend dir)
+const frontendRoot = path.resolve(__dirname, '../../frontend');
+const distDir = path.join(frontendRoot, 'dist');
+const publicDir = fs.existsSync(distDir) ? distDir : frontendRoot;
+const frontendSrcDir = path.join(frontendRoot, 'src');
+
+if (!fs.existsSync(distDir)) {
+  console.warn('⚠️  Frontend dist build not found. Serving raw frontend directory for static assets.');
+} else {
+  console.log('✅ Serving frontend from dist build directory');
+}
+
+const sendFrontendApp = (req, res) => {
+  res.sendFile(path.join(publicDir, 'index.html'));
+};
 
 // Middleware
 // CORS configuration with cookie support for cross-origin requests
@@ -179,77 +192,35 @@ app.get('/.well-known/appspecific/com.chrome.devtools.json', (req, res) => {
   res.status(204).end();
 });
 
-// Serve static website (login/signup)
+// Serve static website (React app build output)
+app.use(['/src', '/dashboard/src'], express.static(frontendSrcDir));
 app.use(express.static(publicDir));
 
-// Serve dashboard assets
-app.use('/dashboard/assets', express.static(path.join(publicDir, 'dashboard', 'assets')));
+const legacyRoutes = [
+  '/',
+  '/login',
+  '/login.html',
+  '/reset-password',
+  '/reset-password.html',
+  '/signup',
+  '/signup.html',
+  '/admin-home',
+  '/admin-home.html',
+  '/social-media-manager-home',
+  '/social-media-manager-home.html',
+  '/dashboard',
+  '/dashboard/create-post',
+  '/dashboard/create-post.html',
+  '/home',
+  '/home.html'
+];
 
-// Root → login page
-app.get('/', (req, res) => {
-  res.sendFile(path.join(publicDir, 'login.html'));
+legacyRoutes.forEach(route => {
+  app.get(route, sendFrontendApp);
 });
 
-// Reset password page
-app.get('/reset-password', (req, res) => {
-  res.sendFile(path.join(publicDir, 'reset-password.html'));
-});
-
-app.get('/reset-password.html', (req, res) => {
-  res.sendFile(path.join(publicDir, 'reset-password.html'));
-});
-
-// Signup page route for convenience
-app.get('/signup', (req, res) => {
-  res.sendFile(path.join(publicDir, 'signup.html'));
-});
-
-// Admin home page
-app.get('/admin-home', (req, res) => {
-  res.sendFile(path.join(publicDir, 'admin-home.html'));
-});
-
-app.get('/admin-home.html', (req, res) => {
-  res.sendFile(path.join(publicDir, 'admin-home.html'));
-});
-
-// Social Media Manager home page (legacy)
-app.get('/social-media-manager-home', (req, res) => {
-  res.sendFile(path.join(publicDir, 'social-media-manager-home.html'));
-});
-
-app.get('/social-media-manager-home.html', (req, res) => {
-  res.sendFile(path.join(publicDir, 'social-media-manager-home.html'));
-});
-
-// Dashboard routes - React dashboard
-app.get('/dashboard', (req, res) => {
-  res.sendFile(path.join(publicDir, 'dashboard', 'index.html'));
-});
-
-
-app.get('/dashboard/create-post', (req, res) => {
-  res.sendFile(path.join(publicDir, 'create-post.html'));
-});
-
-app.get('/dashboard/create-post.html', (req, res) => {
-  res.sendFile(path.join(publicDir, 'create-post.html'));
-});
-
-app.get('/dashboard/*', (req, res) => {
-  // For any route under /dashboard, serve index.html for client-side routing
-  // Assets are handled by the static middleware above
-  res.sendFile(path.join(publicDir, 'dashboard', 'index.html'));
-});
-
-// Home route - redirect to dashboard for social media managers
-app.get('/home', (req, res) => {
-  res.sendFile(path.join(publicDir, 'dashboard', 'index.html'));
-});
-
-app.get('/home.html', (req, res) => {
-  res.sendFile(path.join(publicDir, 'dashboard', 'index.html'));
-});
+// Dashboard catch-all for client-side routing
+app.get('/dashboard/*', sendFrontendApp);
 
 // Routes
 app.use('/api/auth', authRouter);

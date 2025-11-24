@@ -1,12 +1,12 @@
 /**
- * Instagram Post Metrics Service (v22+ - 2024-2025)
+ * Instagram Post Metrics Service (v24.0 - 2025)
  * Fetches engagement metrics for individual Instagram posts
- * Uses ONLY supported metrics per Meta's API v22+ requirements
+ * Uses ONLY supported metrics per Meta's API v24.0 requirements
  * 
  * CRITICAL RULES:
- * - REEL/REELS: views = plays metric (ONLY real views)
- * - IMAGE, VIDEO, STORY: views = 0 (NO real views)
- * - NO fallback to impressions, reach, or video_views
+ * - REEL/REELS: views metric available
+ * - IMAGE, VIDEO, STORY: views limited or unavailable per Meta docs
+ * - NO fallback to impressions, video_views, profile metrics
  */
 
 import { fetchMediaInsights } from './instagramInsightsService.js';
@@ -22,6 +22,7 @@ import { fetchMediaInsights } from './instagramInsightsService.js';
 export async function fetchInstagramPostMetrics(igPostId, pageAccessToken, mediaType = 'IMAGE') {
   try {
     if (!igPostId || !pageAccessToken) {
+      console.warn('[fetchInstagramPostMetrics] Missing igPostId or access token.');
       return null;
     }
 
@@ -29,48 +30,92 @@ export async function fetchInstagramPostMetrics(igPostId, pageAccessToken, media
     let detectedMediaType = mediaType;
     if (!mediaType || mediaType === 'IMAGE') {
       try {
-        const url = `https://graph.facebook.com/v18.0/${igPostId}?fields=like_count,comments_count,media_type&access_token=${pageAccessToken}`;
+        const url = `https://graph.facebook.com/v24.0/${igPostId}?fields=like_count,comments_count,media_type&access_token=${pageAccessToken}`;
         const response = await fetch(url);
-        
+
         if (response.ok) {
           const data = await response.json();
           detectedMediaType = data.media_type || mediaType;
+        } else {
+          const errorBody = await response.text();
+          console.warn('[fetchInstagramPostMetrics] Failed to fetch media metadata:', {
+            igPostId,
+            status: response.status,
+            statusText: response.statusText,
+            body: errorBody
+          });
         }
       } catch (error) {
-        console.warn('Could not fetch media_type, using default:', error.message);
+        console.warn('[fetchInstagramPostMetrics] Could not fetch media_type, using default:', error.message);
       }
     }
 
-    // Step 2: Fetch insights for advanced metrics (saved, shares, plays, reach, replies)
+    // Step 2: Fetch insights for advanced metrics (saved, shares, views, reach, replies)
     let insights = null;
     try {
-      insights = await fetchMediaInsights(igPostId, pageAccessToken, detectedMediaType);
+      const insightsResponse = await fetchMediaInsights(igPostId, pageAccessToken, detectedMediaType);
+      if (insightsResponse?.success) {
+        insights = insightsResponse.data;
+      } else {
+        console.warn('[fetchInstagramPostMetrics] Insights request returned no data:', {
+          igPostId,
+          mediaType: detectedMediaType,
+          error: insightsResponse?.error
+        });
+      }
     } catch (error) {
-      console.warn('Could not fetch insights for post:', error.message);
+      console.error('[fetchInstagramPostMetrics] Could not fetch insights for post:', {
+        igPostId,
+        mediaType: detectedMediaType,
+        message: error.message,
+        stack: error.stack
+      });
     }
 
-    // Step 3: Calculate views - ONLY REEL/REELS have real views (plays metric)
-    // VIDEO, IMAGE, and STORY do NOT have real views → return 0
-    let views = 0;
-    if (detectedMediaType === 'REEL' || detectedMediaType === 'REELS') {
-      views = insights?.plays || 0;
+    // Step 3: Use API-provided metrics whenever available
+    const likes = insights?.likes ?? 0;
+    const comments = insights?.comments ?? 0;
+    const shares = insights?.shares ?? 0;
+    const saves = insights?.saved ?? 0;
+    const views = typeof insights?.views === 'number' ? insights.views : 0;
+    const reach = typeof insights?.reach === 'number' ? insights.reach : 0;
+    const replies = typeof insights?.replies === 'number' ? insights.replies : 0;
+    const engagement = typeof insights?.total_interactions === 'number'
+      ? insights.total_interactions
+      : (likes + comments + shares + saves);
+    const viewsPresent = insights?.views_present ?? (typeof insights?.views === 'number');
+    const viewsPending = insights?.views_pending ?? false;
+
+    if (!insights) {
+      console.warn('[fetchInstagramPostMetrics] Insights missing; returning zeroed metrics for', igPostId);
+    } else if (views === 0) {
+      console.warn('[fetchInstagramPostMetrics] Views metric reported as 0 by API:', {
+        igPostId,
+        mediaType: detectedMediaType,
+        insightsKeys: Object.keys(insights)
+      });
     }
-    // All other media types: views = 0 (no fallback to impressions, reach, or views)
 
     // Step 4: Build result object
     return {
-      likes: insights?.likes || 0,
-      comments: insights?.comments || 0,
-      shares: insights?.shares || 0,
-      saves: insights?.saved || 0,
-      views: views, // Only REEL/REELS have real views (via plays), all others return 0
-      reach: (detectedMediaType === 'REEL' || detectedMediaType === 'REELS') ? (insights?.reach || 0) : 0, // Only REEL/REELS have reach
-      replies: detectedMediaType === 'STORY' ? (insights?.replies || 0) : 0, // Only STORY has replies
-      engagement: insights?.engagement || 0, // Calculated: likes + comments + shares + saved
-      impressions: 0 // Not available in v22+ (removed from API)
+      likes,
+      comments,
+      shares,
+      saves,
+      views,
+      reach,
+      replies,
+      engagement,
+      impressions: 0, // Deprecated metric retained for backward compatibility
+      views_present: viewsPresent,
+      views_pending: viewsPending
     };
   } catch (error) {
-    console.error('Error fetching Instagram post metrics:', error);
+    console.error('[fetchInstagramPostMetrics] Fatal error fetching post metrics:', {
+      igPostId,
+      message: error.message,
+      stack: error.stack
+    });
     return null;
   }
 }
@@ -90,7 +135,7 @@ export async function fetchInstagramFollowerCount(igUserId, pageAccessToken) {
     }
 
     // Use insights API to get follower count
-    const url = `https://graph.facebook.com/v18.0/${igUserId}/insights?metric=follower_count&period=day&access_token=${pageAccessToken}`;
+    const url = `https://graph.facebook.com/v24.0/${igUserId}/insights?metric=follower_count&period=day&access_token=${pageAccessToken}`;
     
     const response = await fetch(url);
     if (!response.ok) {

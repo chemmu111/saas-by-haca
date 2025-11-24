@@ -1,23 +1,22 @@
 /**
- * Instagram Graph API Insights Service (v22+ - 2024-2025)
+ * Instagram Graph API Insights Service (v24.0 - 2025)
  * Fetches real analytics data from Instagram Business Account
- * Uses ONLY supported metrics per Meta's API v22+ requirements
+ * Uses ONLY supported metrics per Meta's API v24.0 requirements
  *
- * CRITICAL RULES (v22+ - 2024-2025):
+ * CRITICAL RULES (v24.0):
  * - follower_count: period=day (NO metric_type)
  * - profile_views: period=day, metric_type=total_value (REQUIRED)
  * - reach: period=day (NO metric_type)
- * - REEL/REELS: plays,likes,comments,saved,shares,reach (NO impressions fallback)
- * - IMAGE/CAROUSEL: likes,comments,saved,shares (NO reach, NO impressions)
- * - VIDEO: likes,comments,saved,shares (NO views, NO plays, NO impressions)
- * - STORY: replies only
+ * - REEL/REELS: likes,comments,shares,saved,reach,total_interactions,views
+ * - IMAGE/CAROUSEL: likes,comments,shares,saved,total_interactions
+ * - VIDEO: likes,comments,shares,saved,total_interactions,views
+ * - STORY: replies (optionally navigation) only
  *
- * REMOVED METRICS (v22+):
- * ❌ impressions - completely removed
- * ❌ video_views - replaced by 'plays' for REELS only
- * ❌ total_interactions - removed
- * ❌ views (for IMAGE/VIDEO) - removed
- * ❌ reach (for IMAGE/VIDEO) - removed for non-REEL content
+ * REMOVED / UNSUPPORTED METRICS (v24.0):
+ * ❌ impressions
+ * ❌ video_views
+ * ❌ profile_visits
+ * ❌ profile_activity
  *
  * TOKEN MANAGEMENT:
  * - All API calls validate token before fetching
@@ -27,6 +26,61 @@
 
 import Client from '../models/Client.js';
 import { ensureValidToken } from './instagramTokenService.js';
+
+const GRAPH_API_VERSION = 'v24.0';
+const GRAPH_BASE_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
+const unsupportedMetricsCache = new Set();
+
+const DEFAULT_MEDIA_METRICS = ['likes', 'comments', 'shares', 'saved', 'total_interactions', 'views'];
+const MEDIA_METRICS_MAP = {
+  REEL: ['likes', 'comments', 'shares', 'saved', 'reach', 'total_interactions', 'views'],
+  REELS: ['likes', 'comments', 'shares', 'saved', 'reach', 'total_interactions', 'views'],
+  VIDEO: ['likes', 'comments', 'shares', 'saved', 'total_interactions', 'views'],
+  IMAGE: ['likes', 'comments', 'shares', 'saved', 'total_interactions', 'views'],
+  CAROUSEL_ALBUM: ['likes', 'comments', 'shares', 'saved', 'total_interactions', 'views'],
+  STORY: ['replies', 'navigation', 'views', 'exits', 'taps_forward', 'taps_back']
+};
+let missingViewsLogCount = 0;
+
+function getMetricsForMediaType(mediaType) {
+  const key = mediaType?.toUpperCase();
+  const metrics = MEDIA_METRICS_MAP[key] || DEFAULT_MEDIA_METRICS;
+  return metrics.filter(metric => !unsupportedMetricsCache.has(metric));
+}
+
+function extractUnsupportedMetric(errorData) {
+  const message = errorData?.error?.message || '';
+  const metricMatch = message.match(/metric\s+([A-Za-z_]+)/i);
+  if (metricMatch && metricMatch[1]) {
+    return metricMatch[1].toLowerCase();
+  }
+  return null;
+}
+
+function isUnsupportedMetricError(errorData) {
+  const code = errorData?.error?.code;
+  if (code !== 100) return false;
+  const message = (errorData?.error?.message || '').toLowerCase();
+  return message.includes('metric') || message.includes('unsupported');
+}
+
+function createEmptyInsightsResult(mediaType) {
+  const upperType = (mediaType || '').toUpperCase();
+  return {
+    likes: 0,
+    comments: 0,
+    saved: 0,
+    shares: 0,
+    views: ['REEL', 'REELS', 'VIDEO'].includes(upperType) ? 0 : 0,
+    reach: ['REEL', 'REELS'].includes(upperType) ? 0 : 0,
+    replies: upperType === 'STORY' ? 0 : 0,
+    navigation: upperType === 'STORY' ? 0 : 0,
+    total_interactions: 0,
+    engagement: 0,
+    views_present: false,
+    views_pending: false
+  };
+}
 
 // Simple in-memory cache (5 minutes TTL)
 const cache = new Map();
@@ -90,7 +144,7 @@ function createSuccessResponse(data) {
  */
 async function fetchFollowerCountBasic(igUserId, pageAccessToken) {
   try {
-    const url = `https://graph.facebook.com/v22.0/${igUserId}?fields=followers_count&access_token=${pageAccessToken}`;
+    const url = `${GRAPH_BASE_URL}/${igUserId}?fields=followers_count&access_token=${pageAccessToken}`;
     console.log('   📡 Fetching from basic endpoint...');
     const response = await fetch(url);
 
@@ -125,7 +179,7 @@ async function fetchFollowerCountBasic(igUserId, pageAccessToken) {
  */
 async function fetchFollowerCount(igUserId, pageAccessToken) {
   try {
-    const url = `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=follower_count&period=day&access_token=${pageAccessToken}`;
+    const url = `${GRAPH_BASE_URL}/${igUserId}/insights?metric=follower_count&period=day&access_token=${pageAccessToken}`;
     const response = await fetch(url);
 
     if (!response.ok) {
@@ -164,7 +218,7 @@ async function fetchFollowerCount(igUserId, pageAccessToken) {
  */
 async function fetchProfileViews(igUserId, pageAccessToken) {
   try {
-    const url = `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=profile_views&metric_type=total_value&period=day&access_token=${pageAccessToken}`;
+    const url = `${GRAPH_BASE_URL}/${igUserId}/insights?metric=profile_views&metric_type=total_value&period=day&access_token=${pageAccessToken}`;
     const response = await fetch(url);
 
     if (!response.ok) {
@@ -198,7 +252,7 @@ async function fetchProfileViews(igUserId, pageAccessToken) {
  */
 async function fetchReachTrend(igUserId, pageAccessToken) {
   try {
-    const url = `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=reach&period=day&access_token=${pageAccessToken}`;
+    const url = `${GRAPH_BASE_URL}/${igUserId}/insights?metric=reach&period=day&access_token=${pageAccessToken}`;
     const response = await fetch(url);
 
     if (!response.ok) {
@@ -291,7 +345,7 @@ export async function fetchAccountInsightsTrend(igUserId, pageAccessToken) {
 
     // Daily trends: reach and follower_count CAN be combined
     const metrics = 'reach,follower_count';
-    const url = `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=${metrics}&period=day&access_token=${pageAccessToken}`;
+    const url = `${GRAPH_BASE_URL}/${igUserId}/insights?metric=${metrics}&period=day&access_token=${pageAccessToken}`;
 
     const response = await fetch(url);
     if (!response.ok) {
@@ -335,23 +389,10 @@ export async function fetchAccountInsightsTrend(igUserId, pageAccessToken) {
 }
 
 /**
- * Fetch media insights for a specific post (v22+ - 2024-2025)
+ * Fetch media insights for a specific post (v24.0 compliant)
  * GET /{media-id}/insights
- *
- * STRICT v22+ METRICS PER MEDIA TYPE:
- * - REEL/REELS: plays,likes,comments,saved,shares,reach (NO impressions fallback)
- * - IMAGE/CAROUSEL_ALBUM: likes,comments,saved,shares (NO reach, NO impressions)
- * - VIDEO: likes,comments,saved,shares (NO views, NO plays, NO impressions)
- * - STORY: replies only
- *
- * CRITICAL: NO FALLBACK TO REMOVED METRICS
- * ❌ impressions - completely removed from API
- * ❌ video_views - replaced by 'plays' for REELS only
- * ❌ total_interactions - removed
- * ❌ views (for IMAGE/VIDEO) - removed
- * ❌ reach (for IMAGE/VIDEO) - removed for non-REEL content
  */
-export async function fetchMediaInsights(mediaId, pageAccessToken, mediaType = 'IMAGE') {
+export async function fetchMediaInsights(mediaId, pageAccessToken, mediaType = 'IMAGE', options = {}) {
   try {
     if (!mediaId || !pageAccessToken) {
       return createErrorResponse('Missing required parameters (mediaId or pageAccessToken)', 'fetchMediaInsights');
@@ -363,46 +404,38 @@ export async function fetchMediaInsights(mediaId, pageAccessToken, mediaType = '
       return createSuccessResponse(cached);
     }
 
-    // STRICT v22+ METRICS - NO FALLBACK TO REMOVED METRICS
-    let metrics = '';
-    if (mediaType === 'REEL' || mediaType === 'REELS') {
-      // REEL: plays,likes,comments,saved,shares,reach (NO impressions fallback)
-      metrics = 'plays,likes,comments,saved,shares,reach';
-    } else if (mediaType === 'IMAGE' || mediaType === 'CAROUSEL_ALBUM') {
-      // IMAGE/CAROUSEL: likes,comments,saved,shares (NO reach, NO impressions)
-      metrics = 'likes,comments,saved,shares';
-    } else if (mediaType === 'VIDEO') {
-      // VIDEO: likes,comments,saved,shares (NO views, NO plays, NO impressions)
-      metrics = 'likes,comments,saved,shares';
-    } else if (mediaType === 'STORY') {
-      // STORY: replies only
-      metrics = 'replies';
-    } else {
-      // Default: same as IMAGE
-      metrics = 'likes,comments,saved,shares';
+    let metricsList = getMetricsForMediaType(mediaType);
+    if (metricsList.length === 0) {
+      console.warn(`⚠️ No supported metrics available for ${mediaType}. Returning empty insights.`);
+      const emptyResult = createEmptyInsightsResult(mediaType);
+      setCache(cacheKey, emptyResult);
+      return createSuccessResponse(emptyResult);
     }
 
-    const url = `https://graph.facebook.com/v22.0/${mediaId}/insights?metric=${metrics}&access_token=${pageAccessToken}`;
+    let insightsResponse = null;
+    let lastErrorData = null;
 
-    const response = await fetch(url);
-    if (!response.ok) {
+    while (metricsList.length > 0) {
+      const metrics = metricsList.join(',');
+      const url = `${GRAPH_BASE_URL}/${mediaId}/insights?metric=${metrics}&access_token=${pageAccessToken}`;
+      const response = await fetch(url);
+
+      if (response.ok) {
+        insightsResponse = await response.json();
+        break;
+      }
+
       const errorData = await response.json().catch(() => ({}));
-      // Handle specific error codes
-      if (errorData.error && errorData.error.code === 100) {
-        // Metric not supported - return empty insights instead of error
-        console.warn(`⚠️ Metric not supported for ${mediaType} (${mediaId}): ${errorData.error.message}`);
-        const emptyResult = {
-          likes: 0,
-          comments: 0,
-          saved: 0,
-          shares: 0,
-          plays: 0, // Only for REEL/REELS
-          reach: 0, // Only for REEL/REELS
-          replies: 0, // Only for STORY
-          engagement: 0
-        };
-        setCache(cacheKey, emptyResult);
-        return createSuccessResponse(emptyResult);
+      lastErrorData = errorData;
+
+      if (isUnsupportedMetricError(errorData)) {
+        const unsupportedMetric = extractUnsupportedMetric(errorData);
+        if (unsupportedMetric) {
+          console.warn(`⚠️ Metric "${unsupportedMetric}" not supported for ${mediaType} (${mediaId}). Retrying without it.`);
+          unsupportedMetricsCache.add(unsupportedMetric);
+          metricsList = metricsList.filter(metric => metric !== unsupportedMetric);
+          continue;
+        }
       }
 
       return createErrorResponse(
@@ -411,60 +444,89 @@ export async function fetchMediaInsights(mediaId, pageAccessToken, mediaType = '
       );
     }
 
-    const data = await response.json();
-
-    // Parse insights - STRICT v22+ compliance
-    const insights = {};
-    if (data.data && Array.isArray(data.data)) {
-      data.data.forEach(metric => {
-        if (metric.values && metric.values.length > 0) {
-          const latest = metric.values[metric.values.length - 1];
-          insights[metric.name] = latest.value || 0;
-        } else if (metric.value !== undefined) {
-          // Some metrics might return a single value instead of array
-          insights[metric.name] = metric.value || 0;
-        }
-      });
+    if (!insightsResponse) {
+      const emptyResult = createEmptyInsightsResult(mediaType);
+      if (lastErrorData) {
+        console.warn(`⚠️ Failed to fetch insights for ${mediaType} (${mediaId}), returning empty result.`, lastErrorData.error?.message);
+      }
+      setCache(cacheKey, emptyResult);
+      return createSuccessResponse(emptyResult);
     }
 
-    // Log REEL insights for debugging
-    if (mediaType === 'REEL' || mediaType === 'REELS') {
-      const playsValue = insights.plays || 0;
+    const data = insightsResponse;
+
+    const metricEntries = Array.isArray(data.data) ? data.data : [];
+    const returnedMetricNames = metricEntries.map(entry => entry.name || '');
+    const viewsEntry = metricEntries.find(entry => entry.name === 'views');
+    const viewsRaw = viewsEntry?.values?.[0]?.value;
+    const viewsPresent = typeof viewsRaw === 'number';
+    const mediaTimestamp = options.mediaTimestamp ? new Date(options.mediaTimestamp) : null;
+    const ageHours = mediaTimestamp ? (Date.now() - mediaTimestamp.getTime()) / 36e5 : null;
+    const viewsPending = !viewsPresent && typeof ageHours === 'number' && ageHours < 48;
+
+    if (!viewsPresent && missingViewsLogCount < 200) {
+      console.warn('insights-views-missing', {
+        mediaId,
+        mediaType,
+        returnedMetricNames,
+        mediaTimestamp: options.mediaTimestamp || null,
+        igUserId: options.igUserId || null,
+        note: 'views missing or empty in /insights response',
+        timestamp: new Date().toISOString()
+      });
+      missingViewsLogCount += 1;
+    }
+
+    const insights = {};
+    metricEntries.forEach(metric => {
+      if (metric.values && metric.values.length > 0) {
+        const latest = metric.values[metric.values.length - 1];
+        insights[metric.name] = latest.value ?? 0;
+      } else if (metric.value !== undefined) {
+        insights[metric.name] = metric.value ?? 0;
+      }
+    });
+
+    const upperType = (mediaType || '').toUpperCase();
+    const likes = insights.likes || 0;
+    const comments = insights.comments || 0;
+    const shares = insights.shares || 0;
+    const saved = insights.saved || 0;
+    const views = viewsPresent ? viewsRaw : 0;
+    const reach = typeof insights.reach === 'number' ? insights.reach : 0;
+    const replies = typeof insights.replies === 'number' ? insights.replies : 0;
+    const navigation = upperType === 'STORY' ? (insights.navigation || 0) : 0;
+    const interactions = insights.total_interactions || (likes + comments + shares + saved);
+
+    if (upperType === 'REEL' || upperType === 'REELS') {
       console.log(`   🎬 REEL ${mediaId} insights:`, {
-        plays: playsValue,
-        likes: insights.likes || 0,
-        comments: insights.comments || 0,
-        saved: insights.saved || 0,
-        shares: insights.shares || 0,
-        reach: insights.reach || 0,
-        rawData: data.data ? data.data.map(m => ({
-          name: m.name,
-          hasValues: !!m.values,
-          value: m.value,
-          valuesCount: m.values ? m.values.length : 0
-        })) : []
+        views,
+        likes,
+        comments,
+        saved,
+        shares,
+        reach,
+        total_interactions: interactions
       });
 
-      if (playsValue === 0) {
-        console.warn(`   ⚠️  REEL ${mediaId} has 0 plays - check if:`);
-        console.warn(`      1. REEL is very new (< 5 minutes old)`);
-        console.warn(`      2. REEL has no views yet`);
-        console.warn(`      3. API permissions issue`);
-        console.warn(`      4. Token permissions missing`);
+      if (views === 0) {
+        console.warn(`   ⚠️  REEL ${mediaId} has 0 views - verify API permissions or recent publish time.`);
       }
     }
 
-    // Map to consistent result structure - NO impressions fallback
     const result = {
-      likes: insights.likes || 0,
-      comments: insights.comments || 0,
-      saved: insights.saved || 0,
-      shares: insights.shares || 0,
-      plays: (mediaType === 'REEL' || mediaType === 'REELS') ? (insights.plays || 0) : 0, // Only for REEL/REELS
-      reach: (mediaType === 'REEL' || mediaType === 'REELS') ? (insights.reach || 0) : 0, // Only for REEL/REELS
-      replies: mediaType === 'STORY' ? (insights.replies || 0) : 0, // Only for STORY
-      // Calculate engagement from likes + comments + shares + saved (NO impressions)
-      engagement: (insights.likes || 0) + (insights.comments || 0) + (insights.shares || 0) + (insights.saved || 0)
+      likes,
+      comments,
+      saved,
+      shares,
+      views,
+      reach,
+      replies,
+      navigation,
+      total_interactions: interactions,
+      engagement: interactions,
+      views_present: viewsPresent,
+      views_pending: viewsPending
     };
 
     setCache(cacheKey, result);
@@ -492,7 +554,7 @@ export async function fetchInstagramMedia(igUserId, pageAccessToken, limit = 25)
     }
 
     const fields = 'id,media_type,thumbnail_url,caption,permalink,timestamp,like_count,comments_count';
-    const url = `https://graph.facebook.com/v22.0/${igUserId}/media?fields=${fields}&limit=${limit}&access_token=${pageAccessToken}`;
+    const url = `${GRAPH_BASE_URL}/${igUserId}/media?fields=${fields}&limit=${limit}&access_token=${pageAccessToken}`;
 
     const response = await fetch(url);
     if (!response.ok) {
@@ -511,16 +573,18 @@ export async function fetchInstagramMedia(igUserId, pageAccessToken, limit = 25)
       media.map(async (item) => {
         let insights = null;
         try {
-          const insightsResponse = await fetchMediaInsights(item.id, pageAccessToken, item.media_type);
+          const insightsResponse = await fetchMediaInsights(item.id, pageAccessToken, item.media_type, {
+            mediaTimestamp: item.timestamp || item.created_time || null,
+            igUserId
+          });
           if (insightsResponse.success) {
             insights = insightsResponse.data;
 
-            // Log REEL insights for debugging
             if (item.media_type === 'REEL' || item.media_type === 'REELS') {
-              if (insights.plays) {
-                console.log(`   ✅ REEL ${item.id} insights: ${insights.plays} plays`);
+              if (insights.views) {
+                console.log(`   ✅ REEL ${item.id} insights: ${insights.views} views`);
               } else {
-                console.warn(`   ⚠️  REEL ${item.id} has no plays data`, {
+                console.warn(`   ⚠️  REEL ${item.id} has no view data`, {
                   hasInsights: !!insights,
                   insightsKeys: Object.keys(insights || {}),
                   error: insightsResponse.error
@@ -554,10 +618,14 @@ export async function fetchInstagramMedia(igUserId, pageAccessToken, limit = 25)
             comments: 0,
             saved: 0,
             shares: 0,
-            plays: 0,
+            views: 0,
             reach: 0,
             replies: 0,
-            engagement: 0
+            navigation: 0,
+            total_interactions: 0,
+            engagement: 0,
+            views_present: false,
+            views_pending: false
           }
         };
       })
@@ -636,76 +704,73 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
       return createErrorResponse('Failed to fetch account insights', 'fetchInstagramAnalytics');
     }
 
-    // Calculate totals from media - STRICT v22+ compliance
-    let totalViews = 0; // ONLY REEL/REELS have real views (plays) - NO impressions fallback
+    // Video/reel aggregation stats
+    let totalPosts = 0;
+    let totalReelCount = 0;
+    let totalVideoCount = 0;
+    let totalViews = 0;
+    let totalVideoViews = 0;
     let totalEngagements = 0;
+    let totalVideoEngagements = 0;
+    let totalReach = 0;
     let totalLikes = 0;
     let totalComments = 0;
-    let totalSaves = 0;
     let totalShares = 0;
-    let totalReach = 0;
+    let totalSaves = 0;
 
-    const postsByType = {
-      IMAGE: 0,
-      VIDEO: 0,
-      CAROUSEL_ALBUM: 0,
-      REELS: 0,
-      REEL: 0,
-      STORY: 0
-    };
+    const postsByType = {};
 
-    // Count REELS for logging
-    const reelCount = media.filter(item => item.media_type === 'REEL' || item.media_type === 'REELS').length;
-    console.log(`   📊 Processing ${reelCount} REEL(s) for views...`);
+    for (const item of media) {
+      totalPosts += 1;
+      const type = (item.media_type || item.mediaType || 'IMAGE').toUpperCase();
+      postsByType[type] = (postsByType[type] || 0) + 1;
+      if (type === 'REEL' || type === 'REELS') totalReelCount += 1;
+      if (type === 'VIDEO') totalVideoCount += 1;
 
-    media.forEach(item => {
-      const insights = item.insights || {};
-
-      // Total views: ONLY REEL/REELS have real views (plays metric) - NO fallback
-      if (item.media_type === 'REEL' || item.media_type === 'REELS') {
-        const plays = insights.plays || 0;
-        totalViews += plays;
-
-        // Log each REEL's views for debugging
-        if (plays > 0) {
-          console.log(`   ✅ REEL ${item.id}: ${plays} plays`);
-        } else {
-          console.log(`   ⚠️  REEL ${item.id}: No plays data`, {
-            hasInsights: !!insights,
-            insightsKeys: Object.keys(insights),
-            playsValue: insights.plays,
-            mediaType: item.media_type,
-            hasInsightsData: !!item.insights
+      let insights = item.insights || null;
+      if (!insights) {
+        try {
+          const insightsRes = await fetchMediaInsights(item.id, pageAccessToken, type, {
+            mediaTimestamp: item.timestamp || item.created_time || null,
+            igUserId
           });
-
-          // Try to fetch insights again if missing
-          if (!insights || !insights.plays) {
-            console.log(`   🔄 Attempting to fetch insights for REEL ${item.id}...`);
+          if (insightsRes.success) {
+            insights = insightsRes.data;
           }
+        } catch (err) {
+          console.warn(`   ⚠️ Failed to fetch insights for ${type} ${item.id}:`, err.message);
         }
       }
-      // VIDEO, IMAGE, and STORY: views = 0 (no fallback to impressions, reach, or views)
 
-      // Reach: only for REEL/REELS (not for IMAGE, VIDEO, or STORY)
-      if (item.media_type === 'REEL' || item.media_type === 'REELS') {
-        totalReach += insights.reach || 0;
+      const views = typeof insights?.views === 'number' ? insights.views : 0;
+      const interactions = typeof insights?.total_interactions === 'number'
+        ? insights.total_interactions
+        : ((insights?.likes || 0) + (insights?.comments || 0) + (insights?.shares || 0) + (insights?.saved || 0));
+
+      if (views > 0) {
+        console.log(`   ✅ ${type} ${item.id}: ${views} views`);
+      } else {
+        console.log(`   ⚠️  ${type} ${item.id}: No view data`, {
+          hasInsights: !!insights,
+          insightsKeys: Object.keys(insights || {}),
+          viewValue: insights?.views,
+        });
       }
 
-      // Engagement: calculated from likes + comments + shares + saved (NO impressions)
-      totalEngagements += insights.engagement || 0;
-      totalLikes += insights.likes || item.like_count || 0;
-      totalComments += insights.comments || item.comments_count || 0;
-      totalSaves += insights.saved || 0;
-      totalShares += insights.shares || 0;
-
-      // Count by type
-      const type = item.media_type || 'IMAGE';
-      if (postsByType.hasOwnProperty(type)) {
-        postsByType[type]++;
-      } else if (type === 'REEL') {
-        postsByType.REELS = (postsByType.REELS || 0) + 1; // Group REEL with REELS
+      totalViews += views;
+      totalEngagements += interactions;
+      totalLikes += insights?.likes || item.like_count || 0;
+      totalComments += insights?.comments || item.comments_count || 0;
+      totalShares += insights?.shares || 0;
+      totalSaves += insights?.saved || 0;
+      if (type === 'VIDEO') {
+        totalVideoViews += views;
+        totalVideoEngagements += interactions;
       }
-    });
+      if (type === 'REEL' || type === 'REELS') {
+        totalReach += insights?.reach || 0;
+      }
+    }
 
     // Calculate engagement rate
     const followerCount = accountInsights.follower_count || 1;
@@ -728,8 +793,10 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
 
     // Log total views calculation for debugging
     console.log(`   📊 Total Views Calculation:`);
-    console.log(`      REEL Count: ${reelCount}`);
-    console.log(`      Total Views (plays): ${totalViews}`);
+    console.log(`      REEL Count: ${totalReelCount}`);
+    console.log(`      VIDEO Count: ${totalVideoCount}`);
+    console.log(`      Total Views: ${totalViews}`);
+    console.log(`      Total Video Views: ${totalVideoViews}`);
     console.log(`      Media Items Processed: ${media.length}`);
 
     const result = {
@@ -740,15 +807,19 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
       },
       media: {
         total: media.length,
-        totalViews, // Only REEL/REELS views (plays) - NO impressions fallback
+        totalViews,
         totalEngagements,
         totalLikes,
         totalComments,
         totalSaves,
         totalShares,
-        totalReach, // Only REEL/REELS reach
+        totalReach,
         engagementRate,
-        postsByType
+        postsByType,
+        totalVideoCount,
+        totalVideoViews,
+        totalVideoEngagements,
+        totalReelCount
       },
       trends: {
         followers: accountTrend.map(day => ({
@@ -774,11 +845,12 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
           comments: item.insights?.comments || item.comments_count || 0,
           saved: item.insights?.saved || 0,
           shares: item.insights?.shares || 0,
-          reach: (item.media_type === 'REEL' || item.media_type === 'REELS') ? (item.insights?.reach || 0) : 0,
-          plays: (item.media_type === 'REEL' || item.media_type === 'REELS') ? (item.insights?.plays || 0) : 0,
-          views: (item.media_type === 'REEL' || item.media_type === 'REELS') ? (item.insights?.plays || 0) : 0,
+          reach: item.insights?.reach || 0,
+          views: item.insights?.views || 0,
           replies: item.media_type === 'STORY' ? (item.insights?.replies || 0) : 0,
-          engagement: item.insights?.engagement || 0
+          engagement: item.insights?.engagement || 0,
+          views_present: item.insights?.views_present ?? (typeof item.insights?.views === 'number'),
+          views_pending: item.insights?.views_pending ?? false
         }
       })),
       allPosts: media.map(item => ({
@@ -793,11 +865,12 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
           comments: item.insights?.comments || item.comments_count || 0,
           saved: item.insights?.saved || 0,
           shares: item.insights?.shares || 0,
-          reach: (item.media_type === 'REEL' || item.media_type === 'REELS') ? (item.insights?.reach || 0) : 0,
-          plays: (item.media_type === 'REEL' || item.media_type === 'REELS') ? (item.insights?.plays || 0) : 0,
-          views: (item.media_type === 'REEL' || item.media_type === 'REELS') ? (item.insights?.plays || 0) : 0,
+          reach: item.insights?.reach || 0,
+          views: item.insights?.views || 0,
           replies: item.media_type === 'STORY' ? (item.insights?.replies || 0) : 0,
-          engagement: item.insights?.engagement || 0
+          engagement: item.insights?.engagement || 0,
+          views_present: item.insights?.views_present ?? (typeof item.insights?.views === 'number'),
+          views_pending: item.insights?.views_pending ?? false
         }
       })),
       followerGrowth
@@ -906,17 +979,14 @@ export function testFetchMediaInsightsValidation() {
 export function testMediaTypeMetrics() {
   console.log('Testing media type metrics validation...');
 
-  // Test REEL metrics (should include plays)
-  // Note: This would require mocking the Instagram API
+  // Test REEL metrics (should include views)
   console.log('📝 Media type metrics validation would require API mocking');
 
-  // Test that REEL uses 'plays' metric
-  const reelMetrics = 'plays,likes,comments,saved,shares,reach';
-  console.assert(reelMetrics.includes('plays'), 'REEL should include plays metric');
+  const reelMetrics = MEDIA_METRICS_MAP.REEL.join(',');
+  console.assert(reelMetrics.includes('views'), 'REEL should include views metric');
   console.assert(!reelMetrics.includes('impressions'), 'REEL should NOT include impressions');
 
-  // Test that IMAGE does not include reach or impressions
-  const imageMetrics = 'likes,comments,saved,shares';
+  const imageMetrics = MEDIA_METRICS_MAP.IMAGE.join(',');
   console.assert(!imageMetrics.includes('reach'), 'IMAGE should NOT include reach');
   console.assert(!imageMetrics.includes('impressions'), 'IMAGE should NOT include impressions');
 
@@ -976,7 +1046,7 @@ export function testInstagramAnalyticsIntegration() {
     // Test fetchMediaInsights for REEL
     const mediaResult = await fetchMediaInsights('reel_media_id', pageAccessToken, 'REEL');
     if (mediaResult.success) {
-      console.assert(mediaResult.data.plays !== undefined, 'REEL should have plays metric');
+      console.assert(mediaResult.data.views !== undefined, 'REEL should have views metric');
       console.assert(mediaResult.data.impressions === undefined, 'Should NOT have impressions');
     }
 
