@@ -489,10 +489,10 @@ export async function fetchMediaInsights(mediaId, pageAccessToken, mediaType = '
           const emptyResult = {
             likes: 0, comments: 0, saved: 0, shares: 0,
             views: 0, reach: 0, interactions: 0, watchTime: 0,
-            engagement: 0
-          };
-          setCache(cacheKey, emptyResult);
-          return createSuccessResponse(emptyResult);
+          engagement: 0
+        };
+        setCache(cacheKey, emptyResult);
+        return createSuccessResponse(emptyResult);
         }
 
         const basicData = await basicResponse.json();
@@ -612,14 +612,14 @@ export async function fetchInstagramMedia(igUserId, pageAccessToken, limit = 25)
 
     const data = await response.json();
     const media = (data.data || []).map(item => ({
-      id: item.id,
-      media_type: item.media_type,
-      thumbnail_url: item.thumbnail_url || null,
-      caption: item.caption || '',
-      permalink: item.permalink || '',
-      timestamp: item.timestamp || '',
-      like_count: item.like_count || 0,
-      comments_count: item.comments_count || 0,
+          id: item.id,
+          media_type: item.media_type,
+          thumbnail_url: item.thumbnail_url || null,
+          caption: item.caption || '',
+          permalink: item.permalink || '',
+          timestamp: item.timestamp || '',
+          like_count: item.like_count || 0,
+          comments_count: item.comments_count || 0,
       insights: null
     }));
 
@@ -655,7 +655,7 @@ async function fetchMediaInsightsBatch(mediaList, pageAccessToken, concurrency =
           mediaType: item.media_type,
           message: insightsResponse.error
         });
-      } catch (error) {
+  } catch (error) {
         stats.failed += 1;
         console.warn('insights-fetch-failed', {
           mediaId: item.id,

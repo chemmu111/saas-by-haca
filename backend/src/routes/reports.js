@@ -8,12 +8,7 @@ import Client from '../models/Client.js';
 import User from '../models/User.js';
 import requireAuth from '../middleware/requireAuth.js';
 import { sendMonthlyReportEmail, sendReportToClient } from '../services/emailService.js';
-import {
-  generateReport,
-  generateReportWithTemplate,
-  generatePDFFromTemplate,
-  generateSimplePDFReport
-} from '../services/reportService.js';
+import { generateReport, generateReportWithTemplate, generatePDFFromTemplate } from '../services/reportService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -53,57 +48,6 @@ const router = express.Router();
 // All routes require authentication
 router.use(requireAuth);
 
-function logReportSummary(label, { summary = {}, breakdown = {} }, extra = {}) {
-  try {
-    console.log(`[reports] ${label}`, {
-      totalPosts: summary.totalPosts || 0,
-      publishedPosts: summary.publishedPosts || 0,
-      totalEngagements: summary.totalEngagements || 0,
-      totalViews: summary.totalViews || 0,
-      instagramPosts: breakdown.byPlatform?.instagram || 0,
-      facebookPosts: breakdown.byPlatform?.facebook || 0,
-      timestamp: new Date().toISOString(),
-      ...extra
-    });
-  } catch (err) {
-    console.warn('[reports] failed to log summary', err.message);
-  }
-}
-
-function logReportRequest(label, req, extra = {}) {
-  try {
-    const userId = req.user?.sub || 'unknown';
-    const payload = {
-      query: req.query || {},
-      body: req.body || {}
-    };
-    // Avoid logging huge objects
-    const safePayload = JSON.parse(JSON.stringify(payload, (_, value) => {
-      if (value && typeof value === 'object') {
-        const keys = Object.keys(value);
-        if (keys.length > 20) {
-          return keys.reduce((acc, key, index) => {
-            if (index < 20) acc[key] = value[key];
-            return acc;
-          }, { __truncated: true, totalKeys: keys.length });
-        }
-      }
-      return value;
-    }));
-
-    console.log(`[reports] request:${label}`, {
-      userId,
-      path: req.path,
-      method: req.method,
-      payload: safePayload,
-      timestamp: new Date().toISOString(),
-      ...extra
-    });
-  } catch (error) {
-    console.warn('[reports] failed to log request', error.message);
-  }
-}
-
 function buildReportScheduleResponse(user) {
   const settings = user.reportSettings || {};
   return {
@@ -119,7 +63,6 @@ function buildReportScheduleResponse(user) {
 router.get('/schedule', async (req, res) => {
   try {
     const userId = req.user.sub;
-    logReportRequest('get-schedule', req, { userId });
     const user = await User.findById(userId).select('reportSettings email');
 
     if (!user) {
@@ -141,7 +84,6 @@ router.get('/', async (req, res) => {
   try {
     const userId = req.user.sub;
     const { startDate, endDate, format } = req.query;
-    logReportRequest('list', req, { userId, startDate, endDate, format });
     
     // Get all clients for the user
     const clients = await Client.find({ createdBy: userId });
@@ -168,18 +110,61 @@ router.get('/', async (req, res) => {
     
     // Generate report (works even with empty posts/clients)
     const report = await generateReport(userId, posts, clients, { startDate, endDate, format });
-    logReportSummary('generate-report', report, {
-      userId,
-      startDate,
-      endDate,
-      clientCount: clients.length,
-      postCount: posts.length
-    });
-
+    
     res.json({ success: true, data: report });
   } catch (error) {
     console.error('Error generating report:', error);
     res.status(500).json({ success: false, error: 'Failed to generate report: ' + error.message });
+  }
+});
+
+// POST /api/reports/download - Download report
+router.post('/download', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const { startDate, endDate, format = 'json' } = req.body;
+    
+    // Get all clients for the user
+    const clients = await Client.find({ createdBy: userId });
+    const clientIds = clients.map(c => c._id);
+    
+    // Build query - handle case when there are no clients
+    let posts = [];
+    if (clientIds.length > 0) {
+      const query = { 
+        createdBy: userId,
+        client: { $in: clientIds }
+      };
+      
+      if (startDate && endDate) {
+        query.createdAt = {
+          $gte: new Date(startDate),
+          $lte: new Date(endDate)
+        };
+      }
+      
+      // Get posts
+      posts = await Post.find(query).populate('client', 'name email platform');
+    }
+    
+    // Generate report (works even with empty posts/clients)
+    const report = await generateReport(userId, posts, clients, { startDate, endDate, format });
+    
+    // Set response headers for download
+    const filename = `report-${startDate || 'all'}-${endDate || 'all'}.${format}`;
+    res.setHeader('Content-Type', format === 'pdf' ? 'application/pdf' : 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    
+    if (format === 'json') {
+      res.json({ success: true, data: report });
+    } else {
+      // For PDF, you would use a library like pdfkit or puppeteer
+      // For now, return JSON
+      res.json({ success: true, data: report, message: 'PDF generation coming soon' });
+    }
+  } catch (error) {
+    console.error('Error downloading report:', error);
+    res.status(500).json({ success: false, error: 'Failed to download report: ' + error.message });
   }
 });
 
@@ -188,7 +173,6 @@ router.post('/schedule', async (req, res) => {
   try {
     const userId = req.user.sub;
     const { enabled, dayOfMonth = 1, email } = req.body;
-    logReportRequest('save-schedule', req, { userId, enabled, dayOfMonth, email });
     
     // Get user
     const user = await User.findById(userId);
@@ -227,7 +211,6 @@ router.post('/send-test', async (req, res) => {
   try {
     const userId = req.user.sub;
     const { templateName, format = 'pdf' } = req.body;
-    logReportRequest('send-test', req, { userId, templateName, format });
     
     // Get user
     const user = await User.findById(userId);
@@ -271,8 +254,7 @@ router.post('/send-test', async (req, res) => {
         endDate: endDate.toISOString() 
       });
     }
-    logReportSummary('send-test-report', report, { userId, templateName, clientCount: clients.length });
-
+    
     await sendMonthlyReportEmail(user.email, user.name, report, templateName, format);
     
     res.json({ success: true, message: 'Test report sent successfully' });
@@ -285,7 +267,6 @@ router.post('/send-test', async (req, res) => {
 // POST /api/reports/upload-template - Upload a report template
 router.post('/upload-template', upload.single('template'), async (req, res) => {
   try {
-    logReportRequest('upload-template', req, { userId: req.user?.sub, filename: req.file?.originalname, size: req.file?.size });
     if (!req.file) {
       return res.status(400).json({ success: false, error: 'No template file uploaded' });
     }
@@ -309,7 +290,6 @@ router.post('/upload-template', upload.single('template'), async (req, res) => {
 // GET /api/reports/templates - Get list of available templates
 router.get('/templates', async (req, res) => {
   try {
-    logReportRequest('list-templates', req, { userId: req.user?.sub });
     const files = fs.readdirSync(templatesDir);
     const templates = files
       .filter(file => file.startsWith('template-'))
@@ -337,7 +317,6 @@ router.get('/templates', async (req, res) => {
 router.delete('/templates/:filename', async (req, res) => {
   try {
     const { filename } = req.params;
-    logReportRequest('delete-template', req, { userId: req.user?.sub, filename });
     const filePath = path.join(templatesDir, filename);
     
     // Security: prevent directory traversal
@@ -362,14 +341,6 @@ router.post('/send-to-clients', async (req, res) => {
   try {
     const userId = req.user.sub;
     const { startDate, endDate, templateName, format = 'pdf', clientIds } = req.body;
-    logReportRequest('send-to-clients', req, {
-      userId,
-      clientIdsLength: Array.isArray(clientIds) ? clientIds.length : 0,
-      startDate,
-      endDate,
-      templateName,
-      format
-    });
     
     // Get user
     const user = await User.findById(userId);
@@ -410,50 +381,50 @@ router.post('/send-to-clients', async (req, res) => {
     // Get posts
     const posts = await Post.find(query).populate('client', 'name email platform');
     
-    // Generate report for each client
-    const results = [];
-    for (const client of clients) {
-      try {
-        const clientPosts = posts.filter(p => {
-          if (!p.client) return false;
-          const postClientId = p.client._id ? p.client._id.toString() : p.client.toString();
-          return postClientId === client._id.toString();
-        });
+        // Generate report for each client
+        const results = [];
+        for (const client of clients) {
+          try {
+            const clientPosts = posts.filter(p => {
+              if (!p.client) return false;
+              const postClientId = p.client._id ? p.client._id.toString() : p.client.toString();
+              return postClientId === client._id.toString();
+            });
+            
+            let report;
+            let pdfBuffer = null;
+            
+            if (templateName && format === 'pdf') {
+              // Generate PDF from template with real data
+              pdfBuffer = await generatePDFFromTemplate(userId, clientPosts, [client], { 
+                startDate, 
+                endDate,
+                templateName
+              });
+              // Also generate regular report for email content
+              report = await generateReport(userId, clientPosts, [client], { 
+                startDate, 
+                endDate 
+              });
+            } else if (templateName) {
+              // Generate HTML from template
+              report = await generateReportWithTemplate(userId, clientPosts, [client], { 
+                startDate, 
+                endDate,
+                templateName,
+                format: 'html'
+              });
+            } else {
+              // Generate regular report
+              report = await generateReport(userId, clientPosts, [client], { 
+                startDate, 
+                endDate 
+              });
+            }
+            
+            // Send email to client with PDF attachment if available
+            await sendReportToClient(client.email, client.name, report, templateName, format, pdfBuffer);
         
-        let pdfBuffer = null;
-        let reportForEmail = await generateReport(userId, clientPosts, [client], { startDate, endDate });
-        
-        if (templateName && format === 'pdf') {
-          pdfBuffer = await generatePDFFromTemplate(userId, clientPosts, [client], { 
-            startDate, 
-            endDate,
-            templateName
-          });
-        } else if (templateName) {
-          reportForEmail = await generateReportWithTemplate(userId, clientPosts, [client], { 
-            startDate, 
-            endDate,
-            templateName,
-            format: 'html'
-          });
-        } else if (format === 'pdf') {
-          pdfBuffer = await generateSimplePDFReport(reportForEmail, {
-            title: `${client.name || 'Client'} Report`,
-            subtitle: startDate && endDate
-              ? `${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}`
-              : 'All Time'
-          });
-        }
-        
-        logReportSummary('send-client-report', reportForEmail, {
-          userId,
-          clientId: client._id,
-          clientName: client.name,
-          templateName,
-          format
-        });
-        await sendReportToClient(client.email, client.name, reportForEmail, templateName, format, pdfBuffer);
-
         results.push({
           clientId: client._id,
           clientName: client.name,
@@ -488,7 +459,6 @@ router.post('/download', async (req, res) => {
   try {
     const userId = req.user.sub;
     const { startDate, endDate, format = 'pdf', templateName } = req.body;
-    logReportRequest('download', req, { userId, startDate, endDate, format, templateName });
     
     // Get all clients for the user
     const clients = await Client.find({ createdBy: userId });
@@ -513,74 +483,46 @@ router.post('/download', async (req, res) => {
       posts = await Post.find(query).populate('client', 'name email platform');
     }
     
-    const baseReport = await generateReport(userId, posts, clients, { startDate, endDate });
-    logReportSummary('download-base-report', baseReport, {
-      userId,
-      clientCount: clients.length,
-      postCount: posts.length,
-      startDate,
-      endDate
-    });
-    let payload = baseReport;
+    // Generate report with template if provided
+    let report;
     let pdfBuffer = null;
     
     if (templateName && format === 'pdf') {
+      // Generate PDF from template
       pdfBuffer = await generatePDFFromTemplate(userId, posts, clients, { 
         startDate, 
         endDate,
         templateName
       });
-    } else if (templateName && format === 'html') {
-      payload = await generateReportWithTemplate(userId, posts, clients, { 
+    } else if (templateName) {
+      // Generate HTML from template
+      report = await generateReportWithTemplate(userId, posts, clients, { 
         startDate, 
         endDate,
         templateName,
         format: 'html'
       });
-    } else if (format === 'pdf') {
-      pdfBuffer = await generateSimplePDFReport(baseReport, {
-        title: 'Social Media Report',
-        subtitle: startDate && endDate
-          ? `${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}`
-          : 'All Time'
-      });
+    } else {
+      // Generate regular report
+      report = await generateReport(userId, posts, clients, { startDate, endDate, format });
     }
     
+    // Set response headers for download
     const filename = `report-${startDate || 'all'}-${endDate || 'all'}.${format}`;
     
-    if (format === 'pdf') {
-      if (!pdfBuffer) {
-        pdfBuffer = await generateSimplePDFReport(payload, {
-          title: 'Social Media Report',
-          subtitle: startDate && endDate
-            ? `${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}`
-            : 'All Time'
-        });
-      }
-
-      if (!pdfBuffer || !pdfBuffer.length) {
-        console.error('report-download: missing PDF buffer', { format, templateName, buffer: pdfBuffer });
-        return res.status(500).json({ success: false, error: 'Failed to generate PDF report' });
-      }
-
-      console.log('report-download', {
-        format,
-        templateName: templateName || null,
-        pdfBytes: pdfBuffer.length
-      });
-
+    if (format === 'pdf' && pdfBuffer) {
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      res.setHeader('Content-Length', pdfBuffer.length);
-      return res.end(pdfBuffer);
+      res.send(pdfBuffer);
     } else if (format === 'json') {
       res.setHeader('Content-Type', 'application/json');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      return res.json({ success: true, data: payload });
+      res.json({ success: true, data: report });
     } else {
+      // HTML format
       res.setHeader('Content-Type', 'text/html');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      return res.send(payload.html || payload);
+      res.send(report.html || report);
     }
   } catch (error) {
     console.error('Error downloading report:', error);
