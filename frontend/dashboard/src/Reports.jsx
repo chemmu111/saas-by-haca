@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import { Download, Mail, Calendar, FileText, Settings, Upload, Trash2, Users } from 'lucide-react';
 import Layout from './Layout.jsx';
 import { getBackendUrl, fetchFromBackend } from './utils/backend.js';
@@ -198,52 +197,62 @@ const Reports = () => {
       const token = localStorage.getItem('auth_token');
       if (!token) {
         console.error('No auth token found');
-        alert('Authentication required. Please sign in again.');
         return;
       }
 
       const backendUrl = getBackendUrl();
-      const isPdf = format === 'pdf';
 
-      const response = await axios.post(
-        `${backendUrl}/api/reports/download`,
-        {
+      const response = await fetch(`${backendUrl}/api/reports/download`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
           startDate,
           endDate,
           format,
           templateName: selectedTemplate || null
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`
-          },
-          responseType: isPdf ? 'arraybuffer' : 'json',
-          withCredentials: true
-        }
-      );
+        })
+      });
 
-      if (isPdf) {
-        const blob = new Blob([response.data], { type: 'application/pdf' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `report-${startDate || 'all'}-${endDate || 'all'}.pdf`;
-        a.click();
-        window.URL.revokeObjectURL(url);
+      if (response.ok) {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          // Handle JSON response
+          const result = await response.json();
+          if (result.success && result.data) {
+            const dataStr = JSON.stringify(result.data, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = window.URL.createObjectURL(dataBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `report-${startDate || 'all'}-${endDate || 'all'}.json`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+          }
+        } else {
+          // Handle binary response (PDF, HTML, etc.)
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `report-${startDate || 'all'}-${endDate || 'all'}.${format}`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+        }
       } else {
-        const data = response.data?.data || response.data;
-        const dataStr = JSON.stringify(data, null, 2);
-        const jsonBlob = new Blob([dataStr], { type: 'application/json' });
-        const url = window.URL.createObjectURL(jsonBlob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `report-${startDate || 'all'}-${endDate || 'all'}.${format}`;
-        a.click();
-        window.URL.revokeObjectURL(url);
+        const errorText = await response.text();
+        console.error('Download failed:', errorText);
+        alert('Failed to download report');
       }
     } catch (error) {
-      console.error('Error downloading report:', error?.response || error);
-      alert('Failed to download report: ' + (error?.message || 'Unknown error'));
+      console.error('Error downloading report:', error);
+      alert('Failed to download report: ' + error.message);
     } finally {
       setLoading(false);
     }
