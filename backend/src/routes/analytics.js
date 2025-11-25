@@ -23,6 +23,7 @@ router.get('/', async (req, res) => {
   try {
     const userId = req.user.sub;
     const { startDate, endDate, refresh } = req.query;
+    const forceRefresh = refresh === 'true';
 
     // Build date filter
     const dateFilter = {};
@@ -72,7 +73,7 @@ router.get('/', async (req, res) => {
     }
 
     // If refresh=true, fetch latest engagement metrics from APIs (limited to avoid rate limits)
-    if (refresh === 'true') {
+    if (forceRefresh) {
       // Update follower counts for clients (limit to 5 to avoid rate limits)
       for (let i = 0; i < Math.min(clients.length, 5); i++) {
         const client = clients[i];
@@ -209,11 +210,20 @@ router.get('/', async (req, res) => {
     console.log(`📡 Fetching Instagram analytics for ${instagramClients.length} client(s)...`);
 
     let allDetailedPosts = [];
+    let processingResponse = null;
 
     for (const client of instagramClients) {
       try {
         console.log(`   Fetching data for client: ${client.name} (IG User: ${client.igUserId})`);
-        const igData = await fetchInstagramAnalytics(client.igUserId, client.pageAccessToken, client);
+        const igData = await fetchInstagramAnalytics(
+          client.igUserId,
+          client.pageAccessToken,
+          client,
+          { forceRefresh }
+        );
+        if (igData?.data?.processing) {
+          return res.status(202).json({ success: true, data: igData.data });
+        }
 
         // Check if token expired
         if (igData && igData.needReLogin) {
@@ -230,6 +240,10 @@ router.get('/', async (req, res) => {
         }
 
         if (igData && igData.success && igData.data) {
+          if (igData.data.processing) {
+            processingResponse = igData.data;
+            break;
+          }
           const data = igData.data;
 
           // Collect detailed posts
@@ -303,6 +317,10 @@ router.get('/', async (req, res) => {
       } catch (error) {
         console.error(`   ❌ Error fetching IG data for client ${client._id}:`, error.message);
       }
+    }
+
+    if (processingResponse) {
+      return res.status(202).json(createAnalyticsResponse(processingResponse, false, 'processing'));
     }
 
     // USE ONLY INSTAGRAM DATA - NO DATABASE FALLBACKS
@@ -500,6 +518,7 @@ router.get('/client/:clientId', async (req, res) => {
     const userId = req.user.sub;
     const { clientId } = req.params;
     const { startDate, endDate, refresh } = req.query;
+    const forceRefresh = refresh === 'true';
 
     // Build date filter
     const dateFilter = {};
@@ -534,7 +553,7 @@ router.get('/client/:clientId', async (req, res) => {
     }).populate('client', 'name email platform pageAccessToken igUserId pageId');
 
     // If refresh=true, fetch latest engagement metrics from APIs
-    if (refresh === 'true') {
+    if (forceRefresh) {
       // Update follower count
       try {
         const followerCount = await updateClientFollowerCount(client);
@@ -653,7 +672,12 @@ router.get('/client/:clientId', async (req, res) => {
     // If Instagram client, fetch real data
     if (client.platform === 'instagram' && client.igUserId && client.pageAccessToken) {
       try {
-        const igData = await fetchInstagramAnalytics(client.igUserId, client.pageAccessToken, client);
+        const igData = await fetchInstagramAnalytics(
+          client.igUserId,
+          client.pageAccessToken,
+          client,
+          { forceRefresh }
+        );
         if (igData && igData.success && igData.data) {
           const data = igData.data;
           clientTotalPosts = data.media?.total || 0; // Use Instagram count
@@ -776,6 +800,7 @@ router.get('/overview', async (req, res) => {
   try {
     const userId = req.user.sub;
     const { refresh } = req.query;
+    const forceRefresh = refresh === 'true';
 
     console.log(`\n${'='.repeat(60)}`);
     console.log(`📊 ANALYTICS OVERVIEW REQUEST`);
@@ -830,7 +855,7 @@ router.get('/overview', async (req, res) => {
     console.log(`✅ Found ${clients.length} client(s) with valid Instagram credentials`);
 
     // Clear cache if refresh requested
-    if (refresh === 'true') {
+    if (forceRefresh) {
       console.log(`🔄 Refresh requested - clearing cache for all clients`);
       clients.forEach(client => {
         if (client.igUserId) {
@@ -876,7 +901,15 @@ router.get('/overview', async (req, res) => {
 
         console.log(`   ✅ Token validated successfully (username: ${tokenValidation.username})`);
 
-        const igData = await fetchInstagramAnalytics(client.igUserId, client.pageAccessToken);
+        const igData = await fetchInstagramAnalytics(
+          client.igUserId,
+          client.pageAccessToken,
+          null,
+          { forceRefresh }
+        );
+        if (igData?.data?.processing) {
+          return res.status(202).json(createAnalyticsResponse(igData.data, false, 'processing'));
+        }
         if (igData && igData.success && igData.data) {
           const data = igData.data;
           console.log(`✅ Successfully fetched Instagram data for ${client.name}:`, {
@@ -997,6 +1030,12 @@ router.get('/trends', async (req, res) => {
     for (const client of clients) {
       try {
         const igData = await fetchInstagramAnalytics(client.igUserId, client.pageAccessToken);
+        if (igData?.data?.processing) {
+          return res.status(202).json({
+            success: true,
+            data: igData.data
+          });
+        }
         if (igData && igData.success && igData.data && igData.data.trends) {
           const trends = igData.data.trends;
           // Aggregate engagement trends
@@ -1072,6 +1111,12 @@ router.get('/posts', async (req, res) => {
     for (const client of clients) {
       try {
         const igData = await fetchInstagramAnalytics(client.igUserId, client.pageAccessToken);
+        if (igData?.data?.processing) {
+          return res.status(202).json({
+            success: true,
+            data: igData.data
+          });
+        }
         if (igData && igData.success && igData.data && igData.data.recentPosts) {
           igData.data.recentPosts.forEach(post => {
             allRecentPosts.push({
@@ -1132,6 +1177,12 @@ router.get('/client-performance', async (req, res) => {
     for (const client of clients) {
       try {
         const igData = await fetchInstagramAnalytics(client.igUserId, client.pageAccessToken);
+        if (igData?.data?.processing) {
+          return res.status(202).json({
+            success: true,
+            data: igData.data
+          });
+        }
         const clientDbPosts = dbPosts.filter(p =>
           p.client && p.client.toString() === client._id.toString()
         );

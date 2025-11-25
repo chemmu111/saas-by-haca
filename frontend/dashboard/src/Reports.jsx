@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { Download, Mail, Calendar, FileText, Settings, Upload, Trash2, Users } from 'lucide-react';
 import Layout from './Layout.jsx';
+import { getBackendUrl, fetchFromBackend } from './utils/backend.js';
 
 const Reports = () => {
   const [report, setReport] = useState(null);
@@ -38,15 +40,20 @@ const Reports = () => {
       const token = localStorage.getItem('auth_token');
       if (!token) return;
 
-      // Fetch current schedule settings
-      // This would typically come from user settings
-      // For now, we'll use localStorage
+      const result = await fetchFromBackend('/api/reports/schedule');
+      if (result?.success && result.data) {
+        setReportSchedule({
+          enabled: Boolean(result.data.enabled),
+          dayOfMonth: result.data.dayOfMonth || 1,
+          email: result.data.email || ''
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching report schedule:', error);
       const saved = localStorage.getItem('reportSchedule');
       if (saved) {
         setReportSchedule(JSON.parse(saved));
       }
-    } catch (error) {
-      console.error('Error fetching report schedule:', error);
     }
   };
 
@@ -59,25 +66,13 @@ const Reports = () => {
         return;
       }
 
-      // Get backend URL
-      const backendUrl = window.location.origin;
-
       const params = new URLSearchParams();
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
 
-      const response = await fetch(`${backendUrl}/api/reports?${params.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
+      const query = params.toString();
+      const endpoint = query ? `/api/reports?${query}` : '/api/reports';
+      const result = await fetchFromBackend(endpoint);
       if (result.success) {
         setReport(result.data);
         setError(null);
@@ -100,19 +95,9 @@ const Reports = () => {
       const token = localStorage.getItem('auth_token');
       if (!token) return;
 
-      const backendUrl = window.location.origin;
-      const response = await fetch(`${backendUrl}/api/reports/templates`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success) {
-          setTemplates(result.data || []);
-        }
+      const result = await fetchFromBackend('/api/reports/templates');
+      if (result?.success) {
+        setTemplates(result.data || []);
       }
     } catch (error) {
       console.error('Error fetching templates:', error);
@@ -124,19 +109,9 @@ const Reports = () => {
       const token = localStorage.getItem('auth_token');
       if (!token) return;
 
-      const backendUrl = window.location.origin;
-      const response = await fetch(`${backendUrl}/api/clients`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success) {
-          setClients(result.data || []);
-        }
+      const result = await fetchFromBackend('/api/clients');
+      if (result?.success) {
+        setClients(result.data || []);
       }
     } catch (error) {
       console.error('Error fetching clients:', error);
@@ -155,7 +130,7 @@ const Reports = () => {
         return;
       }
 
-      const backendUrl = window.location.origin;
+      const backendUrl = getBackendUrl();
       const formData = new FormData();
       formData.append('template', file);
 
@@ -198,29 +173,18 @@ const Reports = () => {
         return;
       }
 
-      const backendUrl = window.location.origin;
-      const response = await fetch(`${backendUrl}/api/reports/templates/${filename}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+      const result = await fetchFromBackend(`/api/reports/templates/${filename}`, {
+        method: 'DELETE'
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success) {
-          alert('Template deleted successfully!');
-          fetchTemplates();
-          if (selectedTemplate === filename) {
-            setSelectedTemplate('');
-          }
-        } else {
-          alert(result.error || 'Failed to delete template');
+      if (result?.success) {
+        alert('Template deleted successfully!');
+        fetchTemplates();
+        if (selectedTemplate === filename) {
+          setSelectedTemplate('');
         }
       } else {
-        const errorText = await response.text();
-        alert('Failed to delete template: ' + errorText);
+        alert(result?.error || 'Failed to delete template');
       }
     } catch (error) {
       console.error('Error deleting template:', error);
@@ -234,63 +198,52 @@ const Reports = () => {
       const token = localStorage.getItem('auth_token');
       if (!token) {
         console.error('No auth token found');
+        alert('Authentication required. Please sign in again.');
         return;
       }
 
-      // Get backend URL
-      const backendUrl = window.location.origin;
+      const backendUrl = getBackendUrl();
+      const isPdf = format === 'pdf';
 
-      const response = await fetch(`${backendUrl}/api/reports/download`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+      const response = await axios.post(
+        `${backendUrl}/api/reports/download`,
+        {
           startDate,
           endDate,
           format,
           templateName: selectedTemplate || null
-        })
-      });
-
-      if (response.ok) {
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          // Handle JSON response
-          const result = await response.json();
-          if (result.success && result.data) {
-            const dataStr = JSON.stringify(result.data, null, 2);
-            const dataBlob = new Blob([dataStr], { type: 'application/json' });
-            const url = window.URL.createObjectURL(dataBlob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `report-${startDate || 'all'}-${endDate || 'all'}.json`;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-          }
-        } else {
-          // Handle binary response (PDF, HTML, etc.)
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `report-${startDate || 'all'}-${endDate || 'all'}.${format}`;
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          },
+          responseType: isPdf ? 'arraybuffer' : 'json',
+          withCredentials: true
         }
+      );
+
+      if (isPdf) {
+        const blob = new Blob([response.data], { type: 'application/pdf' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `report-${startDate || 'all'}-${endDate || 'all'}.pdf`;
+        a.click();
+        window.URL.revokeObjectURL(url);
       } else {
-        const errorText = await response.text();
-        console.error('Download failed:', errorText);
-        alert('Failed to download report');
+        const data = response.data?.data || response.data;
+        const dataStr = JSON.stringify(data, null, 2);
+        const jsonBlob = new Blob([dataStr], { type: 'application/json' });
+        const url = window.URL.createObjectURL(jsonBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `report-${startDate || 'all'}-${endDate || 'all'}.${format}`;
+        a.click();
+        window.URL.revokeObjectURL(url);
       }
     } catch (error) {
-      console.error('Error downloading report:', error);
-      alert('Failed to download report: ' + error.message);
+      console.error('Error downloading report:', error?.response || error);
+      alert('Failed to download report: ' + (error?.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -310,34 +263,23 @@ const Reports = () => {
         return;
       }
 
-      const backendUrl = window.location.origin;
       const clientIds = selectedClients.length > 0 ? selectedClients : clients.map(c => c._id);
 
-      const response = await fetch(`${backendUrl}/api/reports/send-to-clients`, {
+      const result = await fetchFromBackend('/api/reports/send-to-clients', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
           startDate,
           endDate,
           templateName: selectedTemplate || null,
           format: 'pdf',
-          clientIds: clientIds.length === clients.length ? [] : clientIds // Send all if all selected
+          clientIds: clientIds.length === clients.length ? [] : clientIds
         })
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success) {
-          alert(result.message || `Reports sent to ${result.data.filter(r => r.status === 'sent').length} client(s)!`);
-        } else {
-          alert(result.error || 'Failed to send reports');
-        }
+      if (result?.success) {
+        alert(result.message || `Reports sent to ${result.data.filter(r => r.status === 'sent').length} client(s)!`);
       } else {
-        const errorText = await response.text();
-        alert('Failed to send reports: ' + errorText);
+        alert(result?.error || 'Failed to send reports');
       }
     } catch (error) {
       console.error('Error sending reports to clients:', error);
@@ -355,28 +297,21 @@ const Reports = () => {
         return;
       }
 
-      // Get backend URL
-      const backendUrl = window.location.origin;
-
-      const response = await fetch(`${backendUrl}/api/reports/schedule`, {
+      const result = await fetchFromBackend('/api/reports/schedule', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify(reportSchedule)
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      if (result.success) {
-        localStorage.setItem('reportSchedule', JSON.stringify(reportSchedule));
+      if (result?.success && result.data) {
+        setReportSchedule({
+          enabled: Boolean(result.data.enabled),
+          dayOfMonth: result.data.dayOfMonth || 1,
+          email: result.data.email || ''
+        });
+        localStorage.setItem('reportSchedule', JSON.stringify(result.data));
         alert('Report schedule saved successfully');
       } else {
-        alert(result.error || 'Failed to save report schedule');
+        alert(result?.error || 'Failed to save report schedule');
       }
     } catch (error) {
       console.error('Error saving report schedule:', error);
@@ -393,30 +328,18 @@ const Reports = () => {
         return;
       }
 
-      // Get backend URL
-      const backendUrl = window.location.origin;
-
-      const response = await fetch(`${backendUrl}/api/reports/send-test`, {
+      const result = await fetchFromBackend('/api/reports/send-test', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
           templateName: selectedTemplate || null,
           format: 'pdf'
         })
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      if (result.success) {
-        alert('Test report sent successfully! Check your email.');
+      if (result?.success) {
+        alert(result.message || 'Test report sent successfully! Check your email.');
       } else {
-        alert(result.error || 'Failed to send test report');
+        alert(result?.error || 'Failed to send test report');
       }
     } catch (error) {
       console.error('Error sending test report:', error);

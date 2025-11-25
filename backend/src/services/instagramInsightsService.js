@@ -27,8 +27,38 @@
 import Client from '../models/Client.js';
 import { ensureValidToken } from './instagramTokenService.js';
 
+const GRAPH_API_VERSION = process.env.IG_GRAPH_API_VERSION || 'v24.0';
+const GRAPH_BASE_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
 // Simple in-memory cache (5 minutes TTL)
 const cache = new Map();
+const DEFAULT_CACHE_TTL = 300 * 1000; // 300 seconds
+const MEDIA_METRICS_MAP = {
+  REEL: ['likes', 'comments', 'saved', 'reach', 'views', 'ig_reels_avg_watch_time', 'ig_reels_video_view_total_time'],
+  REELS: ['likes', 'comments', 'saved', 'reach', 'views', 'ig_reels_avg_watch_time', 'ig_reels_video_view_total_time'],
+  VIDEO: ['likes', 'comments', 'saved', 'views'],
+  IMAGE: ['likes', 'comments', 'saved'],
+  CAROUSEL_ALBUM: ['likes', 'comments', 'saved'],
+  STORY: ['views', 'reach', 'replies', 'navigation', 'exits', 'taps_forward', 'taps_back'],
+  DEFAULT: ['likes', 'comments', 'saved']
+};
+const EMPTY_INSIGHTS = {
+  likes: 0,
+  comments: 0,
+  saved: 0,
+  shares: 0,
+  views: 0,
+  reach: 0,
+  replies: 0,
+  engagement: 0,
+  totalInteractions: 0,
+  profileActivity: 0,
+  watchTimeAvg: 0,
+  watchTimeTotal: 0
+};
+
+function cloneEmptyInsights() {
+  return { ...EMPTY_INSIGHTS };
+}
 
 function getCacheKey(key) {
   return `ig_insights_${key}`;
@@ -37,19 +67,60 @@ function getCacheKey(key) {
 function getCached(key) {
   const cacheKey = getCacheKey(key);
   const cached = cache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000) { // 5 minutes
+  if (cached && Date.now() - cached.timestamp < (cached.ttlMs || DEFAULT_CACHE_TTL)) {
     return cached.data;
   }
   cache.delete(cacheKey);
   return null;
 }
 
-function setCache(key, data) {
+function setCache(key, data, ttlMs = DEFAULT_CACHE_TTL) {
   const cacheKey = getCacheKey(key);
   cache.set(cacheKey, {
     data,
-    timestamp: Date.now()
+    timestamp: Date.now(),
+    ttlMs
   });
+}
+
+async function pMap(items, mapper, concurrency = 5) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return [];
+  }
+
+  const results = new Array(items.length);
+  let currentIndex = 0;
+
+  async function worker() {
+    while (currentIndex < items.length) {
+      const index = currentIndex++;
+      results[index] = await mapper(items[index], index);
+    }
+  }
+
+  const workerCount = Math.min(concurrency, items.length);
+  const workers = Array.from({ length: workerCount }, () => worker());
+  await Promise.all(workers);
+  return results;
+}
+
+async function withTimeout(promise, timeoutMs) {
+  let timeoutHandle;
+  const timeoutPromise = new Promise(resolve => {
+    timeoutHandle = setTimeout(() => resolve({ ready: false, error: new Error('timeout') }), timeoutMs);
+  });
+
+  try {
+    const data = await Promise.race([
+      promise
+        .then(result => ({ ready: true, data: result }))
+        .catch(error => ({ ready: false, error })),
+      timeoutPromise
+    ]);
+    return data;
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
 }
 
 /**
@@ -89,7 +160,7 @@ function createSuccessResponse(data) {
  */
 async function fetchFollowerCountBasic(igUserId, pageAccessToken) {
   try {
-    const url = `https://graph.facebook.com/v22.0/${igUserId}?fields=followers_count&access_token=${pageAccessToken}`;
+    const url = `${GRAPH_BASE_URL}/${igUserId}?fields=followers_count&access_token=${pageAccessToken}`;
     console.log('   📡 Fetching from basic endpoint...');
     const response = await fetch(url);
 
@@ -124,7 +195,7 @@ async function fetchFollowerCountBasic(igUserId, pageAccessToken) {
  */
 async function fetchFollowerCount(igUserId, pageAccessToken) {
   try {
-    const url = `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=follower_count&period=day&access_token=${pageAccessToken}`;
+    const url = `${GRAPH_BASE_URL}/${igUserId}/insights?metric=follower_count&period=day&access_token=${pageAccessToken}`;
     const response = await fetch(url);
 
     if (!response.ok) {
@@ -163,7 +234,7 @@ async function fetchFollowerCount(igUserId, pageAccessToken) {
  */
 async function fetchProfileViews(igUserId, pageAccessToken) {
   try {
-    const url = `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=profile_views&metric_type=total_value&period=day&access_token=${pageAccessToken}`;
+    const url = `${GRAPH_BASE_URL}/${igUserId}/insights?metric=profile_views&metric_type=total_value&period=day&access_token=${pageAccessToken}`;
     const response = await fetch(url);
 
     if (!response.ok) {
@@ -197,7 +268,7 @@ async function fetchProfileViews(igUserId, pageAccessToken) {
  */
 async function fetchReachTrend(igUserId, pageAccessToken) {
   try {
-    const url = `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=reach&period=day&access_token=${pageAccessToken}`;
+    const url = `${GRAPH_BASE_URL}/${igUserId}/insights?metric=reach&period=day&access_token=${pageAccessToken}`;
     const response = await fetch(url);
 
     if (!response.ok) {
@@ -290,7 +361,7 @@ export async function fetchAccountInsightsTrend(igUserId, pageAccessToken) {
 
     // Daily trends: reach and follower_count CAN be combined
     const metrics = 'reach,follower_count';
-    const url = `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=${metrics}&period=day&access_token=${pageAccessToken}`;
+    const url = `${GRAPH_BASE_URL}/${igUserId}/insights?metric=${metrics}&period=day&access_token=${pageAccessToken}`;
 
     const response = await fetch(url);
     if (!response.ok) {
@@ -359,36 +430,20 @@ export async function fetchMediaInsights(mediaId, pageAccessToken, mediaType = '
       return createSuccessResponse(cached);
     }
 
-    // API v22+ METRICS - unified list per Meta doc (Nov 2024)
-    // The API will automatically ignore metrics that are not available for a media type.
-    const metricsList = [
-      'views',                          // Feed / Reel / Story
-      'reach',
-      'likes',
-      'comments',
-      'shares',
-      'saved',
-      'total_interactions',
-      'profile_activity',
-      'ig_reels_avg_watch_time',
-      'ig_reels_video_view_total_time'
-    ];
-
-    // Story metrics are different
-    if (mediaType === 'STORY') {
-      // Story metrics: replies, reach, exits, taps_forward, taps_back
-      // For simplicity, we stick to basic engagement for now, but can expand if needed.
-      // Note: 'views' is NOT supported for Stories in the same way (it's 'impressions' or 'reach')
-      // We'll stick to 'replies' and 'reach' for stories if possible, or just 'replies' as before.
-      // For now, let's keep it simple for Stories to avoid breaking changes.
-    }
-
-    const metrics = metricsList.join(',');
-    const url = `https://graph.facebook.com/v22.0/${mediaId}/insights?metric=${metrics}&access_token=${pageAccessToken}`;
+    const normalizedType = (mediaType || 'DEFAULT').toUpperCase();
+    const metricList = MEDIA_METRICS_MAP[normalizedType] || MEDIA_METRICS_MAP.DEFAULT;
+    const metrics = metricList.join(',');
+    const url = `${GRAPH_BASE_URL}/${mediaId}/insights?metric=${metrics}&access_token=${pageAccessToken}`;
 
     const response = await fetch(url);
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      console.warn('insights-fetch-failed', {
+        mediaId,
+        mediaType,
+        status: response.status,
+        message: errorData?.error?.message
+      });
 
       if (mediaType === 'STORY' && errorData?.error?.code === 10) {
         console.warn(`⚠️ Story ${mediaId} insights unavailable (<5 views). Using zeros.`);
@@ -420,8 +475,13 @@ export async function fetchMediaInsights(mediaId, pageAccessToken, mediaType = '
 
         // Fallback: Request basic metrics if full list fails
         console.warn(`⚠️ Full metrics failed for ${mediaType} (${mediaId}), trying basic metrics...`);
-        const basicMetrics = 'likes,comments,saved,shares';
-        const basicUrl = `https://graph.facebook.com/v24.0/${mediaId}/insights?metric=${basicMetrics}&access_token=${pageAccessToken}`;
+        console.warn('insights-retry', {
+          mediaId,
+          mediaType,
+          reason: 'unsupported-metric'
+        });
+        const basicMetrics = 'likes,comments,saved';
+        const basicUrl = `${GRAPH_BASE_URL}/${mediaId}/insights?metric=${basicMetrics}&access_token=${pageAccessToken}`;
         const basicResponse = await fetch(basicUrl);
 
         if (!basicResponse.ok) {
@@ -512,6 +572,11 @@ export async function fetchMediaInsights(mediaId, pageAccessToken, mediaType = '
     setCache(cacheKey, result);
     return createSuccessResponse(result);
   } catch (error) {
+    console.warn('insights-fetch-failed', {
+      mediaId,
+      mediaType,
+      message: error.message
+    });
     return createErrorResponse(error, `fetchMediaInsights (${mediaType})`);
   }
 }
@@ -534,7 +599,7 @@ export async function fetchInstagramMedia(igUserId, pageAccessToken, limit = 25)
     }
 
     const fields = 'id,media_type,thumbnail_url,caption,permalink,timestamp,like_count,comments_count';
-    const url = `https://graph.facebook.com/v22.0/${igUserId}/media?fields=${fields}&limit=${limit}&access_token=${pageAccessToken}`;
+    const url = `${GRAPH_BASE_URL}/${igUserId}/media?fields=${fields}&limit=${limit}&access_token=${pageAccessToken}`;
 
     const response = await fetch(url);
     if (!response.ok) {
@@ -546,74 +611,69 @@ export async function fetchInstagramMedia(igUserId, pageAccessToken, limit = 25)
     }
 
     const data = await response.json();
-    const media = data.data || [];
+    const media = (data.data || []).map(item => ({
+      id: item.id,
+      media_type: item.media_type,
+      thumbnail_url: item.thumbnail_url || null,
+      caption: item.caption || '',
+      permalink: item.permalink || '',
+      timestamp: item.timestamp || '',
+      like_count: item.like_count || 0,
+      comments_count: item.comments_count || 0,
+      insights: null
+    }));
 
-    // Fetch insights for each media item (with error handling per item)
-    const mediaWithInsights = await Promise.all(
-      media.map(async (item) => {
-        let insights = null;
-        try {
-          const insightsResponse = await fetchMediaInsights(item.id, pageAccessToken, item.media_type);
-          if (insightsResponse.success) {
-            insights = insightsResponse.data;
-
-            // Log REEL insights for debugging
-            if (item.media_type === 'REEL' || item.media_type === 'REELS') {
-              if (insights.views) {
-                console.log(`   ✅ REEL ${item.id} insights: ${insights.views} views`);
-              } else {
-                console.warn(`   ⚠️  REEL ${item.id} has no views data`, {
-                  hasInsights: !!insights,
-                  insightsKeys: Object.keys(insights || {}),
-                  error: insightsResponse.error
-                });
-              }
-            }
-          } else {
-            const errorMsg = insightsResponse.error || 'Unknown error';
-            console.warn(`   ⚠️  Failed to fetch insights for ${item.media_type} ${item.id}: ${errorMsg}`);
-
-            // For REELS, this is critical - log more details
-            if (item.media_type === 'REEL' || item.media_type === 'REELS') {
-              console.warn(`   ⚠️  CRITICAL: REEL ${item.id} insights failed - views will be 0`);
-            }
-          }
-        } catch (error) {
-          console.warn(`   ⚠️  Error fetching insights for ${item.media_type} ${item.id}:`, error.message);
-        }
-
-        return {
-          id: item.id,
-          media_type: item.media_type,
-          thumbnail_url: item.thumbnail_url || null,
-          caption: item.caption || '',
-          permalink: item.permalink || '',
-          timestamp: item.timestamp || '',
-          like_count: item.like_count || 0,
-          comments_count: item.comments_count || 0,
-          insights: insights || {
-            likes: 0,
-            comments: 0,
-            saved: 0,
-            shares: 0,
-            views: 0,
-            reach: 0,
-            replies: 0,
-            engagement: 0,
-            totalInteractions: 0,
-            profileActivity: 0,
-            watchTimeAvg: 0,
-            watchTimeTotal: 0
-          }
-        };
-      })
-    );
-
-    setCache(cacheKey, mediaWithInsights);
-    return createSuccessResponse(mediaWithInsights);
+    setCache(cacheKey, media);
+    return createSuccessResponse(media);
   } catch (error) {
     return createErrorResponse(error, 'fetchInstagramMedia');
   }
+}
+
+async function fetchMediaInsightsBatch(mediaList, pageAccessToken, concurrency = 5) {
+  if (!Array.isArray(mediaList) || mediaList.length === 0) {
+    return {
+      media: [],
+      stats: { total: 0, succeeded: 0, failed: 0 },
+      hasInsights: false
+    };
+  }
+
+  const stats = { total: mediaList.length, succeeded: 0, failed: 0 };
+  const enriched = await pMap(
+    mediaList,
+    async (item) => {
+      try {
+        const insightsResponse = await fetchMediaInsights(item.id, pageAccessToken, item.media_type);
+        if (insightsResponse.success) {
+          stats.succeeded += 1;
+          return { ...item, insights: insightsResponse.data };
+        }
+        stats.failed += 1;
+        console.warn('insights-fetch-failed', {
+          mediaId: item.id,
+          mediaType: item.media_type,
+          message: insightsResponse.error
+        });
+      } catch (error) {
+        stats.failed += 1;
+        console.warn('insights-fetch-failed', {
+          mediaId: item.id,
+          mediaType: item.media_type,
+          message: error.message
+        });
+      }
+
+      return { ...item, insights: cloneEmptyInsights() };
+    },
+    concurrency
+  );
+
+  return {
+    media: enriched,
+    stats,
+    hasInsights: stats.failed === 0 && stats.total > 0
+  };
 }
 
 /**
@@ -623,11 +683,12 @@ export async function fetchInstagramMedia(igUserId, pageAccessToken, limit = 25)
  * @param {string} pageAccessToken - Instagram Page Access Token
  * @param {Object} client - Optional client object for token validation
  */
-export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client = null) {
+export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client = null, options = {}) {
   try {
     if (!igUserId || !pageAccessToken) {
       return createErrorResponse('Missing required credentials (igUserId or pageAccessToken)', 'fetchInstagramAnalytics');
     }
+    const { forceRefresh = false } = options;
 
     // Validate token if client provided
     if (client) {
@@ -652,10 +713,10 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
     console.log(`📡 Fetching Instagram analytics for user: ${igUserId}`);
 
     const cacheKey = `instagram_analytics_${igUserId}`;
-    const cached = getCached(cacheKey);
+    const cached = forceRefresh ? null : getCached(cacheKey);
     if (cached) {
       console.log(`✅ Using cached data for ${igUserId}`);
-      return createSuccessResponse(cached);
+      return createSuccessResponse({ ...cached, source: 'cache', cached: true });
     }
 
     console.log(`🔄 Fetching fresh data from Instagram API...`);
@@ -670,7 +731,34 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
     // Extract data from structured responses
     const accountInsights = accountInsightsRes.success ? accountInsightsRes.data : null;
     const accountTrend = accountTrendRes.success ? accountTrendRes.data : [];
-    const media = mediaRes.success ? mediaRes.data : [];
+    const mediaList = mediaRes.success ? mediaRes.data : [];
+
+    const insightsPromise = fetchMediaInsightsBatch(mediaList, pageAccessToken, 5);
+    const insightsResult = await withTimeout(insightsPromise, 3000);
+
+    if (!insightsResult?.ready) {
+      console.warn('insights-fetch-failed', {
+        mediaId: 'batch',
+        mediaType: 'ALL',
+        message: insightsResult?.error?.message || 'batch-timeout'
+      });
+      insightsPromise.catch(err => console.warn('insights-fetch-failed', {
+        mediaId: 'batch',
+        mediaType: 'ALL',
+        message: err?.message || 'batch-timeout'
+      }));
+      return createSuccessResponse({
+        processing: true,
+        source: 'processing',
+        cached: false,
+        message: 'Gathering per-post insights — try again shortly.'
+      });
+    }
+
+    const media = insightsResult.data.media || [];
+    const insightStats = insightsResult.data.stats || { total: media.length, succeeded: media.length, failed: 0 };
+    const hasInsights = media.length === 0 ? true : Boolean(insightsResult.data.hasInsights);
+    console.log('📡 insights.fetched', insightStats);
 
     console.log(`📊 API Results:`, {
       accountInsights: accountInsights ? '✅' : '❌',
@@ -709,9 +797,11 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
     console.log(`   📊 Processing ${reelCount} REEL(s) for views...`);
 
     media.forEach(item => {
+      const type = (item.media_type || 'IMAGE').toUpperCase();
       const insights = item.insights || {};
 
       const views = insights.views || 0;
+      console.log(`   🔎 Media ${item.id} [${type}] - views: ${views}`);
       totalViews += views;
 
       const reach = insights.reach || 0;
@@ -736,7 +826,6 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
       totalShares += insights.shares || 0;
 
       // Count by type
-      const type = item.media_type || 'IMAGE';
       if (postsByType.hasOwnProperty(type)) {
         postsByType[type]++;
       } else if (type === 'REEL') {
@@ -847,7 +936,14 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
       followerGrowth
     };
 
-    setCache(cacheKey, result);
+    result.hasInsights = hasInsights;
+    result.cached = false;
+    result.source = 'instagram_api';
+
+    if (hasInsights) {
+      setCache(cacheKey, result, DEFAULT_CACHE_TTL);
+    }
+
     return createSuccessResponse(result);
   } catch (error) {
     return createErrorResponse(error, 'fetchInstagramAnalytics');

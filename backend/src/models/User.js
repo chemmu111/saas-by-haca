@@ -29,6 +29,13 @@ const userSchema = new mongoose.Schema(
       defaultDateRange: { type: String, default: '7days' }
     },
     twoFactorEnabled: { type: Boolean, default: false },
+    reportSettings: {
+      enabled: { type: Boolean, default: false },
+      dayOfMonth: { type: Number, min: 1, max: 28, default: 1 },
+      email: { type: String, default: '' },
+      lastSentAt: { type: Date },
+      updatedAt: { type: Date }
+    },
     sessions: [{
       token: String,
       createdAt: { type: Date, default: Date.now },
