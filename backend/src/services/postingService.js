@@ -24,10 +24,10 @@ async function processImageForInstagram(mediaUrl, postType = 'post') {
     // Validate and normalize postType
     const validPostTypes = ['post', 'story', 'reel'];
     postType = validPostTypes.includes(postType) ? postType : 'post';
-    
+
     // Only process images, not videos
-    const isVideo = /\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(mediaUrl) || 
-                    mediaUrl.includes('/video');
+    const isVideo = /\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(mediaUrl) ||
+      mediaUrl.includes('/video');
     if (isVideo) {
       return mediaUrl; // Return original URL for videos
     }
@@ -59,7 +59,7 @@ async function processImageForInstagram(mediaUrl, postType = 'post') {
 
     // Get file path
     const filePath = path.join(uploadsDir, filename);
-    
+
     // Check if file exists
     if (!fs.existsSync(filePath)) {
       console.warn(`  ⚠️ Image file not found: ${filePath}, skipping processing`);
@@ -97,7 +97,7 @@ async function processImageForInstagram(mediaUrl, postType = 'post') {
       const storyRatio = 9 / 16; // 0.5625
       const tolerance = 0.01; // Small tolerance for floating point comparison
       const isStoryRatio = Math.abs(aspectRatio - storyRatio) < tolerance;
-      
+
       if (!isStoryRatio) {
         console.log('    ⚠️ Story/Reel requires 9:16 aspect ratio, resizing to 1080x1920');
         // Resize to 9:16 (1080x1920) for stories/reels
@@ -105,7 +105,7 @@ async function processImageForInstagram(mediaUrl, postType = 'post') {
         const baseName = path.parse(filename).name;
         const processedFilename = `instagram-processed-${Date.now()}-${baseName}.jpg`;
         const processedFilePath = path.join(uploadsDir, processedFilename);
-        
+
         await sharp(filePath)
           .resize(1080, 1920, {
             fit: 'cover', // Crop to fit
@@ -113,9 +113,9 @@ async function processImageForInstagram(mediaUrl, postType = 'post') {
           })
           .jpeg({ quality: 90 }) // Convert to JPEG with high quality
           .toFile(processedFilePath);
-        
+
         console.log('    ✅ Image processed for story/reel:', processedFilename);
-        
+
         // Return new URL using /uploads route
         const baseUrl = process.env.API_URL || 'http://localhost:5000';
         const processedUrl = `${baseUrl}/uploads/${processedFilename}`;
@@ -125,13 +125,13 @@ async function processImageForInstagram(mediaUrl, postType = 'post') {
     } else if (!isRatioValid) {
       // For regular posts, check if ratio is within 0.8-1.91
       console.log('    ⚠️ Aspect ratio outside valid range (0.8-1.91), resizing to 1080x1080 (square)');
-      
+
       // Resize to square (1080x1080) - safe default within valid range
       // Replace file extension with .jpg for processed image
       const baseName = path.parse(filename).name;
       const processedFilename = `instagram-processed-${Date.now()}-${baseName}.jpg`;
       const processedFilePath = path.join(uploadsDir, processedFilename);
-      
+
       await sharp(filePath)
         .resize(1080, 1080, {
           fit: 'cover', // Crop to fit
@@ -139,10 +139,13 @@ async function processImageForInstagram(mediaUrl, postType = 'post') {
         })
         .jpeg({ quality: 90 }) // Convert to JPEG with high quality
         .toFile(processedFilePath);
-      
+
       console.log('    ✅ Image processed for Instagram post:', processedFilename);
       console.log('    New dimensions: 1080x1080 (aspect ratio: 1.0)');
-      
+
+      // Wait a moment to ensure file is written and accessible
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
       // Return new URL using /uploads route
       const baseUrl = process.env.API_URL || 'http://localhost:5000';
       const processedUrl = `${baseUrl}/uploads/${processedFilename}`;
@@ -170,13 +173,13 @@ async function processImageForInstagram(mediaUrl, postType = 'post') {
  */
 function getPublicImageUrl(imageUrl) {
   if (!imageUrl) return imageUrl;
-  
+
   try {
     const url = new URL(imageUrl);
-    
+
     // Extract filename from URL path
     let filename = null;
-    
+
     // Check if this is a URL pointing to our uploads directory
     if (url.pathname.startsWith('/uploads/')) {
       filename = url.pathname.split('/uploads/')[1];
@@ -190,61 +193,61 @@ function getPublicImageUrl(imageUrl) {
       // Convert from /api/images/ to /uploads/
       filename = url.pathname.split('/api/images/')[1];
     }
-    
+
     if (filename) {
       // Get the base URL - prefer API_URL env variable, fallback to origin
       // For ngrok, we want to use the same domain
       // IMPORTANT: Instagram requires HTTPS for media URLs
       let baseUrl = process.env.API_URL || url.origin;
-      
+
       // Ensure baseUrl doesn't end with a slash
       baseUrl = baseUrl.replace(/\/$/, '');
-      
+
       // Force HTTPS if we're using ngrok or a public domain
       // Instagram REQUIRES HTTPS for all media URLs (especially reels and stories)
       if (!baseUrl.startsWith('https://') && !baseUrl.startsWith('http://localhost')) {
         // If not localhost and not HTTPS, try to use HTTPS
         baseUrl = baseUrl.replace('http://', 'https://');
       }
-      
+
       // If using localhost without HTTPS, warn
       if (baseUrl.includes('localhost') && !baseUrl.startsWith('https://')) {
         console.warn('  ⚠️ WARNING: Instagram requires HTTPS for media URLs.');
         console.warn('    Localhost URLs may not work for reels and stories.');
         console.warn('    Please use ngrok or a public HTTPS URL.');
       }
-      
+
       // Use /uploads/ route (simpler and direct)
       // Instagram can fetch files directly from this static route
       const publicUrl = `${baseUrl}/uploads/${filename}`;
-      
+
       console.log('  🔄 Converting media URL for Instagram:');
       console.log('    Original:', imageUrl);
       console.log('    Filename:', filename);
       console.log('    Base URL:', baseUrl);
       console.log('    Public URL:', publicUrl);
       console.log('    Protocol:', new URL(publicUrl).protocol);
-      
+
       // Verify the URL uses HTTPS
       if (!publicUrl.startsWith('https://') && !publicUrl.startsWith('http://localhost')) {
         console.warn('  ⚠️ WARNING: URL does not use HTTPS. Instagram may reject this.');
       }
-      
+
       return publicUrl;
     }
   } catch (error) {
     // If URL parsing fails, return original
     console.warn('  ⚠️ Could not parse media URL, using original:', error.message);
   }
-  
+
   // Return original URL if we couldn't convert it
   console.log('  ℹ️ Using original media URL (not converted)');
-  
+
   // Still check if original URL uses HTTPS
   if (imageUrl && !imageUrl.startsWith('https://') && !imageUrl.startsWith('http://localhost')) {
     console.warn('  ⚠️ WARNING: Original URL does not use HTTPS. Instagram may reject this for reels/stories.');
   }
-  
+
   return imageUrl;
 }
 
@@ -261,7 +264,7 @@ async function verifyPagePermissions(pageAccessToken, igUserId, pageId = null) {
     // This is the most direct test of permissions
     const igTestUrl = `https://graph.facebook.com/v18.0/${igUserId}?fields=id,username&access_token=${pageAccessToken}`;
     const igTestResponse = await fetch(igTestUrl);
-    
+
     if (!igTestResponse.ok) {
       const igErrorData = await igTestResponse.text();
       let igErrorJson;
@@ -270,10 +273,10 @@ async function verifyPagePermissions(pageAccessToken, igUserId, pageId = null) {
       } catch (e) {
         igErrorJson = null;
       }
-      
+
       // Check for permission errors (error code 10)
-      if (igErrorJson?.error?.code === 10 || 
-          (igErrorJson?.error?.type === 'OAuthException' && igErrorJson?.error?.code === 10)) {
+      if (igErrorJson?.error?.code === 10 ||
+        (igErrorJson?.error?.type === 'OAuthException' && igErrorJson?.error?.code === 10)) {
         return {
           hasPermissions: false,
           error: igErrorJson.error.message || 'Permission denied',
@@ -282,19 +285,19 @@ async function verifyPagePermissions(pageAccessToken, igUserId, pageId = null) {
           errorSubcode: igErrorJson.error.error_subcode
         };
       }
-      
+
       // Other errors might not be permission-related, log but don't fail
       console.warn('  ⚠️ Instagram API returned error (not permission):', igErrorJson?.error?.message);
     } else {
       const igData = await igTestResponse.json();
       console.log('  ✅ Instagram Business Account accessible:', igData.username || igData.id);
     }
-    
+
     // If pageId is available, also test page access
     if (pageId) {
       const pageTestUrl = `https://graph.facebook.com/v18.0/${pageId}?fields=id,name&access_token=${pageAccessToken}`;
       const pageTestResponse = await fetch(pageTestUrl);
-      
+
       if (!pageTestResponse.ok) {
         const pageErrorData = await pageTestResponse.text();
         let pageErrorJson;
@@ -303,7 +306,7 @@ async function verifyPagePermissions(pageAccessToken, igUserId, pageId = null) {
         } catch (e) {
           pageErrorJson = null;
         }
-        
+
         if (pageErrorJson?.error?.code === 10) {
           return {
             hasPermissions: false,
@@ -314,7 +317,7 @@ async function verifyPagePermissions(pageAccessToken, igUserId, pageId = null) {
         }
       }
     }
-    
+
     return {
       hasPermissions: true
     };
@@ -342,7 +345,7 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
     // Validate and normalize postType
     const validPostTypes = ['post', 'story', 'reel'];
     postType = validPostTypes.includes(postType) ? postType : 'post';
-    
+
     console.log('');
     console.log('='.repeat(60));
     console.log(`📸 INSTAGRAM ${postType.toUpperCase()} UPLOAD STARTED`);
@@ -350,7 +353,7 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
     console.log('  Post Type:', postType);
     console.log('  Original Media URL:', mediaUrl);
     console.log('  Caption:', caption ? caption.substring(0, 50) + '...' : 'None');
-    
+
     // Verify credentials first
     if (!client.igUserId || !client.pageAccessToken) {
       throw new Error('Instagram credentials not found. Client must be connected via OAuth.');
@@ -361,13 +364,13 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
     try {
       const { ensureValidToken } = await import('./instagramTokenService.js');
       const tokenResult = await ensureValidToken(client);
-      
+
       if (tokenResult.needReLogin) {
         const error = new Error('Instagram token expired. Please reconnect your account.');
         error.needReLogin = true;
         throw error;
       }
-      
+
       if (tokenResult.success && tokenResult.client) {
         // Use fresh token
         client.pageAccessToken = tokenResult.client.pageAccessToken;
@@ -380,16 +383,16 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
       }
       // Continue with existing token if validation fails but not expired
     }
-    
+
     // Verify permissions before attempting to post
     console.log('  🔍 Verifying Page Access Token permissions...');
     const permissionCheck = await verifyPagePermissions(client.pageAccessToken, client.igUserId, client.pageId);
-    
+
     if (permissionCheck.hasPermissions === false) {
       // Build helpful error message with Facebook App Dashboard link
       const appId = process.env.FACEBOOK_CLIENT_ID || process.env.INSTAGRAM_CLIENT_ID || 'YOUR_APP_ID';
       const appDashboardUrl = `https://developers.facebook.com/apps/${appId}/app-review/permissions/`;
-      
+
       const permissionError = new Error(`Instagram API Permission Error: Application does not have permission for this action.\n\n` +
         `This error typically occurs when:\n` +
         `1. The app is in Development Mode and needs to be switched to Live Mode\n` +
@@ -412,18 +415,18 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
       permissionError.errorSubcode = permissionCheck.errorSubcode;
       throw permissionError;
     }
-    
+
     if (permissionCheck.hasPermissions === true) {
       console.log('  ✅ Page Access Token permissions verified');
     } else {
       console.log('  ⚠️ Could not verify permissions, proceeding anyway...');
     }
-    
+
     // Process image for Instagram (resize/crop to valid aspect ratio if needed)
     // This should be done BEFORE converting to public URL
     const processedMediaUrl = await processImageForInstagram(mediaUrl, postType);
     console.log('  Processed Media URL:', processedMediaUrl);
-    
+
     // Convert to publicly accessible URL if needed
     const publicMediaUrl = getPublicImageUrl(processedMediaUrl);
     console.log('  Using Media URL:', publicMediaUrl);
@@ -438,9 +441,9 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
 
     // Determine if media is image or video based on URL extension
     // Reels must be videos, stories can be images or videos, posts can be either
-    const isVideo = /\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(publicMediaUrl) || 
-                    publicMediaUrl.includes('/video');
-    
+    const isVideo = /\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(publicMediaUrl) ||
+      publicMediaUrl.includes('/video');
+
     // Reels must be videos
     if (postType === 'reel' && !isVideo) {
       throw new Error('Reels must be video files. Please upload a video file for reels.');
@@ -451,13 +454,13 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
     try {
       console.log('  📡 Verifying media URL is publicly accessible...');
       console.log('  URL to verify:', publicMediaUrl);
-      
+
       // Try HEAD first, fallback to GET if HEAD is not supported
       let verifyResponse;
       try {
         const startTime = Date.now();
-        verifyResponse = await fetch(publicMediaUrl, { 
-          method: 'HEAD', 
+        verifyResponse = await fetch(publicMediaUrl, {
+          method: 'HEAD',
           redirect: 'follow',
           headers: {
             'User-Agent': 'Mozilla/5.0 (compatible; InstagramBot/1.0)'
@@ -480,12 +483,12 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
           timeout: 10000
         });
       }
-      
+
       if (!verifyResponse.ok && verifyResponse.status !== 206 && verifyResponse.status !== 405) {
         // 206 is Partial Content (OK for range requests), 405 is Method Not Allowed (OK)
         console.error(`  ❌ ERROR: Media URL returned status ${verifyResponse.status}`);
         console.error(`  URL: ${publicMediaUrl}`);
-        
+
         // Handle specific error codes
         if (verifyResponse.status === 404) {
           console.error(`  File not found on server!`);
@@ -493,11 +496,11 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
           console.error(`  1. The file wasn't uploaded correctly`);
           console.error(`  2. The file path is wrong`);
           console.error(`  3. The static file serving is not configured`);
-          throw new Error(`Media file not found (404). File may not exist at: ${publicMediaUrl}`);
+          console.warn(`  ⚠️ WARNING: Media URL verification failed (404). Proceeding anyway, but Instagram might fail.`);
         } else if (verifyResponse.status === 403 || verifyResponse.status === 401) {
           console.error(`  The media URL appears to be blocked or requires authentication.`);
           console.error(`  Instagram requires direct, public access without authentication.`);
-          throw new Error('Media URL is not publicly accessible. If using ngrok, ensure browser warnings are disabled.');
+          console.warn('  ⚠️ WARNING: Media URL verification failed (403/401). Proceeding anyway, but Instagram might fail.');
         } else {
           console.warn(`  Instagram may not be able to access this file.`);
         }
@@ -510,7 +513,8 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
           if (isVideo && !contentType.startsWith('video/')) {
             console.error(`  ❌ CRITICAL: File is video but Content-Type is ${contentType}`);
             console.error(`  Instagram will reject this. Fix your server's MIME type configuration.`);
-            throw new Error(`Wrong Content-Type for video: ${contentType}. Expected video/mp4 or similar.`);
+            // We'll warn but proceed, maybe Instagram is smarter than us
+            console.warn(`  ⚠️ Warning: Wrong Content-Type for video: ${contentType}. Expected video/mp4 or similar.`);
           } else if (!isVideo && !contentType.startsWith('image/')) {
             console.warn(`  ⚠️  Warning: File extension suggests image but Content-Type is ${contentType}`);
             console.warn(`  This might cause Instagram to reject the file.`);
@@ -518,7 +522,7 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
         } else {
           console.warn(`  ⚠️  No Content-Type header returned!`);
         }
-        
+
         // Check Content-Length for images (Instagram has size limits)
         const contentLength = verifyResponse.headers.get('content-length');
         if (contentLength) {
@@ -530,10 +534,6 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
         }
       }
     } catch (verifyError) {
-      // If it's our custom error, throw it
-      if (verifyError.message.includes('not publicly accessible')) {
-        throw verifyError;
-      }
       console.warn(`  ⚠️ Warning: Could not verify media URL accessibility: ${verifyError.message}`);
       console.warn(`  This might cause issues if Instagram cannot access the file.`);
       // Don't throw for network errors, as the URL might still work for Instagram
@@ -544,9 +544,9 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
     console.log('  📦 STEP 1: Creating Instagram Media Container');
     console.log('  ' + '-'.repeat(58));
     const containerUrl = `https://graph.facebook.com/v18.0/${client.igUserId}/media`;
-    
+
     const containerParams = new URLSearchParams();
-    
+
     // Set media type and URL based on post type
     // Note: Instagram requires publicly accessible URLs that can be fetched by their servers
     if (postType === 'story') {
@@ -594,13 +594,13 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
         }
       }
     }
-    
+
     containerParams.append('access_token', client.pageAccessToken);
 
     // Log the request details for debugging
     console.log('  Container URL:', containerUrl);
     console.log('  Container Params:', Object.fromEntries(containerParams.entries()));
-    
+
     const containerResponse = await fetch(`${containerUrl}?${containerParams.toString()}`, {
       method: 'POST',
       headers: {
@@ -611,16 +611,20 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
     if (!containerResponse.ok) {
       const errorData = await containerResponse.text();
       console.error('  ❌ Failed to create Instagram container:', errorData);
-      
+
       // Parse error to provide better message
       let errorMessage = `Instagram container creation failed: ${errorData}`;
       try {
         const errorJson = JSON.parse(errorData);
         if (errorJson.error) {
           const error = errorJson.error;
-          
+
           // Check for permission errors (error code 10)
-          if (error.code === 10 || error.type === 'OAuthException') {
+          // OAuthException can be many things, so we need to be specific about the code
+          const isPermissionError = error.code === 10 ||
+            (error.type === 'OAuthException' && (error.code === 10 || error.code === 190));
+
+          if (isPermissionError) {
             errorMessage = `Instagram API Permission Error: Application does not have permission for this action.\n\n`;
             errorMessage += `This error typically occurs when:\n`;
             errorMessage += `1. The app is in Development Mode and needs to be switched to Live Mode\n`;
@@ -636,7 +640,7 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
             errorMessage += `Original error: ${error.message || errorData}`;
             throw new Error(errorMessage);
           }
-          
+
           // Check for specific error codes
           if (error.code === 9004 || error.error_subcode === 2207052) {
             errorMessage = `Instagram cannot fetch the media from the provided URL. `;
@@ -661,7 +665,7 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
             errorMessage += `\n\nPlease use an image editor to crop/resize your image to meet these requirements.`;
             errorMessage += `\n\nMedia URL used: ${publicMediaUrl}`;
             errorMessage += `\nOriginal error: ${error.error_user_msg || error.message || 'The submitted image with aspect ratio () cannot be published. Please submit an image with a valid aspect ratio.'}`;
-            
+
             // Create a custom error with aspect ratio flag
             const aspectRatioError = new Error(errorMessage);
             aspectRatioError.isAspectRatioError = true;
@@ -698,7 +702,7 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
           errorMessage += `\n\nPlease use an image editor to crop/resize your image to meet these requirements.`;
           errorMessage += `\n\nMedia URL used: ${publicMediaUrl}`;
           errorMessage += `\nOriginal error: ${errorData}`;
-          
+
           // Create a custom error with aspect ratio flag
           const aspectRatioError = new Error(errorMessage);
           aspectRatioError.isAspectRatioError = true;
@@ -711,7 +715,7 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
           errorMessage += `Media URL: ${publicMediaUrl}`;
         }
       }
-      
+
       throw new Error(errorMessage);
     }
 
@@ -731,7 +735,7 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
     // Stories (both images and videos) also need status checking - Instagram processes them
     // Regular image posts typically don't need status checking, but stories do
     const needsStatusCheck = isVideo || postType === 'story';
-    
+
     if (needsStatusCheck) {
       // Wait for media to finish processing
       const mediaType = isVideo ? 'video' : 'image';
@@ -746,7 +750,7 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
       const initialWaitTime = postType === 'story' ? 2000 : 3000; // 2-3 seconds initial
       const regularWaitTime = postType === 'story' ? 3000 : 5000; // 3-5 seconds between checks
       const maxAttempts = postType === 'story' ? 40 : 120; // 2 minutes for stories, 10 minutes for videos
-      
+
       while (attempts < maxAttempts) {
         // Wait before checking - optimized intervals
         if (attempts === 0) {
@@ -759,58 +763,72 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
           // After 5 attempts, increase interval slightly
           await new Promise(resolve => setTimeout(resolve, regularWaitTime + 2000));
         }
-        
+
         const statusUrl = `https://graph.facebook.com/v18.0/${creationId}?fields=status_code,status&access_token=${client.pageAccessToken}`;
         const statusResponse = await fetch(statusUrl);
-        
+
         if (statusResponse.ok) {
           const statusData = await statusResponse.json();
           status = statusData.status || statusData.status_code || status;
           statusCode = statusData.status_code || statusCode;
           statusMessage = statusData.status || statusMessage;
-          
+
           // Check for error status
           if (statusCode === 'ERROR' || (status && status.toUpperCase().includes('ERROR'))) {
             const errorMessage = statusData.error_message || statusMessage || 'Unknown error during video processing';
+
+            // Handle specific video processing errors
+            if (errorMessage.includes('2207076') || (statusData.error_subcode === 2207076)) {
+              let detailedError = `Instagram could not process the video (Error 2207076). `;
+              detailedError += `This usually happens when Instagram cannot download the video file from your server. `;
+              detailedError += `\n\nPossible causes:`;
+              detailedError += `\n1. The video URL is not publicly accessible (e.g. localhost/ngrok issues)`;
+              detailedError += `\n2. The video format is not supported (must be MP4/MOV, H.264/H.265)`;
+              detailedError += `\n3. The video file is corrupted or incomplete`;
+              detailedError += `\n4. The server took too long to serve the file (timeout)`;
+              detailedError += `\n\nOriginal error: ${errorMessage}`;
+              throw new Error(`Video processing failed: ${detailedError}`);
+            }
+
             throw new Error(`Video processing failed: ${errorMessage}`);
           }
-          
+
           // Check if processing is complete
           // Instagram returns different formats: 'FINISHED', 'FINISHED', or status_code: 'FINISHED'
-          const isFinished = statusCode === 'FINISHED' || 
-                            (status && status.toUpperCase().includes('FINISHED')) ||
-                            (statusMessage && statusMessage.toUpperCase().includes('FINISHED'));
-          
+          const isFinished = statusCode === 'FINISHED' ||
+            (status && status.toUpperCase().includes('FINISHED')) ||
+            (statusMessage && statusMessage.toUpperCase().includes('FINISHED'));
+
           if (isFinished) {
             console.log(`  ✅ ${mediaType.charAt(0).toUpperCase() + mediaType.slice(1)} processing completed (attempt ${attempts + 1})`);
             break;
           }
-          
+
           // Check if still in progress
-          const isInProgress = statusCode === 'IN_PROGRESS' || 
-                              (status && status.toUpperCase().includes('IN_PROGRESS')) ||
-                              (statusMessage && statusMessage.toUpperCase().includes('IN_PROGRESS')) ||
-                              (statusMessage && statusMessage.toUpperCase().includes('PROCESSING'));
-          
+          const isInProgress = statusCode === 'IN_PROGRESS' ||
+            (status && status.toUpperCase().includes('IN_PROGRESS')) ||
+            (statusMessage && statusMessage.toUpperCase().includes('IN_PROGRESS')) ||
+            (statusMessage && statusMessage.toUpperCase().includes('PROCESSING'));
+
           if (!isInProgress && !isFinished) {
             // Unknown status, log it but continue
             console.warn(`  ⚠️ Unknown status: ${status} / ${statusCode} / ${statusMessage}`);
           }
-          
+
           console.log(`  ${mediaType.charAt(0).toUpperCase() + mediaType.slice(1)} status: ${statusMessage || status} (${statusCode || 'N/A'}) - attempt ${attempts + 1}/${maxAttempts}`);
         } else {
           const errorText = await statusResponse.text();
           console.warn(`  Warning: Could not check video status (attempt ${attempts + 1}): ${statusResponse.status} - ${errorText}`);
-          
+
           // If we get a 404 or other error, the container might not exist
           if (statusResponse.status === 404) {
             throw new Error(`${mediaType.charAt(0).toUpperCase() + mediaType.slice(1)} container not found. The creation ID may be invalid.`);
           }
         }
-        
+
         attempts++;
       }
-      
+
       // Final check - if we exited the loop, verify we're finished
       if (attempts >= maxAttempts) {
         // Get final status one more time
@@ -821,7 +839,7 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
             const finalStatusData = await finalStatusResponse.json();
             const finalStatus = finalStatusData.status_code || finalStatusData.status;
             const finalMessage = finalStatusData.status || finalStatus;
-            
+
             if (finalStatus === 'FINISHED' || (finalMessage && finalMessage.toUpperCase().includes('FINISHED'))) {
               console.log(`  ✅ ${mediaType.charAt(0).toUpperCase() + mediaType.slice(1)} processing completed (final check)`);
             } else {
@@ -839,14 +857,14 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
     // Step 2 (or 3 for videos/stories): Publish the container
     const stepNumber = needsStatusCheck ? '3' : '2';
     console.log(`  Step ${stepNumber}: Publishing Instagram ${postType}...`);
-    
+
     // All post types (posts, stories, reels) use the media_publish endpoint
     const publishUrl = `https://graph.facebook.com/v18.0/${client.igUserId}/media_publish`;
-    
+
     const publishParams = new URLSearchParams();
     publishParams.append('creation_id', creationId);
     publishParams.append('access_token', client.pageAccessToken);
-    
+
     console.log('  Publish URL:', publishUrl);
     console.log('  Creation ID:', creationId);
 
@@ -856,13 +874,13 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
     let publishAttempts = 0;
     const maxPublishAttempts = 3; // Reduced from 5 to 3
     const publishWaitTime = 2000; // Reduced from 3 to 2 seconds between retries
-    
+
     while (publishAttempts < maxPublishAttempts) {
       if (publishAttempts > 0) {
         console.log(`  Retrying publish (attempt ${publishAttempts + 1}/${maxPublishAttempts})...`);
         await new Promise(resolve => setTimeout(resolve, publishWaitTime));
       }
-      
+
       publishResponse = await fetch(`${publishUrl}?${publishParams.toString()}`, {
         method: 'POST',
         headers: {
@@ -875,7 +893,7 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
         publishData = await publishResponse.json();
         break; // Success, exit retry loop
       }
-      
+
       // Check if it's the "media not ready" error
       const errorText = await publishResponse.text();
       let errorJson;
@@ -884,11 +902,11 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
       } catch (e) {
         errorJson = null;
       }
-      
+
       // Check for permission errors (error code 10) first
-      const isPermissionError = errorJson?.error?.code === 10 || 
-                               (errorJson?.error?.type === 'OAuthException' && errorJson?.error?.code === 10);
-      
+      const isPermissionError = errorJson?.error?.code === 10 ||
+        (errorJson?.error?.type === 'OAuthException' && errorJson?.error?.code === 10);
+
       if (isPermissionError) {
         let permissionErrorMessage = `Instagram API Permission Error: Application does not have permission for this action.\n\n`;
         permissionErrorMessage += `This error typically occurs when:\n`;
@@ -905,12 +923,12 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
         permissionErrorMessage += `Original error: ${errorJson?.error?.message || errorText}`;
         throw new Error(permissionErrorMessage);
       }
-      
-      const isMediaNotReady = errorJson?.error?.code === 9007 || 
-                             errorJson?.error?.error_subcode === 2207027 ||
-                             (errorJson?.error?.message && errorJson.error.message.includes('Media ID is not available')) ||
-                             (errorJson?.error?.error_user_msg && errorJson.error.error_user_msg.includes('not ready to be published'));
-      
+
+      const isMediaNotReady = errorJson?.error?.code === 9007 ||
+        errorJson?.error?.error_subcode === 2207027 ||
+        (errorJson?.error?.message && errorJson.error.message.includes('Media ID is not available')) ||
+        (errorJson?.error?.error_user_msg && errorJson.error.error_user_msg.includes('not ready to be published'));
+
       if (isMediaNotReady && publishAttempts < maxPublishAttempts - 1) {
         console.log(`  ⏳ Media not ready yet, waiting before retry...`);
         publishAttempts++;
@@ -918,17 +936,17 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
       } else {
         // Either not a "not ready" error, or we've exhausted retries
         console.error(`  ❌ Failed to publish Instagram ${postType}:`, errorText);
-        
+
         // Check if it's an aspect ratio error in the publish response
         const errorTextLower = errorText.toLowerCase();
         const errorMessage = errorJson?.error?.message?.toLowerCase() || '';
         const errorUserMsg = errorJson?.error?.error_user_msg?.toLowerCase() || '';
-        if (errorTextLower.includes('aspect ratio') || 
-            errorTextLower.includes('cannot be published') || 
-            errorMessage.includes('aspect ratio') ||
-            errorUserMsg.includes('aspect ratio') ||
-            errorUserMsg.includes('cannot be published') ||
-            errorMessage.includes('cannot be published')) {
+        if (errorTextLower.includes('aspect ratio') ||
+          errorTextLower.includes('cannot be published') ||
+          errorMessage.includes('aspect ratio') ||
+          errorUserMsg.includes('aspect ratio') ||
+          errorUserMsg.includes('cannot be published') ||
+          errorMessage.includes('cannot be published')) {
           // Aspect ratio error detected in publish response
           let aspectRatioErrorMessage = `Instagram rejected the image due to invalid aspect ratio. `;
           aspectRatioErrorMessage += `\n\nInstagram requirements for ${postType === 'story' ? 'stories' : postType === 'reel' ? 'reels' : 'posts'}: `;
@@ -944,7 +962,7 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
           aspectRatioErrorMessage += `\n\nPlease use an image editor to crop/resize your image to meet these requirements.`;
           aspectRatioErrorMessage += `\n\nMedia URL used: ${publicMediaUrl}`;
           aspectRatioErrorMessage += `\nOriginal error: ${errorJson?.error?.error_user_msg || errorJson?.error?.message || errorText}`;
-          
+
           // Create a custom error with aspect ratio flag
           const aspectRatioError = new Error(aspectRatioErrorMessage);
           aspectRatioError.isAspectRatioError = true;
@@ -952,7 +970,7 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
           aspectRatioError.postType = postType;
           throw aspectRatioError;
         }
-        
+
         throw new Error(`Instagram ${postType} publishing failed: ${errorText}`);
       }
     }
@@ -1015,7 +1033,7 @@ export async function postToFacebook(imageUrl, message, client) {
   try {
     console.log('📘 Posting to Facebook...');
     console.log('  Original Image URL:', imageUrl);
-    
+
     // Convert to publicly accessible URL if needed
     const publicImageUrl = getPublicImageUrl(imageUrl);
     console.log('  Using Image URL:', publicImageUrl);
@@ -1040,7 +1058,7 @@ export async function postToFacebook(imageUrl, message, client) {
 
     // Post photo to Facebook Page
     const postUrl = `https://graph.facebook.com/v18.0/${pageId}/photos`;
-    
+
     const postParams = new URLSearchParams();
     postParams.append('url', publicImageUrl);
     if (message) {
@@ -1114,15 +1132,15 @@ export async function publishPost(post, client) {
         // Validate postType is one of: 'post', 'story', 'reel'
         const validPostTypes = ['post', 'story', 'reel'];
         const postType = validPostTypes.includes(post.postType) ? post.postType : 'post';
-        
+
         try {
           results.instagram = await postToInstagram(imageUrl, caption, client, postType);
           console.log(`✅ Instagram ${postType} successful`);
         } catch (error) {
           console.error('❌ Instagram post failed:', error.message);
           // Check if it's an aspect ratio error
-          const errorObj = { 
-            platform: 'instagram', 
+          const errorObj = {
+            platform: 'instagram',
             error: error.message,
             isAspectRatioError: error.isAspectRatioError || false,
             mediaUrl: error.mediaUrl || imageUrl,

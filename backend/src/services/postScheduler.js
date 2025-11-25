@@ -16,21 +16,21 @@ export async function processScheduledPosts() {
   try {
     const now = new Date();
     console.log(`⏰ Checking for scheduled posts at ${now.toISOString()} (${now.toLocaleString()})...`);
-    
+
     // Find posts scheduled for now or in the past
     // Use $lte to catch posts that are due (including those scheduled for the exact current minute)
     const scheduledPosts = await Post.find({
       status: 'scheduled',
       scheduledTime: { $lte: now }
     }).populate('client');
-    
+
     // Also check for posts scheduled within the next minute (to catch edge cases)
     const nextMinute = new Date(now.getTime() + 60000);
     const upcomingPosts = await Post.find({
       status: 'scheduled',
       scheduledTime: { $gt: now, $lte: nextMinute }
     }).populate('client');
-    
+
     // Combine both (deduplicate by _id)
     const allDuePosts = [...scheduledPosts];
     upcomingPosts.forEach(post => {
@@ -82,6 +82,11 @@ export async function processScheduledPosts() {
           }
         }
 
+        // LOCK THE POST: Mark as processing immediately to prevent duplicate pickups
+        post.status = 'processing';
+        await post.save();
+        console.log(`  🔒 Post ${post._id} locked (status: processing)`);
+
         // Publish the post
         console.log(`  🚀 Starting publish process...`);
         const results = await publishPost(post, post.client);
@@ -91,7 +96,7 @@ export async function processScheduledPosts() {
         // Only mark as published if at least one platform successfully published (has postId)
         const instagramSuccess = results.instagram && results.instagram.postId;
         const facebookSuccess = results.facebook && results.facebook.postId;
-        
+
         let finalStatus = 'failed';
         const errorMessages = [];
 
@@ -137,7 +142,7 @@ export async function processScheduledPosts() {
             updateData.instagramPostId = null;
             updateData.instagramPostUrl = null;
           }
-          
+
           if (facebookSuccess) {
             updateData.facebookPostId = results.facebook.postId;
             updateData.facebookPostUrl = results.facebook.url;
@@ -146,7 +151,7 @@ export async function processScheduledPosts() {
             updateData.facebookPostId = null;
             updateData.facebookPostUrl = null;
           }
-          
+
           // If there were partial failures (e.g., 'both' platform but one failed)
           // Store error message but still mark as published
           if (errorMessages.length > 0) {
@@ -164,7 +169,7 @@ export async function processScheduledPosts() {
           updateData.publishingErrors = results.errors.map(e => e.error);
           console.error(`  ❌ Post failed: ${updateData.errorMessage}`);
         }
-        
+
         // Log the final status for debugging
         console.log(`  📊 Final Status: ${finalStatus}`);
         console.log(`  📊 Instagram Success: ${instagramSuccess ? 'Yes' : 'No'}`);
@@ -172,7 +177,7 @@ export async function processScheduledPosts() {
         if (errorMessages.length > 0) {
           console.log(`  ❌ Errors: ${errorMessages.join(', ')}`);
         }
-        
+
         // Handle edge case (shouldn't happen)
         if (!finalStatus) {
           updateData.status = 'failed';
@@ -211,10 +216,10 @@ export function startScheduler() {
   }
 
   console.log('⏰ Starting post scheduler (checking every 30 seconds)...');
-  
+
   // Process immediately on start
   processScheduledPosts();
-  
+
   // Then check every 30 seconds for more accurate timing
   schedulerInterval = setInterval(() => {
     processScheduledPosts();

@@ -252,6 +252,13 @@ const Posts = () => {
             Published
           </span>
         );
+      case 'processing':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">
+            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-700"></div>
+            Processing
+          </span>
+        );
       default:
         return null;
     }
@@ -385,6 +392,15 @@ const Posts = () => {
                   }`}
               >
                 Published
+              </button>
+              <button
+                onClick={() => setStatusFilter('processing')}
+                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'processing'
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+              >
+                Processing
               </button>
             </div>
           </div>

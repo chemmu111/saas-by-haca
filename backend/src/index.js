@@ -1,3 +1,4 @@
+// Server entry point - Restart trigger
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -150,13 +151,32 @@ app.use('/uploads', (req, res, next) => {
 
     // Check if file actually exists
     const filePath = path.join(uploadsDir, filename);
+
+    // Debug logging for 404s
     if (!fs.existsSync(filePath)) {
+      console.warn(`  ❌ File check failed:`);
+      console.warn(`    Uploads Dir: ${uploadsDir}`);
+      console.warn(`    Filename: ${filename}`);
+      console.warn(`    Full Path: ${filePath}`);
+
       return res.status(404).json({
         success: false,
         error: 'File not found',
         filename: filename,
         path: req.path,
         message: 'The requested media file does not exist on the server'
+      });
+    } else {
+      // File exists but wasn't served by static middleware
+      // Try to serve it manually
+      console.log(`  ⚠️ File exists but static middleware missed it. Serving manually: ${filename}`);
+      return res.sendFile(filePath, (err) => {
+        if (err) {
+          console.error(`  ❌ Error sending file manually: ${err.message}`);
+          if (!res.headersSent) {
+            res.status(500).json({ error: 'Error serving file' });
+          }
+        }
       });
     }
   }

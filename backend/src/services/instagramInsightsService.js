@@ -245,7 +245,7 @@ export async function fetchAccountInsights(igUserId, pageAccessToken) {
       return createErrorResponse('Missing required credentials (igUserId or pageAccessToken)', 'fetchAccountInsights');
     }
 
-    const cacheKey = `account_insights_${igUserId}_lifetime`;
+    const cacheKey = `account_insights_${igUserId}_lifetime_v2`;
     const cached = getCached(cacheKey);
     if (cached) {
       return createSuccessResponse(cached);
@@ -257,10 +257,40 @@ export async function fetchAccountInsights(igUserId, pageAccessToken) {
     // Fetch profile views (daily total)
     const profileViews = await fetchProfileViews(igUserId, pageAccessToken);
 
+    // Fetch additional account metrics (day period)
+    // metric=impressions,reach,website_clicks,profile_views,email_contacts,phone_call_clicks,text_message_clicks,get_directions_clicks
+    // Note: profile_views is already fetched separately but can be included here for consistency if needed.
+    // We will fetch a batch of daily metrics.
+    const dailyMetrics = 'impressions,reach,website_clicks,email_contacts,phone_call_clicks,text_message_clicks,get_directions_clicks';
+    const url = `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=${dailyMetrics}&period=day&access_token=${pageAccessToken}`;
+
+    const response = await fetch(url);
+    const additionalData = {};
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.data && Array.isArray(data.data)) {
+        data.data.forEach(metric => {
+          if (metric.values && metric.values.length > 0) {
+            // Get the latest value
+            additionalData[metric.name] = metric.values[metric.values.length - 1].value || 0;
+          }
+        });
+      }
+    } else {
+      console.warn('⚠️ Failed to fetch additional account metrics');
+    }
+
     const result = {
       follower_count: followerCount || 0,
-      profile_views: profileViews || 0,
-      reach: 0 // Will be calculated from trend data
+      profile_views: profileViews || additionalData.profile_views || 0,
+      reach: additionalData.reach || 0,
+      impressions: additionalData.impressions || 0,
+      website_clicks: additionalData.website_clicks || 0,
+      email_contacts: additionalData.email_contacts || 0,
+      phone_call_clicks: additionalData.phone_call_clicks || 0,
+      text_message_clicks: additionalData.text_message_clicks || 0,
+      get_directions_clicks: additionalData.get_directions_clicks || 0
     };
 
     setCache(cacheKey, result);
@@ -407,25 +437,33 @@ async function fetchBasicMediaMetrics(mediaId, pageAccessToken, mediaType) {
  * STRICT v22+ METRICS PER MEDIA TYPE:
  * - REEL/REELS: views,reach,likes,comments,saved,shares,total_interactions,watch time
  * - IMAGE/CAROUSEL_ALBUM: views,reach,likes,comments,saved,shares,total_interactions
- * - VIDEO: NOT SUPPORTED for full insights -> use basic metrics
+ * - VIDEO: NOT SUPPORTED for full insights -> use basic metrics + video_play_count
  * - STORY: views (reach) + replies (subject to 5 views minimum)
  */
-export async function fetchMediaInsights(mediaId, pageAccessToken, mediaType = 'IMAGE') {
+export async function fetchMediaInsights(mediaId, pageAccessToken, mediaType = 'IMAGE', extraData = {}) {
   try {
     if (!mediaId || !pageAccessToken) {
       return createErrorResponse('Missing required parameters (mediaId or pageAccessToken)', 'fetchMediaInsights');
     }
 
-    const cacheKey = `media_insights_${mediaId}_${mediaType}`;
+    const cacheKey = `media_insights_${mediaId}_${mediaType}_v2`;
     const cached = getCached(cacheKey);
     if (cached) {
       return createSuccessResponse(cached);
     }
 
     // 1. Handle VIDEO type - Skip full insights directly
+    // Use video_play_count from extraData if available
     if (mediaType === 'VIDEO') {
-      console.log(`   ℹ️ Skipped full insights for VIDEO (${mediaId}) - using basic metrics`);
+      // console.log(`   ℹ️ Skipped full insights for VIDEO (${mediaId}) - using basic metrics`);
       const basicResult = await fetchBasicMediaMetrics(mediaId, pageAccessToken, mediaType);
+
+      // Add video_play_count as views if available
+      if (extraData.video_play_count) {
+        basicResult.views = extraData.video_play_count;
+        basicResult.plays = extraData.video_play_count;
+      }
+
       setCache(cacheKey, basicResult);
       return createSuccessResponse(basicResult);
     }
@@ -452,7 +490,6 @@ export async function fetchMediaInsights(mediaId, pageAccessToken, mediaType = '
     // Story metrics are different
     if (mediaType === 'STORY') {
       // Keep existing story logic or simplify
-      // For now, let's try to fetch what we can, but fallback is likely needed
     }
 
     const metrics = metricsList.join(',');
@@ -466,7 +503,7 @@ export async function fetchMediaInsights(mediaId, pageAccessToken, mediaType = '
 
       // Special case for Stories with <5 views
       if (mediaType === 'STORY' && errorData?.error?.code === 10) {
-        console.warn(`⚠️ Story ${mediaId} insights unavailable (<5 views). Using zeros.`);
+        // console.warn(`⚠️ Story ${mediaId} insights unavailable (<5 views). Using zeros.`);
         const emptyStory = {
           likes: 0, comments: 0, saved: 0, shares: 0,
           views: 0, reach: 0, interactions: 0, totalInteractions: 0,
@@ -477,8 +514,15 @@ export async function fetchMediaInsights(mediaId, pageAccessToken, mediaType = '
       }
 
       // General fallback for any error (code 100 or others)
-      console.warn(`   ⚠️ Full insights failed for ${mediaType} (${mediaId}) - falling back to basic metrics`);
+      // console.warn(`   ⚠️ Full insights failed for ${mediaType} (${mediaId}) - falling back to basic metrics`);
       const basicResult = await fetchBasicMediaMetrics(mediaId, pageAccessToken, mediaType);
+
+      // Use video_play_count if available even on fallback
+      if (extraData.video_play_count) {
+        basicResult.views = extraData.video_play_count;
+        basicResult.plays = extraData.video_play_count;
+      }
+
       setCache(cacheKey, basicResult);
       return createSuccessResponse(basicResult);
     }
@@ -515,7 +559,7 @@ export async function fetchMediaInsights(mediaId, pageAccessToken, mediaType = '
 
     // Log for debugging REELS
     if (mediaType === 'REEL' || mediaType === 'REELS') {
-      console.log(`   🎬 REEL ${mediaId} (v22+): Views=${result.views}, Reach=${result.reach}, WatchTime=${result.watchTimeTotal}`);
+      // console.log(`   🎬 REEL ${mediaId} (v22+): Views=${result.views}, Reach=${result.reach}, WatchTime=${result.watchTimeTotal}`);
     }
 
     setCache(cacheKey, result);
@@ -524,6 +568,9 @@ export async function fetchMediaInsights(mediaId, pageAccessToken, mediaType = '
     // Final safety net
     console.error(`Error in fetchMediaInsights for ${mediaId}:`, error.message);
     const basicResult = await fetchBasicMediaMetrics(mediaId, pageAccessToken, mediaType);
+    if (extraData.video_play_count) {
+      basicResult.views = extraData.video_play_count;
+    }
     return createSuccessResponse(basicResult);
   }
 }
@@ -539,13 +586,14 @@ export async function fetchInstagramMedia(igUserId, pageAccessToken, limit = 25)
       return createErrorResponse('Missing required credentials (igUserId or pageAccessToken)', 'fetchInstagramMedia');
     }
 
-    const cacheKey = `instagram_media_${igUserId}_${limit}`;
+    const cacheKey = `instagram_media_${igUserId}_${limit}_v2`;
     const cached = getCached(cacheKey);
     if (cached) {
       return createSuccessResponse(cached);
     }
 
-    const fields = 'id,media_type,thumbnail_url,caption,permalink,timestamp,like_count,comments_count';
+    // Added video_play_count to fields
+    const fields = 'id,media_type,thumbnail_url,caption,permalink,timestamp,like_count,comments_count,video_play_count';
     const url = `https://graph.facebook.com/v22.0/${igUserId}/media?fields=${fields}&limit=${limit}&access_token=${pageAccessToken}`;
 
     const response = await fetch(url);
@@ -565,7 +613,12 @@ export async function fetchInstagramMedia(igUserId, pageAccessToken, limit = 25)
       media.map(async (item) => {
         let insights = null;
         try {
-          const insightsResponse = await fetchMediaInsights(item.id, pageAccessToken, item.media_type);
+          // Pass video_play_count to fetchMediaInsights if available
+          const extraData = {
+            video_play_count: item.video_play_count
+          };
+          const insightsResponse = await fetchMediaInsights(item.id, pageAccessToken, item.media_type, extraData);
+
           if (insightsResponse.success) {
             insights = insightsResponse.data;
 
@@ -589,9 +642,26 @@ export async function fetchInstagramMedia(igUserId, pageAccessToken, limit = 25)
             if (item.media_type === 'REEL' || item.media_type === 'REELS') {
               console.warn(`   ⚠️  CRITICAL: REEL ${item.id} insights failed - views will be 0`);
             }
+            // Fallback to basic data from media object if insights fail
+            insights = {
+              likes: item.like_count || 0,
+              comments: item.comments_count || 0,
+              views: item.video_play_count || 0, // Use play count as views fallback
+              shares: 0,
+              saved: 0,
+              reach: 0,
+              impressions: 0,
+              engagement: (item.like_count || 0) + (item.comments_count || 0)
+            };
           }
         } catch (error) {
           console.warn(`   ⚠️  Error fetching insights for ${item.media_type} ${item.id}:`, error.message);
+          insights = {
+            likes: item.like_count || 0,
+            comments: item.comments_count || 0,
+            views: item.video_play_count || 0,
+            engagement: (item.like_count || 0) + (item.comments_count || 0)
+          };
         }
 
         return {
@@ -603,20 +673,15 @@ export async function fetchInstagramMedia(igUserId, pageAccessToken, limit = 25)
           timestamp: item.timestamp || '',
           like_count: item.like_count || 0,
           comments_count: item.comments_count || 0,
-          insights: insights || {
-            likes: 0,
-            comments: 0,
-            saved: 0,
-            shares: 0,
-            views: 0,
-            reach: 0,
-            replies: 0,
-            engagement: 0,
-            totalInteractions: 0,
-            profileActivity: 0,
-            watchTimeAvg: 0,
-            watchTimeTotal: 0
-          }
+          views: insights.views || 0,
+          reach: insights.reach || 0,
+          replies: insights.replies || 0,
+          engagement: insights.engagement || 0,
+          totalInteractions: insights.totalInteractions || 0,
+          profileActivity: insights.profileActivity || 0,
+          watchTimeAvg: insights.watchTimeAvg || 0,
+          watchTimeTotal: insights.watchTimeTotal || 0,
+          insights: insights // Store full insights for later use
         };
       })
     );
@@ -663,7 +728,7 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
 
     console.log(`📡 Fetching Instagram analytics for user: ${igUserId}`);
 
-    const cacheKey = `instagram_analytics_${igUserId}`;
+    const cacheKey = `instagram_analytics_${igUserId}_v2`;
     const cached = getCached(cacheKey);
     if (cached) {
       console.log(`✅ Using cached data for ${igUserId}`);
@@ -718,7 +783,7 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
 
     // Count REELS for logging
     const reelCount = media.filter(item => item.media_type === 'REEL' || item.media_type === 'REELS').length;
-    console.log(`   📊 Processing ${reelCount} REEL(s) for views...`);
+    // console.log(`   📊 Processing ${reelCount} REEL(s) for views...`);
 
     media.forEach(item => {
       const insights = item.insights || {};
@@ -776,16 +841,22 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
       : 0;
 
     // Log total views calculation for debugging
-    console.log(`   📊 Total Views Calculation:`);
-    console.log(`      REEL Count: ${reelCount}`);
-    console.log(`      Total Views: ${totalViews}`);
-    console.log(`      Media Items Processed: ${media.length}`);
+    // console.log(`   📊 Total Views Calculation:`);
+    // console.log(`      REEL Count: ${reelCount}`);
+    // console.log(`      Total Views: ${totalViews}`);
+    // console.log(`      Media Items Processed: ${media.length}`);
 
     const result = {
       account: {
         follower_count: accountInsights.follower_count || 0,
         reach: latestReach,
-        profile_views: accountInsights.profile_views || 0
+        profile_views: accountInsights.profile_views || 0,
+        impressions: accountInsights.impressions || 0,
+        website_clicks: accountInsights.website_clicks || 0,
+        email_contacts: accountInsights.email_contacts || 0,
+        phone_call_clicks: accountInsights.phone_call_clicks || 0,
+        text_message_clicks: accountInsights.text_message_clicks || 0,
+        get_directions_clicks: accountInsights.get_directions_clicks || 0
       },
       media: {
         total: media.length,
@@ -810,8 +881,7 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
         })),
         engagement: accountTrend.map(day => ({
           date: day.date,
-          engagements: day.reach || 0, // Using reach as proxy for engagement trend
-          views: 0 // Views are only available per-post (REELS only), not in account trends
+          reach: day.reach || 0
         }))
       },
       recentPosts: media.slice(0, 10).map(item => ({
