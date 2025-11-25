@@ -334,18 +334,81 @@ export async function fetchAccountInsightsTrend(igUserId, pageAccessToken) {
 }
 
 /**
+ * Fetch basic interaction metrics (fallback for unsupported types or errors)
+ * GET /{media-id}/insights?metric=likes,comments,saved,shares
+ */
+async function fetchBasicMediaMetrics(mediaId, pageAccessToken, mediaType) {
+  try {
+    // Basic interaction metrics supported by almost all types
+    const basicMetrics = 'likes,comments,saved,shares';
+    const url = `https://graph.facebook.com/v22.0/${mediaId}/insights?metric=${basicMetrics}&access_token=${pageAccessToken}`;
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      // Even basic metrics failed - return zeros
+      console.warn(`   ⚠️ Basic metrics also failed for ${mediaType} (${mediaId})`);
+      return {
+        likes: 0, comments: 0, saved: 0, shares: 0,
+        views: 0, reach: 0, interactions: 0, watchTime: 0,
+        engagement: 0,
+        totalInteractions: 0,
+        profileActivity: 0,
+        watchTimeAvg: 0,
+        watchTimeTotal: 0
+      };
+    }
+
+    const data = await response.json();
+    const insights = {};
+
+    if (data.data && Array.isArray(data.data)) {
+      data.data.forEach(metric => {
+        if (metric.values && metric.values.length > 0) {
+          insights[metric.name] = metric.values[0].value || 0;
+        }
+      });
+    }
+
+    const totalInteractions = (insights.likes || 0) + (insights.comments || 0) + (insights.saved || 0) + (insights.shares || 0);
+
+    return {
+      likes: insights.likes || 0,
+      comments: insights.comments || 0,
+      saved: insights.saved || 0,
+      shares: insights.shares || 0,
+      views: 0, // Basic metrics don't include views
+      reach: 0,
+      interactions: totalInteractions,
+      totalInteractions: totalInteractions,
+      profileActivity: 0,
+      watchTimeAvg: 0,
+      watchTimeTotal: 0,
+      engagement: totalInteractions
+    };
+  } catch (error) {
+    console.error(`Error in fetchBasicMediaMetrics for ${mediaId}:`, error.message);
+    return {
+      likes: 0, comments: 0, saved: 0, shares: 0,
+      views: 0, reach: 0, interactions: 0, watchTime: 0,
+      engagement: 0,
+      totalInteractions: 0,
+      profileActivity: 0,
+      watchTimeAvg: 0,
+      watchTimeTotal: 0
+    };
+  }
+}
+
+/**
  * Fetch media insights for a specific post (v22+ - 2024-2025)
  * GET /{media-id}/insights
  *
  * STRICT v22+ METRICS PER MEDIA TYPE:
  * - REEL/REELS: views,reach,likes,comments,saved,shares,total_interactions,watch time
- * - IMAGE/CAROUSEL_ALBUM/VIDEO: views,reach,likes,comments,saved,shares,total_interactions
+ * - IMAGE/CAROUSEL_ALBUM: views,reach,likes,comments,saved,shares,total_interactions
+ * - VIDEO: NOT SUPPORTED for full insights -> use basic metrics
  * - STORY: views (reach) + replies (subject to 5 views minimum)
- *
- * CRITICAL: NO FALLBACK TO REMOVED METRICS
- * ❌ impressions - completely removed from API
- * ❌ plays / video_views - replaced by unified 'views'
- * ❌ ig_reels_aggregated_all_plays_count - removed
  */
 export async function fetchMediaInsights(mediaId, pageAccessToken, mediaType = 'IMAGE') {
   try {
@@ -359,127 +422,73 @@ export async function fetchMediaInsights(mediaId, pageAccessToken, mediaType = '
       return createSuccessResponse(cached);
     }
 
-    // API v22+ METRICS - unified list per Meta doc (Nov 2024)
-    // The API will automatically ignore metrics that are not available for a media type.
-    const metricsList = [
-      'views',                          // Feed / Reel / Story
+    // 1. Handle VIDEO type - Skip full insights directly
+    if (mediaType === 'VIDEO') {
+      console.log(`   ℹ️ Skipped full insights for VIDEO (${mediaId}) - using basic metrics`);
+      const basicResult = await fetchBasicMediaMetrics(mediaId, pageAccessToken, mediaType);
+      setCache(cacheKey, basicResult);
+      return createSuccessResponse(basicResult);
+    }
+
+    // 2. Prepare metrics list for supported types
+    let metricsList = [
       'reach',
       'likes',
       'comments',
       'shares',
       'saved',
       'total_interactions',
-      'profile_activity',
-      'ig_reels_avg_watch_time',
-      'ig_reels_video_view_total_time'
+      'profile_activity'
     ];
+
+    if (mediaType === 'REEL' || mediaType === 'REELS') {
+      metricsList.push('views');
+      metricsList.push('ig_reels_avg_watch_time');
+      metricsList.push('ig_reels_video_view_total_time');
+    } else if (mediaType === 'IMAGE' || mediaType === 'CAROUSEL_ALBUM') {
+      metricsList.push('views');
+    }
 
     // Story metrics are different
     if (mediaType === 'STORY') {
-      // Story metrics: replies, reach, exits, taps_forward, taps_back
-      // For simplicity, we stick to basic engagement for now, but can expand if needed.
-      // Note: 'views' is NOT supported for Stories in the same way (it's 'impressions' or 'reach')
-      // We'll stick to 'replies' and 'reach' for stories if possible, or just 'replies' as before.
-      // For now, let's keep it simple for Stories to avoid breaking changes.
+      // Keep existing story logic or simplify
+      // For now, let's try to fetch what we can, but fallback is likely needed
     }
 
     const metrics = metricsList.join(',');
     const url = `https://graph.facebook.com/v22.0/${mediaId}/insights?metric=${metrics}&access_token=${pageAccessToken}`;
 
     const response = await fetch(url);
+
+    // 3. Handle API Errors with Fallback
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
 
+      // Special case for Stories with <5 views
       if (mediaType === 'STORY' && errorData?.error?.code === 10) {
         console.warn(`⚠️ Story ${mediaId} insights unavailable (<5 views). Using zeros.`);
         const emptyStory = {
-          likes: 0,
-          comments: 0,
-          saved: 0,
-          shares: 0,
-          views: 0,
-          reach: 0,
-          interactions: 0,
-          totalInteractions: 0,
-          profileActivity: 0,
-          watchTimeAvg: 0,
-          watchTimeTotal: 0,
-          engagement: 0
+          likes: 0, comments: 0, saved: 0, shares: 0,
+          views: 0, reach: 0, interactions: 0, totalInteractions: 0,
+          profileActivity: 0, watchTimeAvg: 0, watchTimeTotal: 0, engagement: 0
         };
         setCache(cacheKey, emptyStory);
         return createSuccessResponse(emptyStory);
       }
 
-      // Handle specific error codes
-      if (errorData.error && errorData.error.code === 100) {
-        // Metric not supported - return empty insights instead of error
-        // This happens if we request 'ig_reels_avg_watch_time' for an IMAGE, for example.
-        // Ideally we should tailor metrics per type, but requesting all and handling error is also a strategy
-        // IF the API fails the whole request. 
-        // Instagram API usually fails the whole request if ONE metric is invalid.
-
-        // Fallback: Request basic metrics if full list fails
-        console.warn(`⚠️ Full metrics failed for ${mediaType} (${mediaId}), trying basic metrics...`);
-        const basicMetrics = 'likes,comments,saved,shares';
-        const basicUrl = `https://graph.facebook.com/v24.0/${mediaId}/insights?metric=${basicMetrics}&access_token=${pageAccessToken}`;
-        const basicResponse = await fetch(basicUrl);
-
-        if (!basicResponse.ok) {
-          console.warn(`⚠️ Basic metrics also failed for ${mediaType} (${mediaId})`);
-          const emptyResult = {
-            likes: 0, comments: 0, saved: 0, shares: 0,
-            views: 0, reach: 0, interactions: 0, watchTime: 0,
-            engagement: 0
-          };
-          setCache(cacheKey, emptyResult);
-          return createSuccessResponse(emptyResult);
-        }
-
-        const basicData = await basicResponse.json();
-        // Process basic data... (similar to below but with fewer fields)
-        // For brevity, we will just return zeros for missing fields
-        const insights = {};
-        if (basicData.data && Array.isArray(basicData.data)) {
-          basicData.data.forEach(metric => {
-            if (metric.values && metric.values.length > 0) {
-              insights[metric.name] = metric.values[0].value || 0;
-            }
-          });
-        }
-
-        const basicInteractions = (insights.likes || 0) + (insights.comments || 0) + (insights.saved || 0) + (insights.shares || 0);
-        const result = {
-          likes: insights.likes || 0,
-          comments: insights.comments || 0,
-          saved: insights.saved || 0,
-          shares: insights.shares || 0,
-          views: 0,
-          reach: 0,
-          interactions: basicInteractions,
-          totalInteractions: basicInteractions,
-          profileActivity: 0,
-          watchTimeAvg: 0,
-          watchTimeTotal: 0,
-          engagement: basicInteractions
-        };
-        setCache(cacheKey, result);
-        return createSuccessResponse(result);
-      }
-
-      return createErrorResponse(
-        `Instagram API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`,
-        `fetchMediaInsights (${mediaType})`
-      );
+      // General fallback for any error (code 100 or others)
+      console.warn(`   ⚠️ Full insights failed for ${mediaType} (${mediaId}) - falling back to basic metrics`);
+      const basicResult = await fetchBasicMediaMetrics(mediaId, pageAccessToken, mediaType);
+      setCache(cacheKey, basicResult);
+      return createSuccessResponse(basicResult);
     }
 
+    // 4. Process Successful Response
     const data = await response.json();
-
-    // Parse insights
     const insights = {};
     if (data.data && Array.isArray(data.data)) {
       data.data.forEach(metric => {
         if (metric.values && metric.values.length > 0) {
-          // Most metrics return an array of values, we take the most recent/total
           insights[metric.name] = metric.values[0].value || 0;
         }
       });
@@ -504,15 +513,18 @@ export async function fetchMediaInsights(mediaId, pageAccessToken, mediaType = '
       engagement: totalInteractions
     };
 
-    // Log for debugging
+    // Log for debugging REELS
     if (mediaType === 'REEL' || mediaType === 'REELS') {
-      console.log(`   🎬 REEL ${mediaId} (v24.0): Views=${result.views}, Reach=${result.reach}, WatchTime=${result.watchTime}`);
+      console.log(`   🎬 REEL ${mediaId} (v22+): Views=${result.views}, Reach=${result.reach}, WatchTime=${result.watchTimeTotal}`);
     }
 
     setCache(cacheKey, result);
     return createSuccessResponse(result);
   } catch (error) {
-    return createErrorResponse(error, `fetchMediaInsights (${mediaType})`);
+    // Final safety net
+    console.error(`Error in fetchMediaInsights for ${mediaId}:`, error.message);
+    const basicResult = await fetchBasicMediaMetrics(mediaId, pageAccessToken, mediaType);
+    return createSuccessResponse(basicResult);
   }
 }
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X, LogOut, LayoutDashboard, Users, FileText, TrendingUp, FileCheck, Calendar, Image, FileType, Settings } from 'lucide-react';
+import { Menu, X, LogOut, LayoutDashboard, Users, FileText, TrendingUp, FileCheck, Calendar, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const Layout = ({ children }) => {
   const [userName, setUserName] = useState('User');
@@ -121,22 +121,29 @@ const Layout = ({ children }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="h-screen overflow-hidden bg-gray-50 flex">
       {/* Sidebar */}
       <aside
-        className={`${sidebarOpen ? 'w-64' : 'w-0 lg:w-64'
-          } bg-white border-r border-gray-200 transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0 lg:flex lg:flex-col fixed lg:static inset-y-0 left-0 z-50 lg:z-auto`}
+        className={`${sidebarOpen ? 'w-64' : 'w-0 lg:w-16'
+          } bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 border-r border-gray-700 transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0 lg:flex lg:flex-col fixed lg:static inset-y-0 left-0 z-50 lg:z-auto shadow-2xl h-full`}
       >
-        <div className="p-6 border-b border-gray-200 flex items-center justify-center">
+        <div className="p-4 border-b border-gray-700/50 flex items-center justify-between bg-black/20">
           <img
-            src="/dashboard/assets/logo.png"
+            src="/dashboard/assets/white_logo.png"
             alt="HarisandCo"
-            className="h-12 w-auto object-contain"
+            className={`h-10 w-auto object-contain transition-all duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0 lg:opacity-0 lg:w-0'}`}
             onError={(e) => {
               e.target.onerror = null;
               e.target.src = 'https://harisand.co/static/media/NewLogo.fc59d5f2c088d6861458.png';
             }}
           />
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="hidden lg:flex p-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 transition-all duration-200 text-white shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:scale-105 active:scale-95"
+            title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+          >
+            {sidebarOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+          </button>
         </div>
         <nav className="flex-1 p-4 space-y-2">
           {menuItems.map((item, index) => {
@@ -155,13 +162,14 @@ const Layout = ({ children }) => {
                     setSidebarOpen(false);
                   }
                 }}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${active
-                  ? 'bg-blue-50 text-blue-600 font-medium'
-                  : 'text-gray-700 hover:bg-gray-50'
+                className={`w-full flex items-center ${sidebarOpen ? 'justify-start gap-3' : 'justify-center'} px-4 py-3 rounded-lg transition-all duration-200 ${active
+                  ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white font-medium shadow-lg shadow-blue-500/50'
+                  : 'text-gray-300 hover:bg-white/10 hover:text-white hover:shadow-md'
                   }`}
+                title={!sidebarOpen ? item.label : ''}
               >
-                <Icon size={20} />
-                <span>{item.label}</span>
+                <Icon size={20} className="flex-shrink-0" />
+                {sidebarOpen && <span className="transition-opacity duration-300">{item.label}</span>}
               </button>
             );
           })}
@@ -169,7 +177,7 @@ const Layout = ({ children }) => {
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {/* Header */}
         <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-40">
           <button
@@ -193,8 +201,10 @@ const Layout = ({ children }) => {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-6 overflow-auto">
-          {children}
+        <main className="flex-1 p-6 overflow-y-auto">
+          <div className="animate-scale-in">
+            {children}
+          </div>
         </main>
       </div>
 

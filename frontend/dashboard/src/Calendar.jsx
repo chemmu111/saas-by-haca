@@ -427,7 +427,11 @@ const Calendar = () => {
   const getPostsForDate = useCallback((day) => {
     if (!calendarData?.postsByDay) return [];
     const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-    const dateKey = date.toISOString().split('T')[0];
+    // Format as YYYY-MM-DD using local time
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const dayStr = String(date.getDate()).padStart(2, '0');
+    const dateKey = `${year}-${month}-${dayStr}`;
     return calendarData.postsByDay[dateKey] || [];
   }, [calendarData, currentDate]);
 

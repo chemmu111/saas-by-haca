@@ -9,7 +9,7 @@ const AuthLayout = ({ children }) => {
                 <div className="login-left">
                     <div className="preview-image-container">
                         <img
-                            src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1200&h=800&fit=crop&q=80"
+                            src="https://harisand.co/static/media/NewLogo.fc59d5f2c088d6861458.png"
                             alt="Social Media Dashboard Preview"
                             style={{ display: 'block', width: '100%', height: 'auto', objectFit: 'contain', minHeight: '400px' }}
                         />

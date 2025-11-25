@@ -19,6 +19,8 @@ const Reports = () => {
     dayOfMonth: 1,
     email: '',
   });
+  const [googleDocUrl, setGoogleDocUrl] = useState(null);
+  const [generatingGoogleDoc, setGeneratingGoogleDoc] = useState(false);
 
   useEffect(() => {
     // Set default dates (last 30 days)
@@ -27,7 +29,7 @@ const Reports = () => {
     start.setDate(start.getDate() - 30);
     setEndDate(end.toISOString().split('T')[0]);
     setStartDate(start.toISOString().split('T')[0]);
-    
+
     fetchReportSchedule();
     fetchTemplates();
     fetchClients();
@@ -60,7 +62,13 @@ const Reports = () => {
       }
 
       // Get backend URL
-      const backendUrl = window.location.origin;
+      const getBackendUrl = () => {
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          return 'http://localhost:5000';
+        }
+        return window.location.origin;
+      };
+      const backendUrl = getBackendUrl();
 
       const params = new URLSearchParams();
       if (startDate) params.append('startDate', startDate);
@@ -100,7 +108,13 @@ const Reports = () => {
       const token = localStorage.getItem('auth_token');
       if (!token) return;
 
-      const backendUrl = window.location.origin;
+      const getBackendUrl = () => {
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          return 'http://localhost:5000';
+        }
+        return window.location.origin;
+      };
+      const backendUrl = getBackendUrl();
       const response = await fetch(`${backendUrl}/api/reports/templates`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -124,7 +138,13 @@ const Reports = () => {
       const token = localStorage.getItem('auth_token');
       if (!token) return;
 
-      const backendUrl = window.location.origin;
+      const getBackendUrl = () => {
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          return 'http://localhost:5000';
+        }
+        return window.location.origin;
+      };
+      const backendUrl = getBackendUrl();
       const response = await fetch(`${backendUrl}/api/clients`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -155,7 +175,13 @@ const Reports = () => {
         return;
       }
 
-      const backendUrl = window.location.origin;
+      const getBackendUrl = () => {
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          return 'http://localhost:5000';
+        }
+        return window.location.origin;
+      };
+      const backendUrl = getBackendUrl();
       const formData = new FormData();
       formData.append('template', file);
 
@@ -198,7 +224,13 @@ const Reports = () => {
         return;
       }
 
-      const backendUrl = window.location.origin;
+      const getBackendUrl = () => {
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          return 'http://localhost:5000';
+        }
+        return window.location.origin;
+      };
+      const backendUrl = getBackendUrl();
       const response = await fetch(`${backendUrl}/api/reports/templates/${filename}`, {
         method: 'DELETE',
         headers: {
@@ -238,7 +270,13 @@ const Reports = () => {
       }
 
       // Get backend URL
-      const backendUrl = window.location.origin;
+      const getBackendUrl = () => {
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          return 'http://localhost:5000';
+        }
+        return window.location.origin;
+      };
+      const backendUrl = getBackendUrl();
 
       const response = await fetch(`${backendUrl}/api/reports/download`, {
         method: 'POST',
@@ -271,6 +309,18 @@ const Reports = () => {
             window.URL.revokeObjectURL(url);
             document.body.removeChild(a);
           }
+        } else if (format === 'txt') {
+          // Handle text response
+          const text = await response.text();
+          const blob = new Blob([text], { type: 'text/plain' });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `report-${startDate || 'all'}-${endDate || 'all'}.txt`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
         } else {
           // Handle binary response (PDF, HTML, etc.)
           const blob = await response.blob();
@@ -310,7 +360,13 @@ const Reports = () => {
         return;
       }
 
-      const backendUrl = window.location.origin;
+      const getBackendUrl = () => {
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          return 'http://localhost:5000';
+        }
+        return window.location.origin;
+      };
+      const backendUrl = getBackendUrl();
       const clientIds = selectedClients.length > 0 ? selectedClients : clients.map(c => c._id);
 
       const response = await fetch(`${backendUrl}/api/reports/send-to-clients`, {
@@ -356,7 +412,13 @@ const Reports = () => {
       }
 
       // Get backend URL
-      const backendUrl = window.location.origin;
+      const getBackendUrl = () => {
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          return 'http://localhost:5000';
+        }
+        return window.location.origin;
+      };
+      const backendUrl = getBackendUrl();
 
       const response = await fetch(`${backendUrl}/api/reports/schedule`, {
         method: 'POST',
@@ -394,7 +456,13 @@ const Reports = () => {
       }
 
       // Get backend URL
-      const backendUrl = window.location.origin;
+      const getBackendUrl = () => {
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          return 'http://localhost:5000';
+        }
+        return window.location.origin;
+      };
+      const backendUrl = getBackendUrl();
 
       const response = await fetch(`${backendUrl}/api/reports/send-test`, {
         method: 'POST',
@@ -426,8 +494,73 @@ const Reports = () => {
     }
   };
 
+  const generateGoogleDoc = async () => {
+    try {
+      setGeneratingGoogleDoc(true);
+      const token = localStorage.getItem('auth_token');
+      if (!token) return;
+
+      const getBackendUrl = () => {
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          return 'http://localhost:5000';
+        }
+        return window.location.origin;
+      };
+      const backendUrl = getBackendUrl();
+
+      const response = await fetch(`${backendUrl}/api/reports/google-doc`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          startDate,
+          endDate
+        })
+      });
+
+      const result = await response.json();
+      if (result.success && result.data && result.data.pdfUrl) {
+        setGoogleDocUrl(result.data.pdfUrl);
+      } else {
+        alert('Failed to generate Google Doc: ' + (result.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error generating Google Doc:', error);
+      alert('Failed to generate Google Doc: ' + error.message);
+    } finally {
+      setGeneratingGoogleDoc(false);
+    }
+  };
+
   return (
     <Layout>
+      {googleDocUrl && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl">
+            <h3 className="text-xl font-bold mb-4 text-gray-900">Report Generated!</h3>
+            <p className="text-gray-600 mb-6">Your Google Doc report has been generated and converted to PDF.</p>
+            <div className="flex flex-col gap-3">
+              <a
+                href={googleDocUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-3 bg-blue-600 text-white rounded-lg text-center font-medium hover:bg-blue-700 flex items-center justify-center gap-2"
+              >
+                <Download size={20} />
+                Open PDF Report
+              </a>
+              <button
+                onClick={() => setGoogleDocUrl(null)}
+                className="w-full py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="p-4 lg:p-6 bg-gray-50 min-h-screen">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Reports</h1>
@@ -569,7 +702,7 @@ const Reports = () => {
                 ))}
               </div>
               <p className="text-sm text-gray-600 mt-2">
-                {selectedClients.length === 0 
+                {selectedClients.length === 0
                   ? `No clients selected. Reports will be sent to all ${clients.length} client(s).`
                   : `${selectedClients.length} client(s) selected.`
                 }
@@ -631,12 +764,28 @@ const Reports = () => {
               Download JSON
             </button>
             <button
+              onClick={() => downloadReport('txt')}
+              disabled={loading || !report}
+              className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              <FileText size={20} />
+              Download Text
+            </button>
+            <button
               onClick={sendToClients}
               disabled={loading || sendingToClients || clients.length === 0}
               className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               <Users size={20} />
               {sendingToClients ? 'Sending...' : 'Send to Clients'}
+            </button>
+            <button
+              onClick={generateGoogleDoc}
+              disabled={generatingGoogleDoc}
+              className="px-6 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              <FileText size={20} />
+              {generatingGoogleDoc ? 'Generating...' : 'Google Doc Report'}
             </button>
           </div>
         </div>

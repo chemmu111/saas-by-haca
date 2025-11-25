@@ -353,8 +353,8 @@ const Posts = () => {
               <button
                 onClick={() => setStatusFilter('all')}
                 className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'all'
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
               >
                 All
@@ -362,8 +362,8 @@ const Posts = () => {
               <button
                 onClick={() => setStatusFilter('draft')}
                 className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'draft'
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
               >
                 Draft
@@ -371,8 +371,8 @@ const Posts = () => {
               <button
                 onClick={() => setStatusFilter('scheduled')}
                 className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'scheduled'
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
               >
                 Scheduled
@@ -380,8 +380,8 @@ const Posts = () => {
               <button
                 onClick={() => setStatusFilter('published')}
                 className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'published'
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
               >
                 Published
@@ -452,11 +452,11 @@ const Posts = () => {
                                 playsInline
                                 preload="metadata"
                                 crossOrigin="anonymous"
-                              onError={(e) => {
-                                // Silently handle missing media - placeholders will show
-                                setFailedMediaUrls(prev => new Set(prev).add(normalizedMediaUrl));
-                                e.target.style.display = 'none';
-                              }}
+                                onError={(e) => {
+                                  // Silently handle missing media - placeholders will show
+                                  setFailedMediaUrls(prev => new Set(prev).add(normalizedMediaUrl));
+                                  e.target.style.display = 'none';
+                                }}
                               />
                             )}
                             {!failedMediaUrls.has(normalizedMediaUrl) && (
