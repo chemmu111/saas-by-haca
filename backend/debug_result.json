@@ -1,0 +1,71 @@
+{
+  "userData": {
+    "username": "te.ch9712",
+    "name": "Harisandco Projects",
+    "followers_count": 101,
+    "id": "17841477797074422"
+  },
+  "insightsResult": {
+    "success": true,
+    "data": {
+      "follower_count": 101,
+      "profile_views": 0,
+      "reach": 0,
+      "impressions": 0,
+      "website_clicks": 0,
+      "email_contacts": 0,
+      "phone_call_clicks": 0,
+      "text_message_clicks": 0,
+      "get_directions_clicks": 0
+    },
+    "timestamp": "2025-11-27T09:27:47.944Z"
+  },
+  "trendResult": {
+    "success": true,
+    "data": [
+      {
+        "date": "2025-11-26",
+        "follower_count": 0,
+        "reach": 257
+      },
+      {
+        "date": "2025-11-27",
+        "follower_count": 0,
+        "reach": 18
+      }
+    ],
+    "timestamp": "2025-11-27T09:27:48.840Z"
+  },
+  "videoSample": {
+    "id": "17993962061719358",
+    "media_type": "VIDEO",
+    "thumbnail_url": "https://scontent.cdninstagram.com/v/t51.71878-15/587794017_5162510140640644_7156460136650285961_n.jpg?stp=dst-jpg_e35_tt6&_nc_cat=104&ccb=7-5&_nc_sid=18de74&efg=eyJlZmdfdGFnIjoiQ0xJUFMuYmVzdF9pbWFnZV91cmxnZW4uQzMifQ%3D%3D&_nc_ohc=q7S-nk0Bv6gQ7kNvwHrHenx&_nc_oc=Adltnlob6XXv7ZoUkQecMOz6eEpNCt12trfnmJKQdMAx8g2XwaZ31XdDTaa40ukduOI&_nc_zt=23&_nc_ht=scontent.cdninstagram.com&edm=AM6HXa8EAAAA&_nc_gid=JdPDTMuGnrTXINtQSHccag&oh=00_AfhrGEkqbliCVvi1qJmLxnwzxe45dnxQON70i502_CIBew&oe=692DD471",
+    "caption": "asdfghjk",
+    "permalink": "https://www.instagram.com/reel/DRglmCyFICK/",
+    "timestamp": "2025-11-26T06:13:02+0000",
+    "like_count": 2,
+    "comments_count": 1,
+    "views": 0,
+    "reach": 0,
+    "replies": 0,
+    "engagement": 3,
+    "totalInteractions": 3,
+    "profileActivity": 0,
+    "watchTimeAvg": 0,
+    "watchTimeTotal": 0,
+    "insights": {
+      "likes": 2,
+      "comments": 1,
+      "saved": 0,
+      "shares": 0,
+      "views": 0,
+      "reach": 0,
+      "interactions": 3,
+      "totalInteractions": 3,
+      "profileActivity": 0,
+      "watchTimeAvg": 0,
+      "watchTimeTotal": 0,
+      "engagement": 3
+    }
+  }
+}

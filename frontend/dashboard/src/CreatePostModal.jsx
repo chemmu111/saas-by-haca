@@ -12,6 +12,7 @@ import { useClientCapabilities } from './hooks/useClientCapabilities';
 import { useAIHashtags } from './hooks/useAIHashtags';
 import { useScheduling } from './hooks/useScheduling';
 import AIGenerator from './components/AIGenerator.jsx';
+import { validateVideo } from './utils/instagramVideoValidator';
 
 const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
   // Get backend URL helper
@@ -58,6 +59,7 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
   const [showInsights, setShowInsights] = useState(false);
   const [showAIGenerator, setShowAIGenerator] = useState(false);
   const [aiGeneratorType, setAiGeneratorType] = useState('caption'); // 'caption' or 'hashtag'
+  const [errorDetails, setErrorDetails] = useState(null);
 
   // File input refs
   const fileInputRef = useRef(null);
@@ -136,7 +138,7 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
     }
 
     if (platform === 'instagram') {
-      return ['post', 'story', 'reel']; // Instagram supports all types
+      return ['post', 'story', 'reel', 'carousel', 'video']; // Instagram supports all types
     }
 
     if (platform === 'both') {
@@ -168,26 +170,93 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
   };
 
   // Handle file selection
-  const handleMediaSelect = (e) => {
+  const handleMediaSelect = async (e) => {
     const files = Array.from(e.target.files);
-    const newMediaFiles = files.map(file => ({
-      file,
-      preview: URL.createObjectURL(file),
-      url: null
+
+    // Process files and validate videos
+    const newMediaFiles = await Promise.all(files.map(async (file) => {
+      let validation = null;
+      if (file.type.startsWith('video/')) {
+        validation = await validateVideo(file);
+      }
+
+      return {
+        file,
+        preview: URL.createObjectURL(file),
+        url: null,
+        validation
+      };
     }));
 
-    setFormData(prev => ({
-      ...prev,
-      mediaFiles: [...prev.mediaFiles, ...newMediaFiles]
-    }));
+    // Auto-detect aspect ratio and set format
+    const detectAspectRatio = async (file) => {
+      return new Promise((resolve) => {
+        if (file.type.startsWith('image/')) {
+          const img = new Image();
+          img.onload = () => {
+            const ratio = img.width / img.height;
+            URL.revokeObjectURL(img.src);
+            resolve(ratio);
+          };
+          img.onerror = () => resolve(null);
+          img.src = URL.createObjectURL(file);
+        } else if (file.type.startsWith('video/')) {
+          const video = document.createElement('video');
+          video.onloadedmetadata = () => {
+            const ratio = video.videoWidth / video.videoHeight;
+            URL.revokeObjectURL(video.src);
+            resolve(ratio);
+          };
+          video.onerror = () => resolve(null);
+          video.src = URL.createObjectURL(file);
+        } else {
+          resolve(null);
+        }
+      });
+    };
 
-    // Auto-detect post type based on first file
-    if (formData.mediaFiles.length === 0 && files.length > 0) {
-      const firstFile = files[0];
-      if (firstFile.type.startsWith('video/')) {
-        setFormData(prev => ({ ...prev, postType: 'reel' }));
+    // Detect aspect ratio for the first file
+    let detectedFormat = formData.format;
+    if (files.length > 0 && formData.mediaFiles.length === 0) {
+      const ratio = await detectAspectRatio(files[0]);
+      if (ratio) {
+        // Map ratio to Instagram formats
+        if (Math.abs(ratio - 1.0) < 0.1) {
+          detectedFormat = 'square'; // 1:1
+        } else if (ratio < 0.9) {
+          detectedFormat = 'portrait'; // 4:5 (0.8)
+        } else if (ratio > 1.5) {
+          detectedFormat = 'landscape'; // 1.91:1
+        } else if (Math.abs(ratio - 0.8) < 0.1) {
+          detectedFormat = 'portrait'; // 4:5
+        }
+        console.log(`Auto-detected aspect ratio: ${ratio.toFixed(2)} → Format: ${detectedFormat}`);
       }
     }
+
+    setFormData(prev => {
+      const updatedMediaFiles = [...prev.mediaFiles, ...newMediaFiles];
+      let updatedPostType = prev.postType;
+
+      // Auto-detect post type
+      if (updatedMediaFiles.length > 1) {
+        // If multiple files, switch to carousel
+        updatedPostType = 'carousel';
+      } else if (prev.mediaFiles.length === 0 && files.length > 0) {
+        // If first file is video, switch to reel
+        const firstFile = files[0];
+        if (firstFile.type.startsWith('video/')) {
+          updatedPostType = 'reel';
+        }
+      }
+
+      return {
+        ...prev,
+        mediaFiles: updatedMediaFiles,
+        postType: updatedPostType,
+        format: detectedFormat
+      };
+    });
   };
 
   // Remove media file
@@ -302,10 +371,17 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
       errors.push('Please upload at least one media file');
     }
 
+    // Check for video validation errors
+    const invalidVideo = formData.mediaFiles.find(m => m.validation && !m.validation.isValid);
+    if (invalidVideo) {
+      errors.push(`Video "${invalidVideo.file.name}" has errors: ${invalidVideo.validation.errors.join(', ')}`);
+    }
+
+    // Media type validation
     // Media type validation
     const mediaValidation = validateForPostType(formData.postType, formData.platform, mediaInfo);
     if (!mediaValidation.isValid) {
-      errors.push(...mediaValidation.errors);
+      errors.push(...mediaValidation.messages);
     }
 
     // Caption validation (optional but recommended)
@@ -438,13 +514,26 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
           }, 1500);
         }
       } else {
-        setPublishProgress({ step: 'error', message: result.error || 'Failed to save post' });
-        showToast(result.error || 'Failed to save post', 'error');
+        const errorMessage = result.error || 'Failed to save post';
+        setPublishProgress({ step: 'error', message: errorMessage });
+
+        // If error is long or contains specific keywords, show dialog
+        if (errorMessage.length > 100 || errorMessage.includes('Instagram rejected') || errorMessage.includes('requirements')) {
+          setErrorDetails(errorMessage);
+        } else {
+          showToast(errorMessage, 'error');
+        }
       }
     } catch (err) {
       console.error('Error saving post:', err);
-      setPublishProgress({ step: 'error', message: err.message || 'Failed to save post' });
-      showToast(err.message || 'Failed to save post', 'error');
+      const errorMessage = err.message || 'Failed to save post';
+      setPublishProgress({ step: 'error', message: errorMessage });
+
+      if (errorMessage.length > 100 || errorMessage.includes('Instagram rejected') || errorMessage.includes('requirements')) {
+        setErrorDetails(errorMessage);
+      } else {
+        showToast(errorMessage, 'error');
+      }
     } finally {
       setLoading(false);
       // Clear progress after a delay
@@ -813,7 +902,8 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
                                   {type === 'post' ? 'Feed Post' :
                                     type === 'story' ? 'Story' :
                                       type === 'reel' ? 'Reel' :
-                                        type === 'carousel' ? 'Carousel' : type}
+                                        type === 'carousel' ? `Carousel ${formData.mediaFiles.length > 1 ? `(${formData.mediaFiles.length} items)` : ''}` :
+                                          type === 'video' ? 'Feed Video' : type}
                                 </option>
                               ))}
                             </select>
@@ -821,7 +911,7 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
                         </div>
 
                         {/* Format Selection (conditional) */}
-                        {formData.postType === 'post' && (
+                        {(formData.postType === 'post' || formData.postType === 'video') && (
                           <div className="mt-4">
                             <label className="block text-sm font-semibold text-gray-700 mb-3">
                               Format / Aspect Ratio
@@ -856,7 +946,10 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
                         <label className="block text-sm font-semibold text-gray-700 mb-3">
                           Media Files *
                           {formData.postType === 'reel' && <span className="text-red-500 ml-1">(Video required)</span>}
-                          {formData.postType === 'carousel' && <span className="text-red-500 ml-1">(2+ images required)</span>}
+                          {formData.postType === 'video' && <span className="text-red-500 ml-1">(Video required)</span>}
+                          {formData.postType === 'carousel' && <span className="text-red-500 ml-1">
+                            {formData.mediaFiles.length > 0 ? `(${formData.mediaFiles.length} items)` : '(2-10 images required)'}
+                          </span>}
                         </label>
 
                         {/* Upload Area */}
@@ -868,8 +961,9 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
                           <p className="text-gray-600 mb-2">Click to upload or drag and drop</p>
                           <p className="text-sm text-gray-500">
                             {formData.postType === 'reel' ? 'MP4, MOV videos up to 100MB' :
-                              formData.postType === 'carousel' ? 'JPEG, PNG images (min 2 files)' :
-                                'Images or videos'}
+                              formData.postType === 'video' ? 'MP4, MOV videos up to 4GB' :
+                                formData.postType === 'carousel' ? 'JPEG, PNG images (2-10 files)' :
+                                  'Images or videos'}
                           </p>
                         </div>
 
@@ -877,7 +971,8 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
                           ref={fileInputRef}
                           type="file"
                           className="hidden"
-                          accept={formData.postType === 'reel' ? 'video/*' : 'image/*,video/*'}
+                          accept={(formData.postType === 'reel' || formData.postType === 'video') ? 'video/*' :
+                            formData.postType === 'carousel' ? 'image/*' : 'image/*,video/*'}
                           multiple={formData.postType === 'carousel'}
                           onChange={handleMediaSelect}
                         />
@@ -890,7 +985,10 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
                                 {media.file?.type?.startsWith('video/') ? (
                                   <video
                                     src={media.preview}
-                                    className="w-full h-20 object-cover rounded-lg border border-gray-200"
+                                    className={`w-full h-20 object-cover rounded-lg border ${media.validation && !media.validation.isValid ? 'border-red-500' :
+                                      media.validation && media.validation.warnings.length > 0 ? 'border-yellow-500' :
+                                        'border-gray-200'
+                                      }`}
                                     controls={false}
                                   />
                                 ) : (
@@ -899,6 +997,25 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
                                     alt={`Preview ${index + 1}`}
                                     className="w-full h-20 object-cover rounded-lg border border-gray-200"
                                   />
+                                )}
+
+                                {/* Validation Status Overlay */}
+                                {media.validation && (
+                                  <div className="absolute top-1 right-1 z-10">
+                                    {!media.validation.isValid ? (
+                                      <div className="bg-red-500 text-white p-1 rounded-full shadow-md" title={media.validation.errors.join('\n')}>
+                                        <X size={12} />
+                                      </div>
+                                    ) : media.validation.warnings.length > 0 ? (
+                                      <div className="bg-yellow-500 text-white p-1 rounded-full shadow-md" title={media.validation.warnings.join('\n')}>
+                                        <AlertCircle size={12} />
+                                      </div>
+                                    ) : (
+                                      <div className="bg-green-500 text-white p-1 rounded-full shadow-md" title="Video Ready — meets Instagram standards ✔️">
+                                        <CheckCircle size={12} />
+                                      </div>
+                                    )}
+                                  </div>
                                 )}
 
                                 {/* Media overlay */}
@@ -924,15 +1041,26 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
                                       className="p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
                                       title="Remove"
                                     >
-                                      <X size={14} />
+                                      <Trash2 size={14} />
                                     </button>
                                   </div>
                                 </div>
 
                                 {/* File info */}
-                                <div className="absolute bottom-1 left-1 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                                <div className="absolute bottom-1 left-1 bg-black bg-opacity-75 text-white text-[10px] px-1.5 py-0.5 rounded max-w-[90%] truncate">
                                   {media.file?.size ? `${(media.file.size / 1024 / 1024).toFixed(1)}MB` : 'URL'}
                                 </div>
+
+                                {/* Validation Message (if selected or error) */}
+                                {(media.validation && (!media.validation.isValid || media.validation.warnings.length > 0)) && (
+                                  <div className={`absolute -bottom-2 left-0 right-0 transform translate-y-full z-20 p-2 rounded text-xs shadow-lg ${!media.validation.isValid ? 'bg-red-100 text-red-800 border border-red-200' : 'bg-yellow-50 text-yellow-800 border border-yellow-200'
+                                    } hidden group-hover:block`}>
+                                    <ul className="list-disc list-inside">
+                                      {media.validation.errors.map((e, i) => <li key={`err-${i}`}>{e}</li>)}
+                                      {media.validation.warnings.map((w, i) => <li key={`warn-${i}`}>{w}</li>)}
+                                    </ul>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -1398,6 +1526,38 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
           </div>
         )
       }
+
+      {/* Error Dialog */}
+      {errorDetails && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden relative animate-in fade-in zoom-in duration-200">
+            <div className="p-6">
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-red-100 text-red-600 rounded-full shrink-0">
+                  <AlertCircle size={32} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">
+                    Upload Failed
+                  </h3>
+                  <div className="text-gray-600 whitespace-pre-wrap text-sm leading-relaxed max-h-[60vh] overflow-y-auto custom-scrollbar">
+                    {errorDetails}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  onClick={() => setErrorDetails(null)}
+                  className="px-5 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast Notifications */}
       {

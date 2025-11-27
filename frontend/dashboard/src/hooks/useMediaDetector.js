@@ -25,7 +25,7 @@ export const useMediaDetector = (files) => {
     if (filesKey === filesRef.current) {
       return;
     }
-    
+
     // Prevent concurrent processing
     if (isProcessingRef.current) {
       return;
@@ -48,7 +48,7 @@ export const useMediaDetector = (files) => {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const fileType = getFileType(file);
-        
+
         const fileInfo = {
           index: i,
           file,
@@ -115,92 +115,170 @@ export const useMediaDetector = (files) => {
   }, [filesKey]);
 
   /**
+   * Format duration in seconds to MM:SS
+   */
+  const formatDuration = (seconds) => {
+    if (!seconds) return '0:00';
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  /**
    * Validates media files for a specific post type and platform
-   * @param {string} postType - The post type (post, story, reel, carousel)
+   * @param {string} postType - The post type (post, story, reel, carousel, video)
    * @param {string} platform - The platform (instagram, facebook, both)
    * @param {Array} mediaFiles - Array of processed media file info
-   * @returns {Object} - Validation result with isValid boolean and errors array
+   * @returns {Object} - { isValid, level, messages }
    */
   const validateForPostType = (postType, platform, mediaFiles) => {
-    const errors = [];
+    const messages = [];
+    let level = 'valid'; // valid, warning, error
 
     if (!mediaFiles || mediaFiles.length === 0) {
-      return { isValid: false, errors: ['At least one media file is required'] };
+      return { isValid: false, level: 'error', messages: ['At least one media file is required'] };
     }
+
+    const addMessage = (msg, type = 'error') => {
+      messages.push(msg);
+      if (type === 'error') level = 'error';
+      else if (type === 'warning' && level !== 'error') level = 'warning';
+    };
 
     // Validate based on post type
     switch (postType) {
       case 'reel':
         // Reel requires exactly one video
         if (mediaFiles.length !== 1) {
-          errors.push('Reels must have exactly one video file');
+          addMessage('Reels must have exactly one video file', 'error');
         } else {
           const file = mediaFiles[0];
           if (file.type !== 'video') {
-            errors.push('Reels require a video file');
-          } else if (file.duration && file.duration > 90) {
-            errors.push(`Reel videos must be 90 seconds or less (current: ${Math.round(file.duration)}s)`);
-          } else if (file.duration && file.duration < 3) {
-            errors.push('Reel videos must be at least 3 seconds');
+            addMessage('Reels require a video file', 'error');
+          } else {
+            // Duration: 3s - 180s (3 mins)
+            if (file.duration) {
+              if (file.duration > 180) {
+                addMessage(`Reel duration (${formatDuration(file.duration)}) exceeds 3 minutes limit`, 'error');
+              } else if (file.duration < 3) {
+                addMessage('Reel duration must be at least 3 seconds', 'error');
+              }
+            }
+
+            // File Size: 4GB
+            if (file.size > 4 * 1024 * 1024 * 1024) {
+              addMessage(`File size (${file.sizeFormatted}) exceeds 4GB limit`, 'error');
+            }
+
+            // Resolution & Aspect Ratio
+            if (file.dimensions) {
+              const { width, height } = file.dimensions;
+
+              // Min resolution 720x1280
+              if (width < 720) {
+                addMessage(`Resolution width (${width}px) is below minimum 720px`, 'error');
+              }
+
+              // Warn if < 1080x1920
+              if (width < 1080 || height < 1920) {
+                addMessage('Recommended resolution is 1080x1920 for best quality', 'warning');
+              }
+
+              // Aspect Ratio (9:16 to 4:5)
+              const ratio = width / height;
+              if (ratio > 0.8) { // Wider than 4:5 (0.8)
+                addMessage('Reels should be vertical (9:16 recommended)', 'warning');
+              }
+            }
+          }
+        }
+        break;
+
+      case 'video': // Feed Video
+        if (mediaFiles.length !== 1) {
+          addMessage('Feed Videos must have exactly one video file', 'error');
+        } else {
+          const file = mediaFiles[0];
+          if (file.type !== 'video') {
+            addMessage('Feed Videos require a video file', 'error');
+          } else {
+            // Duration: 3s - 60 mins
+            if (file.duration) {
+              if (file.duration > 3600) {
+                addMessage(`Video duration (${formatDuration(file.duration)}) exceeds 60 minutes limit`, 'error');
+              } else if (file.duration < 3) {
+                addMessage('Video duration must be at least 3 seconds', 'error');
+              }
+            }
+
+            // File Size: 4GB
+            if (file.size > 4 * 1024 * 1024 * 1024) {
+              addMessage(`File size (${file.sizeFormatted}) exceeds 4GB limit`, 'error');
+            }
+
+            // Warnings for resolution
+            if (file.dimensions) {
+              const { width, height } = file.dimensions;
+              if (width < 720) {
+                addMessage(`Low resolution (${width}x${height}). 1080p recommended.`, 'warning');
+              }
+            }
           }
         }
         break;
 
       case 'story':
-        // Story can have images or videos
         const hasInvalidFile = mediaFiles.some(file => file.type === 'unsupported');
         if (hasInvalidFile) {
-          errors.push('Stories only support images and videos');
+          addMessage('Stories only support images and videos', 'error');
         }
         if (platform === 'instagram' || platform === 'both') {
-          // Instagram stories have specific requirements
           const hasInvalidVideo = mediaFiles.some(file =>
-            file.type === 'video' && file.duration && file.duration > 15
+            file.type === 'video' && file.duration && file.duration > 60
           );
           if (hasInvalidVideo) {
-            errors.push('Instagram story videos must be 15 seconds or less');
+            addMessage('Instagram story videos must be 60 seconds or less', 'error');
           }
         }
         break;
 
       case 'carousel':
-        // Carousel requires at least 2 images
         if (mediaFiles.length < 2) {
-          errors.push('Carousels require at least 2 images');
+          addMessage('Carousels require at least 2 images', 'error');
         }
         if (mediaFiles.length > 10) {
-          errors.push('Carousels can have maximum 10 images');
+          addMessage('Carousels can have maximum 10 images', 'error');
         }
         const hasNonImage = mediaFiles.some(file => file.type !== 'image');
         if (hasNonImage) {
-          errors.push('Carousels only support images');
+          addMessage('Carousels only support images', 'error');
         }
         break;
 
       default: // post
-        // Regular posts can have images or videos
         const hasUnsupported = mediaFiles.some(file => file.type === 'unsupported');
         if (hasUnsupported) {
-          errors.push('Posts only support images and videos');
+          addMessage('Posts only support images and videos', 'error');
         }
+
+        // Image validation
+        mediaFiles.forEach(file => {
+          if (file.type === 'image') {
+            if (file.size > 30 * 1024 * 1024) {
+              addMessage(`Image ${file.file.name} exceeds 30MB limit`, 'error');
+            }
+            if (file.dimensions && (file.dimensions.width < 1080 && file.dimensions.height < 1080)) {
+              addMessage(`Image ${file.file.name} is low resolution. 1080px+ recommended.`, 'warning');
+            }
+          }
+        });
         break;
     }
 
-    // Platform-specific validations
-    if (platform === 'instagram' || platform === 'both') {
-      mediaFiles.forEach((file, index) => {
-        if (file.type === 'video' && file.size > 100 * 1024 * 1024) { // 100MB
-          errors.push(`Instagram video ${index + 1} exceeds 100MB limit (${file.sizeFormatted})`);
-        }
-        if (file.type === 'image' && file.size > 8 * 1024 * 1024) { // 8MB
-          errors.push(`Instagram image ${index + 1} exceeds 8MB limit (${file.sizeFormatted})`);
-        }
-      });
-    }
-
     return {
-      isValid: errors.length === 0,
-      errors
+      isValid: level !== 'error',
+      level,
+      messages: messages.length > 0 ? messages : (level === 'valid' ? ['Media is valid'] : [])
     };
   };
 

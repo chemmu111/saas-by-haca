@@ -70,6 +70,10 @@ const Analytics = () => {
   const [tokenStatus, setTokenStatus] = useState(null);
   const [exportingPDF, setExportingPDF] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [postSortOption, setPostSortOption] = useState('recent');
+  const [clientFilter, setClientFilter] = useState('all');
+  const [lastManualRefresh, setLastManualRefresh] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(0);
   const dashboardRef = useRef(null);
 
   useEffect(() => {
@@ -87,15 +91,36 @@ const Analytics = () => {
     }
   }, [dateRange, customStartDate, customEndDate]);
 
-  // Auto-refresh analytics every 100 seconds
+  // Auto-refresh analytics every 10 minutes
   useEffect(() => {
     const autoRefreshInterval = setInterval(() => {
       console.log('🔄 Auto-refreshing analytics data...');
       fetchAnalytics();
-    }, 100000); // 100 seconds
+    }, 600000); // 10 minutes
 
     return () => clearInterval(autoRefreshInterval);
   }, [dateRange, customStartDate, customEndDate]);
+
+  // Countdown timer for manual refresh cooldown
+  useEffect(() => {
+    if (lastManualRefresh > 0) {
+      // Initial check
+      const checkTime = () => {
+        const now = Date.now();
+        const diff = 60000 - (now - lastManualRefresh);
+        if (diff <= 0) {
+          setTimeLeft(0);
+        } else {
+          setTimeLeft(Math.ceil(diff / 1000));
+        }
+      };
+
+      checkTime(); // Run immediately
+
+      const interval = setInterval(checkTime, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [lastManualRefresh]);
 
   const getDateRangeParams = () => {
     const today = new Date();
@@ -238,9 +263,16 @@ const Analytics = () => {
   };
 
   const handleRefresh = async () => {
+    // Double check just in case
+    const now = Date.now();
+    if (now - lastManualRefresh < 60000) {
+      return;
+    }
+
     setRefreshing(true);
     try {
       await fetchAnalytics();
+      setLastManualRefresh(Date.now());
     } finally {
       setRefreshing(false);
     }
@@ -280,6 +312,47 @@ const Analytics = () => {
       }))
     };
   };
+
+  const chartData = getChartData();
+
+  const clientOptions = useMemo(() => {
+    if (!analytics?.detailedPosts) return [];
+    const map = new Map();
+    analytics.detailedPosts.forEach(post => {
+      if (post.clientId) {
+        const name = post.clientName || 'Unnamed Client';
+        if (!map.has(post.clientId)) {
+          map.set(post.clientId, name);
+        }
+      }
+    });
+    return Array.from(map, ([id, name]) => ({ id, name }));
+  }, [analytics?.detailedPosts]);
+
+  const sortedDetailedPosts = useMemo(() => {
+    if (!analytics?.detailedPosts) return [];
+    const filtered = analytics.detailedPosts.filter(post =>
+      clientFilter === 'all' ? true : post.clientId === clientFilter
+    );
+    const posts = [...filtered];
+    const metric = (post, key) => post.metrics?.[key] || 0;
+
+    switch (postSortOption) {
+      case 'oldest':
+        return posts.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      case 'views_desc':
+        return posts.sort((a, b) => metric(b, 'views') - metric(a, 'views'));
+      case 'likes_desc':
+        return posts.sort((a, b) => metric(b, 'likes') - metric(a, 'likes'));
+      case 'comments_desc':
+        return posts.sort((a, b) => metric(b, 'comments') - metric(a, 'comments'));
+      case 'engagement_desc':
+        return posts.sort((a, b) => metric(b, 'engagement') - metric(a, 'engagement'));
+      case 'recent':
+      default:
+        return posts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    }
+  }, [analytics?.detailedPosts, clientFilter, postSortOption]);
 
   // PRO Analytics Calculations
   const proInsights = useMemo(() => {
@@ -392,6 +465,33 @@ const Analytics = () => {
     };
   }, [analytics]);
 
+  // Calculate views by media type
+  const viewsByMediaType = useMemo(() => {
+    if (!analytics?.detailedPosts) return { IMAGE: 0, VIDEO: 0, REELS: 0, REEL: 0, CAROUSEL_ALBUM: 0 };
+
+    const viewsMap = {
+      IMAGE: 0,
+      VIDEO: 0,
+      REELS: 0,
+      REEL: 0,
+      CAROUSEL_ALBUM: 0
+    };
+
+    analytics.detailedPosts.forEach(post => {
+      const type = post.media_type;
+      const views = post.metrics?.views || 0;
+      if (viewsMap.hasOwnProperty(type)) {
+        viewsMap[type] += views;
+      }
+    });
+
+    // Combine REEL and REELS
+    viewsMap.REELS = (viewsMap.REELS || 0) + (viewsMap.REEL || 0);
+
+    return viewsMap;
+  }, [analytics?.detailedPosts]);
+
+
   // Loading State
   if (loading) {
     return (
@@ -463,14 +563,12 @@ const Analytics = () => {
     );
   }
 
-  const chartData = getChartData();
-
   return (
     <Layout>
       <div className="p-4 lg:p-6 bg-slate-50" ref={dashboardRef}>
         <div className="max-w-7xl mx-auto space-y-6">
           {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">Analytics Dashboard</h1>
               <div className="flex items-center gap-3">
@@ -486,43 +584,65 @@ const Analytics = () => {
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              {/* Token Expiry Warning */}
-              {tokenStatus && tokenStatus.isExpiringSoon && !tokenStatus.isExpired && (
-                <div className="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg text-sm font-medium flex items-center gap-2">
-                  <AlertTriangle size={16} />
-                  <span>Token expires in {tokenStatus.expiresInDays} days. Reconnect soon.</span>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-end">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="flex items-center gap-2 bg-white border border-slate-300 rounded-lg px-3 py-1.5 shadow-sm">
+                  <label htmlFor="clientFilterTop" className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Client</label>
+                  <select
+                    id="clientFilterTop"
+                    value={clientFilter}
+                    onChange={(e) => setClientFilter(e.target.value)}
+                    className="text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md bg-transparent"
+                  >
+                    <option value="all">All Clients</option>
+                    {clientOptions.map(option => (
+                      <option key={option.id} value={option.id}>
+                        {option.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              )}
-              <select
-                value={dateRange}
-                onChange={(e) => {
-                  setDateRange(e.target.value);
-                  setShowCustomDatePicker(e.target.value === 'custom');
-                }}
-                className="px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-slate-900 text-sm"
-              >
-                <option value="today">Today</option>
-                <option value="last7">Last 7 days</option>
-                <option value="last30">Last 30 days</option>
-                <option value="custom">Custom Range</option>
-              </select>
-              <button
-                onClick={handleRefresh}
-                disabled={refreshing}
-                className="px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium shadow-sm disabled:opacity-50 flex items-center gap-2"
-              >
-                <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
-                {refreshing ? 'Fetching...' : 'Refresh'}
-              </button>
-              <button
-                onClick={handleExportPDF}
-                disabled={exportingPDF}
-                className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm disabled:opacity-50 flex items-center gap-2"
-              >
-                <Download size={16} />
-                {exportingPDF ? 'Exporting...' : 'Export PDF'}
-              </button>
+                <select
+                  value={dateRange}
+                  onChange={(e) => {
+                    setDateRange(e.target.value);
+                    setShowCustomDatePicker(e.target.value === 'custom');
+                  }}
+                  className="px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-slate-900 text-sm"
+                >
+                  <option value="today">Today</option>
+                  <option value="last7">Last 7 days</option>
+                  <option value="last30">Last 30 days</option>
+                  <option value="custom">Custom Range</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-3">
+                {tokenStatus && tokenStatus.isExpiringSoon && !tokenStatus.isExpired && (
+                  <div className="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg text-sm font-medium flex items-center gap-2">
+                    <AlertTriangle size={16} />
+                    <span>Token expires in {tokenStatus.expiresInDays} days. Reconnect soon.</span>
+                  </div>
+                )}
+                <button
+                  onClick={handleRefresh}
+                  disabled={refreshing || timeLeft > 0}
+                  className={`px-4 py-2.5 rounded-lg transition-colors font-medium shadow-sm flex items-center gap-2 ${timeLeft > 0
+                      ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                      : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                    }`}
+                >
+                  <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
+                  {refreshing ? 'Fetching...' : timeLeft > 0 ? `Wait ${timeLeft}s` : 'Refresh'}
+                </button>
+                <button
+                  onClick={handleExportPDF}
+                  disabled={exportingPDF}
+                  className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm disabled:opacity-50 flex items-center gap-2"
+                >
+                  <Download size={16} />
+                  {exportingPDF ? 'Exporting...' : 'Export PDF'}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -667,6 +787,77 @@ const Analytics = () => {
               <p className="text-3xl font-bold text-slate-900">
                 {analytics.followerGrowth > 0 ? '+' : ''}{analytics.followerGrowth}
               </p>
+            </div>
+          </div>
+
+          {/* Media Type Breakdown */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-slate-100 rounded-lg">
+                <LayoutGrid className="text-slate-700" size={20} />
+              </div>
+              <h2 className="text-lg font-semibold text-slate-900">Content Type Breakdown</h2>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {/* Images */}
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                  <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Images</span>
+                </div>
+                <p className="text-2xl font-bold text-blue-900">{analytics.postsByType?.IMAGE || 0}</p>
+                <p className="text-xs text-blue-600 mt-1">
+                  {analytics.totalPosts > 0 ? Math.round(((analytics.postsByType?.IMAGE || 0) / analytics.totalPosts) * 100) : 0}% of total
+                </p>
+                <p className="text-xs text-blue-700 font-medium mt-1">
+                  {(viewsByMediaType.IMAGE || 0).toLocaleString()} views
+                </p>
+              </div>
+
+              {/* Videos */}
+              <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4 border border-purple-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2 h-2 bg-purple-600 rounded-full"></div>
+                  <span className="text-xs font-semibold text-purple-700 uppercase tracking-wide">Videos</span>
+                </div>
+                <p className="text-2xl font-bold text-purple-900">{analytics.postsByType?.VIDEO || 0}</p>
+                <p className="text-xs text-purple-600 mt-1">
+                  {analytics.totalPosts > 0 ? Math.round(((analytics.postsByType?.VIDEO || 0) / analytics.totalPosts) * 100) : 0}% of total
+                </p>
+                <p className="text-xs text-purple-700 font-medium mt-1">
+                  {(viewsByMediaType.VIDEO || 0).toLocaleString()} views
+                </p>
+              </div>
+
+              {/* Reels */}
+              <div className="bg-gradient-to-br from-pink-50 to-pink-100 rounded-lg p-4 border border-pink-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2 h-2 bg-pink-600 rounded-full"></div>
+                  <span className="text-xs font-semibold text-pink-700 uppercase tracking-wide">Reels</span>
+                </div>
+                <p className="text-2xl font-bold text-pink-900">{analytics.postsByType?.REELS || 0}</p>
+                <p className="text-xs text-pink-600 mt-1">
+                  {analytics.totalPosts > 0 ? Math.round(((analytics.postsByType?.REELS || 0) / analytics.totalPosts) * 100) : 0}% of total
+                </p>
+                <p className="text-xs text-pink-700 font-medium mt-1">
+                  {(viewsByMediaType.REELS || 0).toLocaleString()} views
+                </p>
+              </div>
+
+              {/* Carousels */}
+              <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg p-4 border border-emerald-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2 h-2 bg-emerald-600 rounded-full"></div>
+                  <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Carousels</span>
+                </div>
+                <p className="text-2xl font-bold text-emerald-900">{analytics.postsByType?.CAROUSEL_ALBUM || 0}</p>
+                <p className="text-xs text-emerald-600 mt-1">
+                  {analytics.totalPosts > 0 ? Math.round(((analytics.postsByType?.CAROUSEL_ALBUM || 0) / analytics.totalPosts) * 100) : 0}% of total
+                </p>
+                <p className="text-xs text-emerald-700 font-medium mt-1">
+                  {(viewsByMediaType.CAROUSEL_ALBUM || 0).toLocaleString()} views
+                </p>
+              </div>
             </div>
           </div>
 
@@ -891,60 +1082,220 @@ const Analytics = () => {
               </div>
 
               {/* --- POST METRICS TABLE --- */}
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="p-6 border-b border-slate-100">
-                  <h2 className="text-lg font-bold text-gray-900">Recent Post Performance</h2>
+              <div className="bg-white rounded-xl border border-slate-200 shadow-lg overflow-hidden">
+                <div className="p-6 border-b border-slate-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-600 rounded-lg">
+                      <BarChart2 className="text-white" size={20} />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900">Recent Post Performance</h2>
+                      <p className="text-xs text-slate-500">Detailed breakdown of your latest Instagram posts.</p>
+                    </div>
+                  </div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
-                        <th className="p-4 font-semibold">Post</th>
-                        <th className="p-4 font-semibold">Date</th>
-                        <th className="p-4 font-semibold">Type</th>
-                        <th className="p-4 font-semibold text-right">Likes</th>
-                        <th className="p-4 font-semibold text-right">Comments</th>
-                        <th className="p-4 font-semibold text-right">Saves</th>
-                        <th className="p-4 font-semibold text-right">Reach</th>
-                        <th className="p-4 font-semibold text-right">Engagement</th>
+                      <tr className="bg-gradient-to-r from-slate-50 to-slate-100 border-b-2 border-slate-200">
+                        <th className="p-4 font-bold text-center text-slate-700 text-xs uppercase tracking-wider">
+                          <div className="flex items-center justify-center gap-1">
+                            <span>#</span>
+                          </div>
+                        </th>
+                        <th className="p-4 font-bold text-slate-700 text-xs uppercase tracking-wider">
+                          <div className="flex items-center gap-2">
+                            <FileText size={14} />
+                            <span>Post</span>
+                          </div>
+                        </th>
+                        <th className="p-4 font-bold text-slate-700 text-xs uppercase tracking-wider">
+                          <div className="flex items-center gap-2">
+                            <Calendar size={14} />
+                            <span>Date</span>
+                          </div>
+                        </th>
+                        <th className="p-4 font-bold text-slate-700 text-xs uppercase tracking-wider">
+                          <div className="flex items-center gap-2">
+                            <LayoutGrid size={14} />
+                            <span>Type</span>
+                          </div>
+                        </th>
+                        <th className="p-4 font-bold text-right text-slate-700 text-xs uppercase tracking-wider">
+                          <div className="flex items-center justify-end gap-2">
+                            <Heart size={14} className="text-rose-500" />
+                            <span>Likes</span>
+                          </div>
+                        </th>
+                        <th className="p-4 font-bold text-right text-slate-700 text-xs uppercase tracking-wider">
+                          <div className="flex items-center justify-end gap-2">
+                            <MessageSquare size={14} className="text-blue-500" />
+                            <span>Comments</span>
+                          </div>
+                        </th>
+                        <th className="p-4 font-bold text-right text-slate-700 text-xs uppercase tracking-wider">
+                          <div className="flex items-center justify-end gap-2">
+                            <Save size={14} className="text-yellow-500" />
+                            <span>Saves</span>
+                          </div>
+                        </th>
+                        <th className="p-4 font-bold text-right text-slate-700 text-xs uppercase tracking-wider">
+                          <div className="flex items-center justify-end gap-2">
+                            <Eye size={14} className="text-purple-500" />
+                            <span>Views</span>
+                          </div>
+                        </th>
+                        <th className="p-4 font-bold text-right text-slate-700 text-xs uppercase tracking-wider">
+                          <div className="flex items-center justify-end gap-2">
+                            <Users size={14} className="text-emerald-500" />
+                            <span>Reach</span>
+                          </div>
+                        </th>
+                        <th className="p-4 font-bold text-right text-slate-700 text-xs uppercase tracking-wider">
+                          <div className="flex items-center justify-end gap-2">
+                            <Activity size={14} className="text-indigo-500" />
+                            <span>Engagement</span>
+                          </div>
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {(analytics.detailedPosts || []).map((post) => (
-                        <tr key={post.id} className="hover:bg-slate-50 transition-colors">
-                          <td className="p-4">
-                            <div className="flex items-center gap-3">
-                              {post.thumbnail_url && (
-                                <img
-                                  src={post.thumbnail_url}
-                                  alt="Post"
-                                  className="w-10 h-10 rounded object-cover border border-slate-200"
-                                />
-                              )}
-                              <div className="max-w-[200px] truncate text-sm font-medium text-slate-900">
-                                {post.caption || 'No caption'}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="p-4 text-sm text-slate-600">
-                            {new Date(post.timestamp).toLocaleDateString()}
-                          </td>
-                          <td className="p-4">
-                            <span className="px-2 py-1 bg-slate-100 text-slate-600 text-xs rounded-full font-medium">
-                              {post.media_type}
-                            </span>
-                          </td>
-                          <td className="p-4 text-sm text-slate-600 text-right">{post.metrics?.likes || 0}</td>
-                          <td className="p-4 text-sm text-slate-600 text-right">{post.metrics?.comments || 0}</td>
-                          <td className="p-4 text-sm text-slate-600 text-right">{post.metrics?.saved || 0}</td>
-                          <td className="p-4 text-sm text-slate-600 text-right">{post.metrics?.reach || post.metrics?.views || '-'}</td>
-                          <td className="p-4 text-right">
-                            <span className="font-bold text-slate-900">{post.metrics?.engagement || 0}</span>
+                      {sortedDetailedPosts.length === 0 ? (
+                        <tr>
+                          <td colSpan={10} className="p-6 text-center text-sm text-slate-500">
+                            {clientFilter === 'all'
+                              ? 'No posts available yet.'
+                              : 'No posts available for the selected client.'}
                           </td>
                         </tr>
-                      ))}
+                      ) : sortedDetailedPosts.map((post, index) => {
+                        const getPostTypeColor = (type) => {
+                          const typeMap = {
+                            'IMAGE': 'bg-blue-100 text-blue-700 border-blue-200',
+                            'VIDEO': 'bg-purple-100 text-purple-700 border-purple-200',
+                            'REELS': 'bg-pink-100 text-pink-700 border-pink-200',
+                            'CAROUSEL_ALBUM': 'bg-indigo-100 text-indigo-700 border-indigo-200',
+                            'STORY': 'bg-orange-100 text-orange-700 border-orange-200'
+                          };
+                          return typeMap[type] || 'bg-slate-100 text-slate-700 border-slate-200';
+                        };
+
+                        return (
+                          <tr
+                            key={post.id}
+                            className="hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-indigo-50/50 transition-all duration-200 group border-b border-slate-100 last:border-b-0"
+                          >
+                            <td className="p-4 text-center">
+                              <div className="flex items-center justify-center">
+                                <span className="w-8 h-8 flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-sm font-bold rounded-lg shadow-sm group-hover:scale-110 transition-transform">
+                                  {index + 1}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex items-center gap-3">
+                                {post.thumbnail_url ? (
+                                  <div className="relative group/img">
+                                    <img
+                                      src={post.thumbnail_url}
+                                      alt="Post"
+                                      className="w-14 h-14 rounded-xl object-cover border-2 border-slate-200 shadow-sm group-hover:shadow-md group-hover:scale-105 transition-all duration-200"
+                                    />
+                                    <div className="absolute inset-0 rounded-xl bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover/img:opacity-100 transition-opacity"></div>
+                                  </div>
+                                ) : (
+                                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 border-2 border-slate-200 flex items-center justify-center">
+                                    <FileText className="text-slate-400" size={20} />
+                                  </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="max-w-[250px] truncate text-sm font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
+                                    {post.caption || 'No caption'}
+                                  </div>
+                                  {post.caption && post.caption.length > 30 && (
+                                    <div className="text-xs text-slate-500 mt-0.5">
+                                      {post.caption.substring(0, 30)}...
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex items-center gap-2">
+                                <Calendar size={14} className="text-slate-400" />
+                                <span className="text-sm font-medium text-slate-700">
+                                  {new Date(post.timestamp).toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric'
+                                  })}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <span className={`px-3 py-1.5 ${getPostTypeColor(post.media_type)} text-xs font-bold rounded-lg border shadow-sm inline-block`}>
+                                {post.media_type}
+                              </span>
+                            </td>
+                            <td className="p-4 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <Heart size={16} className="text-rose-400" />
+                                <span className="text-sm font-semibold text-slate-900">
+                                  {(post.metrics?.likes || 0).toLocaleString()}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="p-4 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <MessageSquare size={16} className="text-blue-400" />
+                                <span className="text-sm font-semibold text-slate-900">
+                                  {(post.metrics?.comments || 0).toLocaleString()}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="p-4 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <Save size={16} className="text-yellow-400" />
+                                <span className="text-sm font-semibold text-slate-900">
+                                  {(post.metrics?.saved || 0).toLocaleString()}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="p-4 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <Eye size={16} className="text-purple-400" />
+                                <span className="text-sm font-semibold text-slate-900">
+                                  {(post.metrics?.views || 0).toLocaleString()}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="p-4 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <Users size={16} className="text-emerald-400" />
+                                <span className="text-sm font-semibold text-slate-900">
+                                  {post.metrics?.reach ? post.metrics.reach.toLocaleString() : '-'}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="p-4 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <div className="px-3 py-1.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-bold rounded-lg shadow-sm">
+                                  {(post.metrics?.engagement || 0).toLocaleString()}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
+                  {(!analytics.detailedPosts || analytics.detailedPosts.length === 0) && (
+                    <div className="p-12 text-center">
+                      <BarChart2 className="mx-auto text-slate-300 mb-3" size={48} />
+                      <p className="text-slate-500 font-medium">No posts found</p>
+                      <p className="text-sm text-slate-400 mt-1">Posts will appear here once published</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </>

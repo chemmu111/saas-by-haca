@@ -60,11 +60,11 @@ export async function sendMonthlyReportEmail(email, userName, report, templateNa
       month: 'long',
       day: 'numeric'
     });
-    
+
     const periodText = report.period.startDate && report.period.endDate
       ? `${new Date(report.period.startDate).toLocaleDateString()} - ${new Date(report.period.endDate).toLocaleDateString()}`
       : 'All Time';
-    
+
     const mailOptions = {
       from: 'tech.haca@gmail.com',
       to: email,
@@ -106,9 +106,9 @@ export async function sendMonthlyReportEmail(email, userName, report, templateNa
           <div style="background: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0;">
             <h3 style="color: #1f2937; margin-top: 0;">Top Clients</h3>
             <ul>
-              ${report.topClients.map(client => 
-                `<li>${client.clientName}: ${client.totalPosts} posts (${client.publishedPosts} published)</li>`
-              ).join('')}
+              ${report.topClients.map(client =>
+        `<li>${client.clientName}: ${client.totalPosts} posts (${client.publishedPosts} published)</li>`
+      ).join('')}
             </ul>
           </div>
           
@@ -185,93 +185,73 @@ export async function sendReportToClient(email, clientName, report, templateName
       month: 'long',
       day: 'numeric'
     });
-    
+
     const periodText = report.period.startDate && report.period.endDate
       ? `${new Date(report.period.startDate).toLocaleDateString()} - ${new Date(report.period.endDate).toLocaleDateString()}`
       : 'All Time';
-    
-    // Generate PDF attachment if template is provided
+
+    // Generate PDF attachment
     let attachments = [];
-    if (format === 'pdf') {
-      if (pdfBuffer) {
-        // Use pre-generated PDF buffer
-        attachments.push({
-          filename: `report-${clientName}-${reportDate}.pdf`,
-          content: pdfBuffer,
-          contentType: 'application/pdf'
-        });
-      } else if (templateName) {
-        // Try to generate PDF from template
-        try {
-          const { generatePDFFromTemplate } = await import('./reportService.js');
-          // Note: This requires userId, posts, clients which we don't have here
-          // So we'll skip PDF generation if pdfBuffer is not provided
-          console.log('PDF buffer not provided, skipping PDF attachment');
-        } catch (error) {
-          console.error('Error generating PDF attachment:', error);
-        }
-      }
-    } else if (report.html) {
-      // Attach HTML report
+    if (format === 'pdf' && pdfBuffer) {
       attachments.push({
-        filename: `report-${clientName}-${reportDate}.html`,
-        content: report.html,
-        contentType: 'text/html'
+        filename: `Social-Media-Report-${reportDate.replace(/\s/g, '-')}.pdf`,
+        content: pdfBuffer,
+        contentType: 'application/pdf'
       });
     }
-    
+
     const mailOptions = {
       from: 'tech.haca@gmail.com',
       to: email,
-      subject: `Social Media Report - ${reportDate}`,
+      subject: `Social Media Performance Report - ${reportDate}`,
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #4f46e5;">Social Media Report</h2>
-          <p>Hello ${clientName},</p>
-          <p>Here's your social media management report for the period: <strong>${periodText}</strong></p>
-          
-          <div style="background: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            <h3 style="color: #1f2937; margin-top: 0;">Summary</h3>
-            <table style="width: 100%; border-collapse: collapse;">
-              <tr>
-                <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;"><strong>Total Posts:</strong></td>
-                <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${report.summary.totalPosts}</td>
-              </tr>
-              <tr>
-                <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;"><strong>Published:</strong></td>
-                <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${report.summary.publishedPosts}</td>
-              </tr>
-              <tr>
-                <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;"><strong>Scheduled:</strong></td>
-                <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${report.summary.scheduledPosts}</td>
-              </tr>
-              <tr>
-                <td style="padding: 8px;"><strong>Success Rate:</strong></td>
-                <td style="padding: 8px;">${report.summary.successRate}</td>
-              </tr>
-            </table>
-          </div>
-          
-          <div style="background: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            <h3 style="color: #1f2937; margin-top: 0;">Platform Breakdown</h3>
-            <p>Instagram: ${report.breakdown.byPlatform.instagram} posts</p>
-            <p>Facebook: ${report.breakdown.byPlatform.facebook} posts</p>
-          </div>
-          
-          ${report.topClients && report.topClients.length > 0 ? `
-          <div style="background: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            <h3 style="color: #1f2937; margin-top: 0;">Top Clients</h3>
-            <ul>
-              ${report.topClients.map(client => 
-                `<li>${client.clientName}: ${client.totalPosts} posts (${client.publishedPosts} published)</li>`
-              ).join('')}
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+        </head>
+        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif;">
+          <div style="max-width: 600px; margin: 40px auto; padding: 20px;">
+            <h2 style="color: #000000; font-size: 20px; margin-bottom: 20px;">Performance Report</h2>
+            <p style="color: #000000; font-size: 14px; line-height: 1.6; margin: 10px 0;">
+              <strong>Period:</strong> ${periodText}
+            </p>
+            <hr style="border: none; border-top: 1px solid #cccccc; margin: 20px 0;">
+            <p style="color: #000000; font-size: 14px; line-height: 1.6; margin: 15px 0;">
+              Hello <strong>${clientName}</strong>,
+            </p>
+            <p style="color: #000000; font-size: 14px; line-height: 1.6; margin: 15px 0;">
+              Your comprehensive social media performance report for <strong>${periodText}</strong> is ready.
+            </p>
+            <p style="color: #000000; font-size: 14px; line-height: 1.6; margin: 15px 0;">
+              Please find the detailed PDF report attached to this email. The report includes:
+            </p>
+            <ul style="color: #000000; font-size: 14px; line-height: 1.8; margin: 15px 0; padding-left: 20px;">
+              <li>Complete performance metrics and analytics</li>
+              <li>Platform-wise breakdown (Instagram & Facebook)</li>
+              <li>Post performance statistics</li>
+              <li>Success rate and engagement data</li>
             </ul>
+            <p style="color: #000000; font-size: 14px; line-height: 1.6; margin: 15px 0;">
+              <strong>Attachment:</strong> Social-Media-Report-${reportDate.replace(/\s/g, '-')}.pdf
+            </p>
+            <p style="color: #000000; font-size: 14px; line-height: 1.6; margin: 15px 0;">
+              If you have any questions about your report, please don't hesitate to reach out.
+            </p>
+            <p style="color: #000000; font-size: 14px; line-height: 1.6; margin: 25px 0 10px 0;">
+              Best regards,<br>
+              <strong>Your Social Media Team</strong>
+            </p>
+            <hr style="border: none; border-top: 1px solid #cccccc; margin: 30px 0 20px 0;">
+            <p style="color: #666666; font-size: 12px; line-height: 1.4; margin: 5px 0;">
+              This is an automated report generated by your social media management team.
+            </p>
+            <p style="color: #666666; font-size: 12px; margin: 5px 0;">
+              © ${new Date().getFullYear()} Haris&Co. All rights reserved.
+            </p>
           </div>
-          ` : ''}
-          
-          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
-          <p style="color: #9ca3af; font-size: 12px;">This is an automated report. For more details, please contact your social media manager.</p>
-        </div>
+        </body>
+        </html>
       `,
       attachments: attachments
     };
@@ -297,16 +277,16 @@ export async function sendReportToClient(email, clientName, report, templateName
 export async function sendInstagramAspectRatioErrorEmail(email, userName, errorMessage, mediaUrl, postType = 'post') {
   try {
     const postTypeName = postType === 'story' ? 'Story' : postType === 'reel' ? 'Reel' : 'Post';
-    
+
     // Format error message for email (replace newlines with HTML breaks)
     const formattedErrorMessage = errorMessage.replace(/\n/g, '<br>');
-    
+
     const mailOptions = {
       from: 'tech.haca@gmail.com',
       to: email,
       subject: `Instagram ${postTypeName} Rejected - Invalid Aspect Ratio`,
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+    < div style = "font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;" >
           <h2 style="color: #ef4444; margin-bottom: 20px;">⚠️ Instagram ${postTypeName} Rejected</h2>
           <p style="color: #374151; line-height: 1.6;">Hello ${userName || 'User'},</p>
           <p style="color: #374151; line-height: 1.6;">Your Instagram ${postTypeName.toLowerCase()} was rejected due to an invalid aspect ratio.</p>
@@ -352,7 +332,7 @@ export async function sendInstagramAspectRatioErrorEmail(email, userName, errorM
           <p style="color: #9ca3af; font-size: 12px;">This is an automated notification. Please do not reply.</p>
           <p style="color: #9ca3af; font-size: 12px;">© Haris&Co. - Social Media Management Platform</p>
         </div>
-      `
+  `
     };
 
     const info = await transporter.sendMail(mailOptions);

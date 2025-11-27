@@ -134,7 +134,7 @@ export const useClientCapabilities = (selectedClientId, platform, postType) => {
     switch (platform) {
       case 'instagram':
         if (!clientPermissions?.canAccessInstagram) return ['post'];
-        return ['post', 'story', 'reel', 'carousel'];
+        return ['post', 'story', 'reel', 'carousel', 'video'];
 
       case 'facebook':
         return ['post', 'carousel'];
@@ -254,14 +254,14 @@ export const useClientCapabilities = (selectedClientId, platform, postType) => {
 
     switch (platform) {
       case 'instagram':
-        return !!(clientData.igUserId && clientData.pageAccessToken) && 
-               (clientPermissions?.canAccessInstagram || false);
+        return !!(clientData.igUserId && clientData.pageAccessToken) &&
+          (clientPermissions?.canAccessInstagram || false);
       case 'facebook':
         return !!(clientData.pageId || clientData.pageAccessToken);
       case 'both':
-        return !!(clientData.igUserId && clientData.pageAccessToken) && 
-               (clientPermissions?.canAccessInstagram || false) &&
-               !!(clientData.pageId || clientData.pageAccessToken);
+        return !!(clientData.igUserId && clientData.pageAccessToken) &&
+          (clientPermissions?.canAccessInstagram || false) &&
+          !!(clientData.pageId || clientData.pageAccessToken);
       default:
         return false;
     }
@@ -284,13 +284,13 @@ export const useClientCapabilities = (selectedClientId, platform, postType) => {
         connected: !!(clientData.igUserId && clientData.pageAccessToken),
         hasToken: !!clientData.pageAccessToken,
         hasUserId: !!clientData.igUserId,
-        message: !clientData.igUserId 
-          ? 'Instagram User ID missing' 
-          : !clientData.pageAccessToken 
-          ? 'Instagram Access Token missing' 
-          : clientPermissions?.canAccessInstagram 
-          ? 'Instagram connected' 
-          : 'Instagram connected but permissions may be limited'
+        message: !clientData.igUserId
+          ? 'Instagram User ID missing'
+          : !clientData.pageAccessToken
+            ? 'Instagram Access Token missing'
+            : clientPermissions?.canAccessInstagram
+              ? 'Instagram connected'
+              : 'Instagram connected but permissions may be limited'
       },
       facebook: {
         connected: !!(clientData.pageId || clientData.pageAccessToken),

@@ -205,7 +205,7 @@ router.get('/', async (req, res) => {
     }
 
     // Parse pagination
-    const limitNum = limit ? parseInt(limit) : 50;
+    const limitNum = limit ? parseInt(limit) : 1000; // Increased from 50 to 1000
     const skipNum = skip ? parseInt(skip) : 0;
 
     const posts = await Post.find(query)
@@ -624,7 +624,7 @@ router.post('/', async (req, res) => {
     }
 
     // Validate postType if provided
-    const validPostTypes = ['post', 'story', 'reel'];
+    const validPostTypes = ['post', 'story', 'reel', 'carousel', 'video'];
     if (postType && !validPostTypes.includes(postType)) {
       return sendResponse(400, {
         success: false,

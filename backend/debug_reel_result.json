@@ -1,0 +1,78 @@
+{
+  "fieldsData": {
+    "error": {
+      "message": "(#100) Tried accessing nonexisting field (video_play_count) on node type (ShadowIGMedia)",
+      "type": "OAuthException",
+      "code": 100,
+      "fbtrace_id": "AW36Gbv-pUzYRJZvbb0CZdm"
+    }
+  },
+  "viewsData": {
+    "data": [
+      {
+        "name": "views",
+        "period": "lifetime",
+        "values": [
+          {
+            "value": 178
+          }
+        ],
+        "title": "Views",
+        "description": "The number of times that your reel was played or displayed",
+        "id": "17993962061719358/insights/views/lifetime"
+      }
+    ]
+  },
+  "playsData": {
+    "error": {
+      "message": "(#100) Starting from version v22.0 and above, the plays metric is no longer supported for the queried media. Please refer to the documentation at https://developers.facebook.com/docs/instagram-api/reference/ig-media/insights for a list of supported metrics.",
+      "type": "OAuthException",
+      "code": 100,
+      "fbtrace_id": "AYiVp81hCSiOhodJbqLJbsH"
+    }
+  },
+  "reachData": {
+    "data": [
+      {
+        "name": "reach",
+        "period": "lifetime",
+        "values": [
+          {
+            "value": 147
+          }
+        ],
+        "title": "Accounts reached",
+        "description": "The number of unique accounts that have seen this reel at least once. Reach is different from impressions, which may include multiple views of your reel by the same accounts. This metric is estimated.",
+        "id": "17993962061719358/insights/reach/lifetime"
+      }
+    ]
+  },
+  "combinedData": {
+    "data": [
+      {
+        "name": "views",
+        "period": "lifetime",
+        "values": [
+          {
+            "value": 178
+          }
+        ],
+        "title": "Views",
+        "description": "The number of times that your reel was played or displayed",
+        "id": "17993962061719358/insights/views/lifetime"
+      },
+      {
+        "name": "reach",
+        "period": "lifetime",
+        "values": [
+          {
+            "value": 147
+          }
+        ],
+        "title": "Accounts reached",
+        "description": "The number of unique accounts that have seen this reel at least once. Reach is different from impressions, which may include multiple views of your reel by the same accounts. This metric is estimated.",
+        "id": "17993962061719358/insights/reach/lifetime"
+      }
+    ]
+  }
+}

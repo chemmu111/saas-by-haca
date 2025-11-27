@@ -1,0 +1,67 @@
+﻿
+> social-media-manager-dashboard@1.0.0 build
+> vite build
+
+[36mvite v5.4.21 [32mbuilding for production...[36m[39m
+transforming...
+node.exe : 
+At C:\Program 
+Files\nodejs\npm.ps1:29 
+char:3
++   & $NODE_EXE 
+$NPM_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~
+    + CategoryInfo        
+      : NotSpecified: (:  
+  String) [], RemoteExc   
+ eption
+    + FullyQualifiedError 
+   Id : NativeCommandErr  
+  or
+ 
+[1m[33mwarn[39m[22m - 
+Your `content` 
+configuration includes a 
+pattern which looks like 
+it's accidentally 
+matching all of 
+`node_modules` and can 
+cause serious performance 
+issues.
+[1m[33mwarn[39m[22m - 
+Pattern: `./src\**\*.ts`
+[1m[33mwarn[39m[22m - 
+See our documentation for 
+recommendations:
+[1m[33mwarn[39m[22m - 
+https://tailwindcss.com/do
+cs/content-configuration#p
+attern-recommendations
+[32mΓ£ô[39m 2625 modules transformed.
+rendering chunks...
+computing gzip size...
+[2m../public/dashboard/[22m[32mindex.html                    [39m[1m[2m    1.33 kB[22m[1m[22m[2m Γöé gzip:   0.73 kB[22m
+[2m../public/dashboard/[22m[32massets/logo-CUMiu9Ju.png      [39m[1m[2m   27.74 kB[22m[1m[22m
+[2m../public/dashboard/[22m[35massets/index-Sc-0XVt9.css     [39m[1m[2m   60.73 kB[22m[1m[22m[2m Γöé gzip:  10.28 kB[22m
+[2m../public/dashboard/[22m[36massets/purify.es-B6FQ9oRL.js  [39m[1m[2m   22.57 kB[22m[1m[22m[2m Γöé gzip:   8.74 kB[22m
+[2m../public/dashboard/[22m[36massets/index.es-Ce9C5kLF.js   [39m[1m[2m  150.45 kB[22m[1m[22m[2m Γöé gzip:  51.41 kB[22m
+[2m../public/dashboard/[22m[36massets/index-ceswrpFX.js      [39m[1m[33m1,361.87 kB[39m[22m[2m Γöé gzip: 387.04 kB[22m
+[33m
+(!) Some chunks are 
+larger than 500 kB after 
+minification. Consider:
+- Using dynamic import() 
+to code-split the 
+application
+- Use build.rollupOptions.
+output.manualChunks to 
+improve chunking: https://
+rollupjs.org/configuration
+-options/#output-manualchu
+nks
+- Adjust chunk size limit 
+for this warning via build
+.chunkSizeWarningLimit.[3
+9m
+[32mΓ£ô built in 21.25s[39m

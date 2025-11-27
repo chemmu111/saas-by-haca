@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Menu, X, LogOut, LayoutDashboard, Users, FileText, TrendingUp, FileCheck, Calendar, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
+import logoWhite from './assets/white_logo.png';
 
 const Layout = ({ children }) => {
   const [userName, setUserName] = useState('User');
-  const [sidebarOpen, setSidebarOpen] = useState(() => {
-    return window.innerWidth >= 1024;
-  });
+  const [sidebarHovered, setSidebarHovered] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -24,16 +24,6 @@ const Layout = ({ children }) => {
         console.error('Error decoding token:', e);
       }
     }
-
-    // Handle window resize for responsive sidebar
-    const handleResize = () => {
-      if (window.innerWidth >= 1024) {
-        setSidebarOpen(true);
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   // Helper function to get backend URL
@@ -120,30 +110,29 @@ const Layout = ({ children }) => {
     return location.pathname.startsWith(path);
   };
 
+  // Determine if sidebar should be expanded (desktop hover or mobile open)
+  const isSidebarExpanded = sidebarHovered || mobileSidebarOpen;
+
   return (
     <div className="h-screen overflow-hidden bg-gray-50 flex">
-      {/* Sidebar */}
+      {/* Sidebar - Desktop: hover to expand, Mobile: toggle */}
       <aside
-        className={`${sidebarOpen ? 'w-64' : 'w-0 lg:w-16'
+        onMouseEnter={() => setSidebarHovered(true)}
+        onMouseLeave={() => setSidebarHovered(false)}
+        className={`${mobileSidebarOpen ? 'w-64' : 'w-0 lg:w-16'
+          } ${isSidebarExpanded ? 'lg:w-64' : 'lg:w-16'
           } bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 border-r border-gray-700 transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0 lg:flex lg:flex-col fixed lg:static inset-y-0 left-0 z-50 lg:z-auto shadow-2xl h-full`}
       >
-        <div className="p-4 border-b border-gray-700/50 flex items-center justify-between bg-black/20">
+        <div className="p-4 border-b border-gray-700/50 flex items-center justify-center bg-black/20">
           <img
-            src="/dashboard/assets/white_logo.png"
+            src={logoWhite}
             alt="HarisandCo"
-            className={`h-10 w-auto object-contain transition-all duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0 lg:opacity-0 lg:w-0'}`}
+            className={`h-10 w-auto object-contain transition-all duration-300 ${isSidebarExpanded ? 'opacity-100' : 'opacity-0 lg:opacity-0 lg:w-0'}`}
             onError={(e) => {
               e.target.onerror = null;
               e.target.src = 'https://harisand.co/static/media/NewLogo.fc59d5f2c088d6861458.png';
             }}
           />
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="hidden lg:flex p-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 transition-all duration-200 text-white shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:scale-105 active:scale-95"
-            title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-          >
-            {sidebarOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
-          </button>
         </div>
         <nav className="flex-1 p-4 space-y-2">
           {menuItems.map((item, index) => {
@@ -159,17 +148,17 @@ const Layout = ({ children }) => {
                     navigate(item.path);
                   }
                   if (window.innerWidth < 1024) {
-                    setSidebarOpen(false);
+                    setMobileSidebarOpen(false);
                   }
                 }}
-                className={`w-full flex items-center ${sidebarOpen ? 'justify-start gap-3' : 'justify-center'} px-4 py-3 rounded-lg transition-all duration-200 ${active
+                className={`w-full flex items-center ${isSidebarExpanded ? 'justify-start gap-3' : 'justify-center'} px-4 py-3 rounded-lg transition-all duration-200 ${active
                   ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white font-medium shadow-lg shadow-blue-500/50'
                   : 'text-gray-300 hover:bg-white/10 hover:text-white hover:shadow-md'
                   }`}
-                title={!sidebarOpen ? item.label : ''}
+                title={!isSidebarExpanded ? item.label : ''}
               >
                 <Icon size={20} className="flex-shrink-0" />
-                {sidebarOpen && <span className="transition-opacity duration-300">{item.label}</span>}
+                {isSidebarExpanded && <span className="transition-opacity duration-300">{item.label}</span>}
               </button>
             );
           })}
@@ -181,10 +170,10 @@ const Layout = ({ children }) => {
         {/* Header */}
         <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-40">
           <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
+            onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
             className="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
           >
-            {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
+            {mobileSidebarOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
           <div className="flex-1 lg:flex-none"></div>
           <div className="flex items-center gap-4">
@@ -209,10 +198,10 @@ const Layout = ({ children }) => {
       </div>
 
       {/* Mobile Sidebar Overlay */}
-      {sidebarOpen && (
+      {mobileSidebarOpen && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
+          onClick={() => setMobileSidebarOpen(false)}
         ></div>
       )}
     </div>
@@ -220,3 +209,4 @@ const Layout = ({ children }) => {
 };
 
 export default Layout;
+

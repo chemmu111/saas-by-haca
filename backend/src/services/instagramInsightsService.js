@@ -37,7 +37,8 @@ function getCacheKey(key) {
 function getCached(key) {
   const cacheKey = getCacheKey(key);
   const cached = cache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000) { // 5 minutes
+  // TEMPORARILY DISABLED CACHE FOR TESTING REELS DETECTION - Set to 0 minutes
+  if (cached && Date.now() - cached.timestamp < 0 * 60 * 1000) { // 0 minutes (disabled)
     return cached.data;
   }
   cache.delete(cacheKey);
@@ -124,36 +125,36 @@ async function fetchFollowerCountBasic(igUserId, pageAccessToken) {
  */
 async function fetchFollowerCount(igUserId, pageAccessToken) {
   try {
+    // 1. Try basic endpoint FIRST (Current real-time count)
+    // This is more reliable for "Total Followers" display than insights metric
+    const basicCount = await fetchFollowerCountBasic(igUserId, pageAccessToken);
+    if (basicCount !== null) {
+      console.log(`   ✅ Used basic endpoint for follower count: ${basicCount}`);
+      return basicCount;
+    }
+
+    // 2. Fallback to Insights if basic fails (unlikely)
+    console.log('   ⚠️ Basic follower fetch failed, trying insights...');
     const url = `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=follower_count&period=day&access_token=${pageAccessToken}`;
     const response = await fetch(url);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
       console.error('❌ Error fetching follower_count from insights:', response.status);
-      if (errorData.error) {
-        console.error('   Error:', errorData.error.message);
-        console.log('   🔄 Trying basic endpoint instead...');
-      }
-      // Fall back to basic endpoint
-      return await fetchFollowerCountBasic(igUserId, pageAccessToken);
+      return 0;
     }
 
     const data = await response.json();
     if (data.data && data.data.length > 0) {
       const metric = data.data[0];
       if (metric.values && metric.values.length > 0) {
-        // Get the latest value
         const latest = metric.values[metric.values.length - 1];
         return latest.value || 0;
       }
     }
-    // If no data returned, try basic endpoint
-    console.log('   ⚠️ No follower data in insights, trying basic endpoint...');
-    return await fetchFollowerCountBasic(igUserId, pageAccessToken);
+    return 0;
   } catch (error) {
     console.error('Error fetching follower_count:', error);
-    // Fall back to basic endpoint
-    return await fetchFollowerCountBasic(igUserId, pageAccessToken);
+    return 0;
   }
 }
 
@@ -446,45 +447,30 @@ export async function fetchMediaInsights(mediaId, pageAccessToken, mediaType = '
       return createErrorResponse('Missing required parameters (mediaId or pageAccessToken)', 'fetchMediaInsights');
     }
 
-    const cacheKey = `media_insights_${mediaId}_${mediaType}_v2`;
+    const cacheKey = `media_insights_${mediaId}_${mediaType}_v3`;
     const cached = getCached(cacheKey);
     if (cached) {
       return createSuccessResponse(cached);
     }
 
-    // 1. Handle VIDEO type - Skip full insights directly
-    // Use video_play_count from extraData if available
-    if (mediaType === 'VIDEO') {
-      // console.log(`   ℹ️ Skipped full insights for VIDEO (${mediaId}) - using basic metrics`);
-      const basicResult = await fetchBasicMediaMetrics(mediaId, pageAccessToken, mediaType);
-
-      // Add video_play_count as views if available
-      if (extraData.video_play_count) {
-        basicResult.views = extraData.video_play_count;
-        basicResult.plays = extraData.video_play_count;
-      }
-
-      setCache(cacheKey, basicResult);
-      return createSuccessResponse(basicResult);
-    }
-
-    // 2. Prepare metrics list for supported types
+    // 1. Prepare metrics list for supported types
+    // NOTE: likes and comments are FIELDS on the Media node, NOT metrics for insights
     let metricsList = [
       'reach',
-      'likes',
-      'comments',
       'shares',
       'saved',
-      'total_interactions',
-      'profile_activity'
+      'total_interactions'
     ];
 
+    // Add views metric for all supported media types
     if (mediaType === 'REEL' || mediaType === 'REELS') {
       metricsList.push('views');
       metricsList.push('ig_reels_avg_watch_time');
       metricsList.push('ig_reels_video_view_total_time');
     } else if (mediaType === 'IMAGE' || mediaType === 'CAROUSEL_ALBUM') {
       metricsList.push('views');
+    } else if (mediaType === 'VIDEO') {
+      metricsList.push('video_views');
     }
 
     // Story metrics are different
@@ -517,11 +503,16 @@ export async function fetchMediaInsights(mediaId, pageAccessToken, mediaType = '
       // console.warn(`   ⚠️ Full insights failed for ${mediaType} (${mediaId}) - falling back to basic metrics`);
       const basicResult = await fetchBasicMediaMetrics(mediaId, pageAccessToken, mediaType);
 
-      // Use video_play_count if available even on fallback
+      // Use video_play_count if available even on fallback (especially for VIDEO type)
       if (extraData.video_play_count) {
         basicResult.views = extraData.video_play_count;
         basicResult.plays = extraData.video_play_count;
       }
+
+      // Log for VIDEO debugging
+      // if (mediaType === 'VIDEO') {
+      //   console.log(`   📹 VIDEO ${mediaId} fallback: views=${basicResult.views} (from video_play_count: ${extraData.video_play_count || 0})`);
+      // }
 
       setCache(cacheKey, basicResult);
       return createSuccessResponse(basicResult);
@@ -547,7 +538,8 @@ export async function fetchMediaInsights(mediaId, pageAccessToken, mediaType = '
       comments: insights.comments || 0,
       saved: insights.saved || 0,
       shares: insights.shares || 0,
-      views: insights.views || 0,
+      views: insights.views || insights.video_views || extraData.video_play_count || 0,
+      videoViews: insights.video_views || extraData.video_play_count || 0,
       reach: insights.reach || 0,
       interactions: totalInteractions,
       totalInteractions,
@@ -557,10 +549,18 @@ export async function fetchMediaInsights(mediaId, pageAccessToken, mediaType = '
       engagement: totalInteractions
     };
 
-    // Log for debugging REELS
-    if (mediaType === 'REEL' || mediaType === 'REELS') {
-      // console.log(`   🎬 REEL ${mediaId} (v22+): Views=${result.views}, Reach=${result.reach}, WatchTime=${result.watchTimeTotal}`);
-    }
+    // Log for debugging REELS and VIDEO
+    // if (mediaType === 'REEL' || mediaType === 'REELS') {
+    //   // console.log(`   🎬 REEL ${mediaId} (v22+): Views=${result.views}, Reach=${result.reach}, WatchTime=${result.watchTimeTotal}`);
+    // } else if (mediaType === 'VIDEO') {
+    //   console.log(`   📹 VIDEO ${mediaId} (v22+): Views=${result.views}, Reach=${result.reach}, Likes=${result.likes}`);
+
+    //   // Fallback to video_play_count if views is 0 but video_play_count is available
+    //   if (result.views === 0 && extraData.video_play_count) {
+    //     console.log(`   📹 VIDEO ${mediaId}: Using video_play_count as fallback: ${extraData.video_play_count}`);
+    //     result.views = extraData.video_play_count;
+    //   }
+    // }
 
     setCache(cacheKey, result);
     return createSuccessResponse(result);
@@ -592,8 +592,9 @@ export async function fetchInstagramMedia(igUserId, pageAccessToken, limit = 25)
       return createSuccessResponse(cached);
     }
 
-    // Added video_play_count to fields
-    const fields = 'id,media_type,thumbnail_url,caption,permalink,timestamp,like_count,comments_count,video_play_count';
+    // Added video_play_count and media_product_type to fields
+    // media_product_type is CRITICAL for detecting Reels (will be "REELS" for reels, "FEED" for regular videos)
+    const fields = 'id,media_type,media_product_type,thumbnail_url,caption,permalink,timestamp,like_count,comments_count,video_play_count';
     const url = `https://graph.facebook.com/v22.0/${igUserId}/media?fields=${fields}&limit=${limit}&access_token=${pageAccessToken}`;
 
     const response = await fetch(url);
@@ -617,12 +618,19 @@ export async function fetchInstagramMedia(igUserId, pageAccessToken, limit = 25)
           const extraData = {
             video_play_count: item.video_play_count
           };
-          const insightsResponse = await fetchMediaInsights(item.id, pageAccessToken, item.media_type, extraData);
+
+          // Detect REELS from VIDEO type (critical for correct metrics)
+          let mediaType = item.media_type;
+          if (mediaType === 'VIDEO' && item.permalink && item.permalink.includes('/reel/')) {
+            mediaType = 'REELS';
+          }
+
+          const insightsResponse = await fetchMediaInsights(item.id, pageAccessToken, mediaType, extraData);
 
           if (insightsResponse.success) {
             insights = insightsResponse.data;
 
-            // Log REEL insights for debugging
+            // Log REEL and VIDEO insights for debugging
             if (item.media_type === 'REEL' || item.media_type === 'REELS') {
               if (insights.views) {
                 console.log(`   ✅ REEL ${item.id} insights: ${insights.views} views`);
@@ -632,6 +640,20 @@ export async function fetchInstagramMedia(igUserId, pageAccessToken, limit = 25)
                   insightsKeys: Object.keys(insights || {}),
                   error: insightsResponse.error
                 });
+              }
+            } else if (item.media_type === 'VIDEO') {
+              if (insights.views) {
+                console.log(`   ✅ VIDEO ${item.id} insights: ${insights.views} views`);
+              } else {
+                console.warn(`   ⚠️  VIDEO ${item.id} has no views data, using video_play_count: ${item.video_play_count || 0}`, {
+                  hasInsights: !!insights,
+                  insightsKeys: Object.keys(insights || {}),
+                  video_play_count: item.video_play_count
+                });
+                // Use video_play_count as fallback if insights views is 0
+                if (item.video_play_count && item.video_play_count > 0) {
+                  insights.views = item.video_play_count;
+                }
               }
             }
           } else {
@@ -741,7 +763,7 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
     const [accountInsightsRes, accountTrendRes, mediaRes] = await Promise.all([
       fetchAccountInsights(igUserId, pageAccessToken),
       fetchAccountInsightsTrend(igUserId, pageAccessToken),
-      fetchInstagramMedia(igUserId, pageAccessToken, 50)
+      fetchInstagramMedia(igUserId, pageAccessToken, 100) // Increased from 50 to 100 (Instagram's max)
     ]);
 
     // Extract data from structured responses
@@ -788,7 +810,7 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
     media.forEach(item => {
       const insights = item.insights || {};
 
-      const views = insights.views || 0;
+      const views = insights.views || insights.videoViews || insights.video_views || item.video_play_count || 0;
       totalViews += views;
 
       const reach = insights.reach || 0;
@@ -812,8 +834,32 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
       totalSaves += insights.saved || 0;
       totalShares += insights.shares || 0;
 
-      // Count by type
-      const type = item.media_type || 'IMAGE';
+      // Count by type - CRITICAL: Detect Reels using watch time metrics
+      // Instagram returns Reels as media_type=VIDEO but media_product_type is undefined
+      // SOLUTION: Reels have unique metrics like ig_reels_avg_watch_time that regular videos don't have
+      let type = item.media_type || 'IMAGE';
+      const productType = item.media_product_type; // Usually undefined
+      const hasReelMetrics = insights.ig_reels_avg_watch_time || insights.ig_reels_video_view_total_time || insights.watchTimeAvg || insights.watchTimeTotal;
+
+      // Debug log for VIDEO posts
+      if (type === 'VIDEO') {
+        console.log(`   📹 VIDEO detected: media_type=${type}, media_product_type=${productType}, hasReelMetrics=${!!hasReelMetrics}, id=${item.id}`);
+      }
+
+      // If it's a VIDEO with Reel-specific metrics, categorize as REELS
+      if (type === 'VIDEO' && hasReelMetrics) {
+        console.log(`   🎬 Converting VIDEO to REELS (detected via watch time metrics) for id=${item.id}`);
+        type = 'REELS';
+      } else if (type === 'VIDEO' && productType === 'REELS') {
+        // Fallback: if product type is available and says REELS
+        console.log(`   🎬 Converting VIDEO to REELS (detected via product_type) for id=${item.id}`);
+        type = 'REELS';
+      } else if (type === 'VIDEO' && item.permalink && item.permalink.includes('/reel/')) {
+        // Fallback: Check permalink for /reel/
+        // console.log(`   🎬 Converting VIDEO to REELS (detected via permalink) for id=${item.id}`);
+        type = 'REELS';
+      }
+
       if (postsByType.hasOwnProperty(type)) {
         postsByType[type]++;
       } else if (type === 'REEL') {
@@ -829,10 +875,23 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
 
     // Calculate follower growth from trend data
     let followerGrowth = 0;
+
+    // Patch trend data with current follower count if trend shows 0 (common API issue)
+    if (accountTrend && accountTrend.length > 0) {
+      const lastIndex = accountTrend.length - 1;
+      if (accountTrend[lastIndex].follower_count === 0 && followerCount > 0) {
+        // console.log(`   🔧 Patching latest trend data with current count: ${followerCount}`);
+        accountTrend[lastIndex].follower_count = followerCount;
+      }
+    }
+
     if (accountTrend && accountTrend.length >= 2) {
       const firstDay = accountTrend[0].follower_count || 0;
       const lastDay = accountTrend[accountTrend.length - 1].follower_count || 0;
       followerGrowth = lastDay - firstDay;
+    } else if (followerCount > 0) {
+      // If no trend data but we have followers, assume all are new (fallback)
+      followerGrowth = followerCount;
     }
 
     // Get latest reach from trend data
@@ -884,48 +943,68 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
           reach: day.reach || 0
         }))
       },
-      recentPosts: media.slice(0, 10).map(item => ({
-        id: item.id,
-        media_type: item.media_type,
-        thumbnail_url: item.thumbnail_url,
-        caption: item.caption,
-        permalink: item.permalink,
-        timestamp: item.timestamp,
-        metrics: {
-          likes: item.insights?.likes || item.like_count || 0,
-          comments: item.insights?.comments || item.comments_count || 0,
-          saved: item.insights?.saved || 0,
-          shares: item.insights?.shares || 0,
-          reach: item.insights?.reach || 0,
-          views: item.insights?.views || 0,
-          replies: item.media_type === 'STORY' ? (item.insights?.replies || 0) : 0,
-          profileActivity: item.insights?.profileActivity || 0,
-          watchTimeAvg: item.insights?.watchTimeAvg || 0,
-          watchTimeTotal: item.insights?.watchTimeTotal || 0,
-          engagement: item.insights?.engagement || item.insights?.interactions || 0
+      recentPosts: media.slice(0, 10).map(item => {
+        // Detect if this is a Reel using watch time metrics (since media_product_type is undefined)
+        let displayType = item.media_type;
+        const hasReelMetrics = item.insights?.ig_reels_avg_watch_time || item.insights?.ig_reels_video_view_total_time || item.insights?.watchTimeAvg || item.insights?.watchTimeTotal;
+        if (item.media_type === 'VIDEO' && hasReelMetrics) {
+          displayType = 'REELS';
+        } else if (item.media_type === 'VIDEO' && item.media_product_type === 'REELS') {
+          displayType = 'REELS'; // Fallback
         }
-      })),
-      allPosts: media.map(item => ({
-        id: item.id,
-        media_type: item.media_type,
-        thumbnail_url: item.thumbnail_url,
-        caption: item.caption,
-        permalink: item.permalink,
-        timestamp: item.timestamp,
-        metrics: {
-          likes: item.insights?.likes || item.like_count || 0,
-          comments: item.insights?.comments || item.comments_count || 0,
-          saved: item.insights?.saved || 0,
-          shares: item.insights?.shares || 0,
-          reach: item.insights?.reach || 0,
-          views: item.insights?.views || 0,
-          replies: item.media_type === 'STORY' ? (item.insights?.replies || 0) : 0,
-          profileActivity: item.insights?.profileActivity || 0,
-          watchTimeAvg: item.insights?.watchTimeAvg || 0,
-          watchTimeTotal: item.insights?.watchTimeTotal || 0,
-          engagement: item.insights?.engagement || item.insights?.interactions || 0
+        return {
+          id: item.id,
+          media_type: displayType, // Use corrected type
+          thumbnail_url: item.thumbnail_url,
+          caption: item.caption,
+          permalink: item.permalink,
+          timestamp: item.timestamp,
+          metrics: {
+            likes: item.insights?.likes || item.like_count || 0,
+            comments: item.insights?.comments || item.comments_count || 0,
+            saved: item.insights?.saved || 0,
+            shares: item.insights?.shares || 0,
+            reach: item.insights?.reach || 0,
+            views: item.insights?.views || item.video_play_count || 0,
+            replies: item.media_type === 'STORY' ? (item.insights?.replies || 0) : 0,
+            profileActivity: item.insights?.profileActivity || 0,
+            watchTimeAvg: item.insights?.watchTimeAvg || 0,
+            watchTimeTotal: item.insights?.watchTimeTotal || 0,
+            engagement: item.insights?.engagement || item.insights?.interactions || 0
+          }
         }
-      })),
+      }),
+      allPosts: media.map(item => {
+        // Detect if this is a Reel using watch time metrics (since media_product_type is undefined)
+        let displayType = item.media_type;
+        const hasReelMetrics = item.insights?.ig_reels_avg_watch_time || item.insights?.ig_reels_video_view_total_time || item.insights?.watchTimeAvg || item.insights?.watchTimeTotal;
+        if (item.media_type === 'VIDEO' && hasReelMetrics) {
+          displayType = 'REELS';
+        } else if (item.media_type === 'VIDEO' && item.media_product_type === 'REELS') {
+          displayType = 'REELS'; // Fallback
+        }
+        return {
+          id: item.id,
+          media_type: displayType, // Use corrected type
+          thumbnail_url: item.thumbnail_url,
+          caption: item.caption,
+          permalink: item.permalink,
+          timestamp: item.timestamp,
+          metrics: {
+            likes: item.insights?.likes || item.like_count || 0,
+            comments: item.insights?.comments || item.comments_count || 0,
+            saved: item.insights?.saved || 0,
+            shares: item.insights?.shares || 0,
+            reach: item.insights?.reach || 0,
+            views: item.insights?.views || item.video_play_count || 0,
+            replies: item.media_type === 'STORY' ? (item.insights?.replies || 0) : 0,
+            profileActivity: item.insights?.profileActivity || 0,
+            watchTimeAvg: item.insights?.watchTimeAvg || 0,
+            watchTimeTotal: item.insights?.watchTimeTotal || 0,
+            engagement: item.insights?.engagement || item.insights?.interactions || 0
+          }
+        }
+      }),
       followerGrowth
     };
 

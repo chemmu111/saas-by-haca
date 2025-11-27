@@ -343,7 +343,7 @@ async function verifyPagePermissions(pageAccessToken, igUserId, pageId = null) {
 export async function postToInstagram(mediaUrl, caption, client, postType = 'post') {
   try {
     // Validate and normalize postType
-    const validPostTypes = ['post', 'story', 'reel'];
+    const validPostTypes = ['post', 'story', 'reel', 'carousel', 'video'];
     postType = validPostTypes.includes(postType) ? postType : 'post';
 
     console.log('');
@@ -422,235 +422,408 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
       console.log('  ⚠️ Could not verify permissions, proceeding anyway...');
     }
 
-    // Process image for Instagram (resize/crop to valid aspect ratio if needed)
-    // This should be done BEFORE converting to public URL
-    const processedMediaUrl = await processImageForInstagram(mediaUrl, postType);
-    console.log('  Processed Media URL:', processedMediaUrl);
+    // Handle media processing and container creation
+    let creationId;
+    let isVideo = false; // Will be true if any item is video (for status check)
 
-    // Convert to publicly accessible URL if needed
-    const publicMediaUrl = getPublicImageUrl(processedMediaUrl);
-    console.log('  Using Media URL:', publicMediaUrl);
-    console.log('  Caption:', caption ? caption.substring(0, 50) + '...' : 'No caption');
-    console.log('  Post Type:', postType);
-    console.log('  IG User ID:', client.igUserId);
-    console.log('  Page Access Token:', client.pageAccessToken ? 'Yes' : 'No');
+    if (postType === 'carousel') {
+      console.log('  🎠 Processing Carousel...');
 
-    if (!publicMediaUrl) {
-      throw new Error('Media URL is required');
-    }
+      // Ensure mediaUrl is an array
+      const mediaUrls = Array.isArray(mediaUrl) ? mediaUrl : [mediaUrl];
 
-    // Determine if media is image or video based on URL extension
-    // Reels must be videos, stories can be images or videos, posts can be either
-    const isVideo = /\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(publicMediaUrl) ||
-      publicMediaUrl.includes('/video');
-
-    // Reels must be videos
-    if (postType === 'reel' && !isVideo) {
-      throw new Error('Reels must be video files. Please upload a video file for reels.');
-    }
-
-    // Verify the media URL is accessible before sending to Instagram
-    // This helps catch issues early and ensures Instagram can fetch the file
-    try {
-      console.log('  📡 Verifying media URL is publicly accessible...');
-      console.log('  URL to verify:', publicMediaUrl);
-
-      // Try HEAD first, fallback to GET if HEAD is not supported
-      let verifyResponse;
-      try {
-        const startTime = Date.now();
-        verifyResponse = await fetch(publicMediaUrl, {
-          method: 'HEAD',
-          redirect: 'follow',
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (compatible; InstagramBot/1.0)'
-          },
-          timeout: 10000 // 10 second timeout
-        });
-        const duration = Date.now() - startTime;
-        console.log(`  Response received in ${duration}ms`);
-      } catch (headError) {
-        // If HEAD fails, try GET with range request (just first few bytes)
-        console.log('  ⚠️  HEAD request failed, trying GET with range...');
-        console.log('  Error:', headError.message);
-        verifyResponse = await fetch(publicMediaUrl, {
-          method: 'GET',
-          headers: {
-            'Range': 'bytes=0-1023', // Just get first 1KB
-            'User-Agent': 'Mozilla/5.0 (compatible; InstagramBot/1.0)'
-          },
-          redirect: 'follow',
-          timeout: 10000
-        });
+      // Validation: Minimum 2 images
+      if (mediaUrls.length < 2) {
+        throw new Error('Carousel requires at least 2 images. Please select more images.');
       }
 
-      if (!verifyResponse.ok && verifyResponse.status !== 206 && verifyResponse.status !== 405) {
-        // 206 is Partial Content (OK for range requests), 405 is Method Not Allowed (OK)
-        console.error(`  ❌ ERROR: Media URL returned status ${verifyResponse.status}`);
-        console.error(`  URL: ${publicMediaUrl}`);
+      // Validation: Maximum 10 images
+      if (mediaUrls.length > 10) {
+        throw new Error('Carousel allows a maximum of 10 images. Please remove some images.');
+      }
 
-        // Handle specific error codes
-        if (verifyResponse.status === 404) {
-          console.error(`  File not found on server!`);
-          console.error(`  This means:`);
-          console.error(`  1. The file wasn't uploaded correctly`);
-          console.error(`  2. The file path is wrong`);
-          console.error(`  3. The static file serving is not configured`);
-          console.warn(`  ⚠️ WARNING: Media URL verification failed (404). Proceeding anyway, but Instagram might fail.`);
-        } else if (verifyResponse.status === 403 || verifyResponse.status === 401) {
-          console.error(`  The media URL appears to be blocked or requires authentication.`);
-          console.error(`  Instagram requires direct, public access without authentication.`);
-          console.warn('  ⚠️ WARNING: Media URL verification failed (403/401). Proceeding anyway, but Instagram might fail.');
-        } else {
-          console.warn(`  Instagram may not be able to access this file.`);
-        }
-      } else {
-        console.log('  ✅ Media URL is accessible (HTTP', verifyResponse.status + ')');
-        const contentType = verifyResponse.headers.get('content-type');
-        if (contentType) {
-          console.log(`  ✅ Content-Type: ${contentType}`);
-          // Verify content type matches file type
-          if (isVideo && !contentType.startsWith('video/')) {
-            console.error(`  ❌ CRITICAL: File is video but Content-Type is ${contentType}`);
-            console.error(`  Instagram will reject this. Fix your server's MIME type configuration.`);
-            // We'll warn but proceed, maybe Instagram is smarter than us
-            console.warn(`  ⚠️ Warning: Wrong Content-Type for video: ${contentType}. Expected video/mp4 or similar.`);
-          } else if (!isVideo && !contentType.startsWith('image/')) {
-            console.warn(`  ⚠️  Warning: File extension suggests image but Content-Type is ${contentType}`);
-            console.warn(`  This might cause Instagram to reject the file.`);
-          }
-        } else {
-          console.warn(`  ⚠️  No Content-Type header returned!`);
+      console.log(`  📊 Total items to upload: ${mediaUrls.length}`);
+      const itemCreationIds = [];
+
+      // Process each item
+      for (let i = 0; i < mediaUrls.length; i++) {
+        const url = mediaUrls[i];
+        console.log(`  Processing item ${i + 1}/${mediaUrls.length}: ${url}`);
+
+        // Process image for Instagram (resize/crop to valid aspect ratio if needed)
+        const processedUrl = await processImageForInstagram(url, 'post'); // Treat items as posts
+        const publicUrl = getPublicImageUrl(processedUrl);
+
+        if (!publicUrl) throw new Error(`Media URL is required for item ${i + 1}`);
+
+        // Check if item is video - STRICTLY PROHIBITED for now
+        const isItemVideo = /\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(publicUrl) || publicUrl.includes('/video');
+        if (isItemVideo) {
+          throw new Error('Carousel currently supports IMAGES ONLY. Please remove video files.');
         }
 
-        // Check Content-Length for images (Instagram has size limits)
-        const contentLength = verifyResponse.headers.get('content-length');
-        if (contentLength) {
-          const sizeInMB = parseInt(contentLength) / (1024 * 1024);
-          console.log(`  File size: ${sizeInMB.toFixed(2)}MB`);
-          if (!isVideo && sizeInMB > 8) {
-            console.warn(`  ⚠️ Warning: Image is larger than 8MB. Instagram recommends images under 8MB.`);
-          }
+        // Create item container
+        const itemParams = new URLSearchParams();
+        itemParams.append('is_carousel_item', 'true');
+        itemParams.append('image_url', publicUrl);
+        itemParams.append('access_token', client.pageAccessToken);
+
+        const itemUrl = `https://graph.facebook.com/v18.0/${client.igUserId}/media`;
+        const itemResponse = await fetch(`${itemUrl}?${itemParams.toString()}`, { method: 'POST' });
+
+        if (!itemResponse.ok) {
+          const errorText = await itemResponse.text();
+          throw new Error(`Failed to create carousel item ${i + 1}: ${errorText}`);
         }
-      }
-    } catch (verifyError) {
-      console.warn(`  ⚠️ Warning: Could not verify media URL accessibility: ${verifyError.message}`);
-      console.warn(`  This might cause issues if Instagram cannot access the file.`);
-      // Don't throw for network errors, as the URL might still work for Instagram
-    }
 
-    // Step 1: Create Instagram media container
-    console.log('');
-    console.log('  📦 STEP 1: Creating Instagram Media Container');
-    console.log('  ' + '-'.repeat(58));
-    const containerUrl = `https://graph.facebook.com/v18.0/${client.igUserId}/media`;
-
-    const containerParams = new URLSearchParams();
-
-    // Set media type and URL based on post type
-    // Note: Instagram requires publicly accessible URLs that can be fetched by their servers
-    if (postType === 'story') {
-      // Stories can be images or videos
-      // Stories have specific requirements: max 15 seconds for video, 9:16 aspect ratio
-      if (isVideo) {
-        console.log('  📹 Story Type: VIDEO');
-        console.log('  Requirements:');
-        console.log('    - Max duration: 15 seconds');
-        console.log('    - Aspect ratio: 9:16 (vertical)');
-        console.log('    - Format: MP4');
-        containerParams.append('media_type', 'STORIES');
-        containerParams.append('video_url', publicMediaUrl);
-        // Stories don't support captions in the container creation
-      } else {
-        console.log('  🖼️  Story Type: IMAGE');
-        console.log('  Requirements:');
-        console.log('    - Aspect ratio: 9:16 (vertical, 1080x1920px)');
-        console.log('    - Format: JPG/PNG');
-        containerParams.append('media_type', 'STORIES');
-        containerParams.append('image_url', publicMediaUrl);
+        const itemData = await itemResponse.json();
+        itemCreationIds.push(itemData.id);
+        console.log(`    ✅ Item ${i + 1} created: ${itemData.id}`);
       }
-      console.log('  ⚠️  Note: Stories do not support captions');
-    } else if (postType === 'reel') {
-      // Reels must be videos (max 90 seconds, 9:16 aspect ratio recommended)
-      containerParams.append('media_type', 'REELS');
-      containerParams.append('video_url', publicMediaUrl);
-      if (caption) {
-        containerParams.append('caption', caption);
+
+      // Create carousel container
+      console.log('  📦 Creating Carousel Container...');
+      const carouselParams = new URLSearchParams();
+      carouselParams.append('media_type', 'CAROUSEL');
+      carouselParams.append('children', itemCreationIds.join(','));
+      if (caption) carouselParams.append('caption', caption);
+      carouselParams.append('access_token', client.pageAccessToken);
+
+      // Note: image_url is NOT included for CAROUSEL containers
+
+      const carouselUrl = `https://graph.facebook.com/v18.0/${client.igUserId}/media`;
+      const carouselResponse = await fetch(`${carouselUrl}?${carouselParams.toString()}`, { method: 'POST' });
+
+      if (!carouselResponse.ok) {
+        const errorText = await carouselResponse.text();
+        throw new Error(`Failed to create carousel container: ${errorText}`);
       }
-      // Reels can have a cover image (optional but recommended)
-      // We'll skip cover_url for now as it requires an additional image
+
+      const carouselData = await carouselResponse.json();
+      creationId = carouselData.id;
+      console.log('    ✅ Carousel container created:', creationId);
+
     } else {
-      // Regular post
-      if (isVideo) {
-        containerParams.append('media_type', 'VIDEO');
+      // Process image for Instagram (resize/crop to valid aspect ratio if needed)
+      // This should be done BEFORE converting to public URL
+      const processedMediaUrl = await processImageForInstagram(mediaUrl, postType);
+      console.log('  Processed Media URL:', processedMediaUrl);
+
+      // Convert to publicly accessible URL if needed
+      let publicMediaUrl = getPublicImageUrl(processedMediaUrl);
+      console.log('  Using Media URL:', publicMediaUrl);
+      console.log('  Caption:', caption ? caption.substring(0, 50) + '...' : 'No caption');
+      console.log('  Post Type:', postType);
+      console.log('  IG User ID:', client.igUserId);
+      console.log('  Page Access Token:', client.pageAccessToken ? 'Yes' : 'No');
+
+      if (!publicMediaUrl) {
+        throw new Error('Media URL is required');
+      }
+
+      // Determine if media is image or video based on URL extension
+      // Reels must be videos, stories can be images or videos, posts can be either
+      isVideo = /\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(publicMediaUrl) ||
+        publicMediaUrl.includes('/video');
+
+      // Reels must be videos
+      if ((postType === 'reel' || postType === 'video') && !isVideo) {
+        throw new Error('Reels/Videos must be video files. Please upload a video file.');
+      }
+
+      // VIDEO PREPROCESSING FOR REELS/VIDEOS
+      if (isVideo && (postType === 'reel' || postType === 'video')) {
+        try {
+          console.log('  🎬 Checking if video needs preprocessing...');
+
+          // We need the local file path for FFmpeg
+          let localFilePath = null;
+          try {
+            const urlObj = new URL(mediaUrl); // Use original mediaUrl to find local path
+            if (urlObj.pathname.includes('/uploads/')) {
+              const filename = urlObj.pathname.split('/uploads/')[1];
+              localFilePath = path.join(uploadsDir, filename);
+            }
+          } catch (e) {
+            // Try extracting from string if not full URL
+            if (mediaUrl.includes('/uploads/')) {
+              const filename = mediaUrl.split('/uploads/')[1];
+              localFilePath = path.join(uploadsDir, filename);
+            }
+          }
+
+          if (localFilePath && fs.existsSync(localFilePath)) {
+            const { processVideoForInstagram, getVideoMetadata } = await import('./videoProcessingService.js');
+
+            // Log original metadata
+            const metadata = await getVideoMetadata(localFilePath);
+            console.log('  📊 Original Video Metadata:');
+            console.log(`    - Resolution: ${metadata.width}x${metadata.height}`);
+            console.log(`    - Codec: ${metadata.codec}`);
+            console.log(`    - Audio: ${metadata.audioCodec}`);
+            console.log(`    - Size: ${(metadata.size / (1024 * 1024)).toFixed(2)} MB`);
+
+            // Check if video is already valid (9:16 aspect ratio, H.264, AAC)
+            const aspectRatio = metadata.width / metadata.height;
+            const targetRatio = 9 / 16; // 0.5625
+            const tolerance = 0.01;
+            const isRatioValid = Math.abs(aspectRatio - targetRatio) < tolerance;
+            const isCodecValid = metadata.codec === 'h264';
+            const isAudioValid = metadata.audioCodec === 'aac';
+
+            if (isRatioValid && isCodecValid && isAudioValid) {
+              console.log('  ✅ Video is already in valid format (9:16, H.264, AAC). Skipping processing.');
+            } else {
+              // Process video
+              console.log('  ⚠️ Video format invalid. Requirements: 9:16 ratio, H.264, AAC.');
+              console.log(`     Current: Ratio ${(aspectRatio).toFixed(2)}, Codec ${metadata.codec}, Audio ${metadata.audioCodec}`);
+              console.log('  ⚙️  Starting FFmpeg processing (Force 9:16, H.264, AAC)...');
+              const processedPath = await processVideoForInstagram(localFilePath);
+
+              // Update public URL to point to processed file
+              const processedFilename = path.basename(processedPath);
+
+              // We need to know the base URL. getPublicImageUrl uses process.env.BACKEND_URL
+              const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
+              publicMediaUrl = `${backendUrl}/uploads/processed/${processedFilename}`;
+
+              console.log('  ✅ Video processed successfully');
+              console.log('  🆕 New Public URL:', publicMediaUrl);
+            }
+          } else {
+            console.warn('  ⚠️ Could not find local file for video processing. Skipping FFmpeg.');
+            console.warn('  Local path determined:', localFilePath);
+          }
+        } catch (processError) {
+          console.error('  ❌ Video processing failed:', processError);
+          console.warn('  ⚠️ Proceeding with original video. Upload might fail.');
+        }
+      }
+
+      // Verify the media URL is accessible before sending to Instagram
+      // This helps catch issues early and ensures Instagram can fetch the file
+      try {
+        console.log('  📡 Verifying media URL is publicly accessible...');
+        console.log('  URL to verify:', publicMediaUrl);
+
+        // Try HEAD first, fallback to GET if HEAD is not supported
+        let verifyResponse;
+        try {
+          const startTime = Date.now();
+          verifyResponse = await fetch(publicMediaUrl, {
+            method: 'HEAD',
+            redirect: 'follow',
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (compatible; InstagramBot/1.0)'
+            },
+            timeout: 10000 // 10 second timeout
+          });
+          const duration = Date.now() - startTime;
+          console.log(`  Response received in ${duration}ms`);
+        } catch (headError) {
+          // If HEAD fails, try GET with range request (just first few bytes)
+          console.log('  ⚠️  HEAD request failed, trying GET with range...');
+          console.log('  Error:', headError.message);
+          verifyResponse = await fetch(publicMediaUrl, {
+            method: 'GET',
+            headers: {
+              'Range': 'bytes=0-1023', // Just get first 1KB
+              'User-Agent': 'Mozilla/5.0 (compatible; InstagramBot/1.0)'
+            },
+            redirect: 'follow',
+            timeout: 10000
+          });
+        }
+
+        if (!verifyResponse.ok && verifyResponse.status !== 206 && verifyResponse.status !== 405) {
+          // 206 is Partial Content (OK for range requests), 405 is Method Not Allowed (OK)
+          console.error(`  ❌ ERROR: Media URL returned status ${verifyResponse.status}`);
+          console.error(`  URL: ${publicMediaUrl}`);
+
+          // Handle specific error codes
+          if (verifyResponse.status === 404) {
+            console.error(`  File not found on server!`);
+            console.error(`  This means:`);
+            console.error(`  1. The file wasn't uploaded correctly`);
+            console.error(`  2. The file path is wrong`);
+            console.error(`  3. The static file serving is not configured`);
+            console.warn(`  ⚠️ WARNING: Media URL verification failed (404). Proceeding anyway, but Instagram might fail.`);
+          } else if (verifyResponse.status === 403 || verifyResponse.status === 401) {
+            console.error(`  The media URL appears to be blocked or requires authentication.`);
+            console.error(`  Instagram requires direct, public access without authentication.`);
+            console.warn('  ⚠️ WARNING: Media URL verification failed (403/401). Proceeding anyway, but Instagram might fail.');
+          } else {
+            console.warn(`  Instagram may not be able to access this file.`);
+          }
+        } else {
+          console.log('  ✅ Media URL is accessible (HTTP', verifyResponse.status + ')');
+          const contentType = verifyResponse.headers.get('content-type');
+          if (contentType) {
+            console.log(`  ✅ Content-Type: ${contentType}`);
+            // Verify content type matches file type
+            if (isVideo && !contentType.startsWith('video/')) {
+              console.error(`  ❌ CRITICAL: File is video but Content-Type is ${contentType}`);
+              console.error(`  Instagram will reject this. Fix your server's MIME type configuration.`);
+              // We'll warn but proceed, maybe Instagram is smarter than us
+              console.warn(`  ⚠️ Warning: Wrong Content-Type for video: ${contentType}. Expected video/mp4 or similar.`);
+            } else if (!isVideo && !contentType.startsWith('image/')) {
+              console.warn(`  ⚠️  Warning: File extension suggests image but Content-Type is ${contentType}`);
+              console.warn(`  This might cause Instagram to reject the file.`);
+            }
+          } else {
+            console.warn(`  ⚠️  No Content-Type header returned!`);
+          }
+        }
+      } catch (verifyError) {
+        console.warn(`  ⚠️ Warning: Could not verify media URL accessibility: ${verifyError.message}`);
+        console.warn(`  This might cause issues if Instagram cannot access the file.`);
+        // Don't throw for network errors, as the URL might still work for Instagram
+      }
+
+      // Step 1: Create Instagram media container
+      console.log('');
+      console.log('  📦 STEP 1: Creating Instagram Media Container');
+      console.log('  ' + '-'.repeat(58));
+      const containerUrl = `https://graph.facebook.com/v18.0/${client.igUserId}/media`;
+
+      const containerParams = new URLSearchParams();
+
+      // Set media type and URL based on post type
+      // Note: Instagram requires publicly accessible URLs that can be fetched by their servers
+      if (postType === 'story') {
+        // Stories can be images or videos
+        // Stories have specific requirements: max 15 seconds for video, 9:16 aspect ratio
+        if (isVideo) {
+          console.log('  📹 Story Type: VIDEO');
+          console.log('  Requirements:');
+          console.log('    - Max duration: 15 seconds');
+          console.log('    - Aspect ratio: 9:16 (vertical)');
+          console.log('    - Format: MP4');
+          containerParams.append('media_type', 'STORIES');
+          containerParams.append('video_url', publicMediaUrl);
+          // Stories don't support captions in the container creation
+        } else {
+          console.log('  🖼️  Story Type: IMAGE');
+          console.log('  Requirements:');
+          console.log('    - Aspect ratio: 9:16 (vertical, 1080x1920px)');
+          console.log('    - Format: JPG/PNG');
+          containerParams.append('media_type', 'STORIES');
+          containerParams.append('image_url', publicMediaUrl);
+        }
+        console.log('  ⚠️  Note: Stories do not support captions');
+      } else if (postType === 'reel' || postType === 'video' || (postType === 'post' && isVideo)) {
+        // Reels, Feed Videos, and Video Posts must all use REELS media_type
+        // VIDEO media_type is deprecated
+        console.log('  📹 Video/Reel Type: VIDEO (using REELS media_type)');
+        containerParams.append('media_type', 'REELS');
         containerParams.append('video_url', publicMediaUrl);
         if (caption) {
           containerParams.append('caption', caption);
         }
+        // Reels can have a cover image (optional but recommended)
+        // We'll skip cover_url for now as it requires an additional image
       } else {
+        // Regular image post
+        console.log('  🖼️  Post Type: IMAGE');
         containerParams.append('image_url', publicMediaUrl);
         if (caption) {
           containerParams.append('caption', caption);
         }
       }
-    }
 
-    containerParams.append('access_token', client.pageAccessToken);
+      containerParams.append('access_token', client.pageAccessToken);
 
-    // Log the request details for debugging
-    console.log('  Container URL:', containerUrl);
-    console.log('  Container Params:', Object.fromEntries(containerParams.entries()));
+      // Log the request details for debugging
+      console.log('  Container URL:', containerUrl);
+      console.log('  Container Params:', Object.fromEntries(containerParams.entries()));
 
-    const containerResponse = await fetch(`${containerUrl}?${containerParams.toString()}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-    });
+      const containerResponse = await fetch(`${containerUrl}?${containerParams.toString()}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
 
-    if (!containerResponse.ok) {
-      const errorData = await containerResponse.text();
-      console.error('  ❌ Failed to create Instagram container:', errorData);
+      if (!containerResponse.ok) {
+        const errorData = await containerResponse.text();
+        console.error('  ❌ Failed to create Instagram container:', errorData);
 
-      // Parse error to provide better message
-      let errorMessage = `Instagram container creation failed: ${errorData}`;
-      try {
-        const errorJson = JSON.parse(errorData);
-        if (errorJson.error) {
-          const error = errorJson.error;
+        // Parse error to provide better message
+        let errorMessage = `Instagram container creation failed: ${errorData}`;
+        try {
+          const errorJson = JSON.parse(errorData);
+          if (errorJson.error) {
+            const error = errorJson.error;
 
-          // Check for permission errors (error code 10)
-          // OAuthException can be many things, so we need to be specific about the code
-          const isPermissionError = error.code === 10 ||
-            (error.type === 'OAuthException' && (error.code === 10 || error.code === 190));
+            // Check for permission errors (error code 10)
+            // OAuthException can be many things, so we need to be specific about the code
+            const isPermissionError = error.code === 10 ||
+              (error.type === 'OAuthException' && (error.code === 10 || error.code === 190));
 
-          if (isPermissionError) {
-            errorMessage = `Instagram API Permission Error: Application does not have permission for this action.\n\n`;
-            errorMessage += `This error typically occurs when:\n`;
-            errorMessage += `1. The app is in Development Mode and needs to be switched to Live Mode\n`;
-            errorMessage += `2. The required permissions (pages_manage_posts, instagram_content_publish) are not approved\n`;
-            errorMessage += `3. The user needs to be added as a test user or the app needs Facebook review\n`;
-            errorMessage += `4. The Page Access Token doesn't have the required permissions\n\n`;
-            errorMessage += `Solutions:\n`;
-            errorMessage += `- Go to Facebook App Dashboard → App Review → Permissions and Features\n`;
-            errorMessage += `- Request review for: pages_manage_posts, instagram_content_publish\n`;
-            errorMessage += `- Switch app from Development to Live mode (if approved)\n`;
-            errorMessage += `- Re-authenticate the Instagram account after app is live\n`;
-            errorMessage += `- Ensure the Facebook Page is connected to Instagram Business Account\n\n`;
-            errorMessage += `Original error: ${error.message || errorData}`;
-            throw new Error(errorMessage);
+            if (isPermissionError) {
+              errorMessage = `Instagram API Permission Error: Application does not have permission for this action.\n\n`;
+              errorMessage += `This error typically occurs when:\n`;
+              errorMessage += `1. The app is in Development Mode and needs to be switched to Live Mode\n`;
+              errorMessage += `2. The required permissions (pages_manage_posts, instagram_content_publish) are not approved\n`;
+              errorMessage += `3. The user needs to be added as a test user or the app needs Facebook review\n`;
+              errorMessage += `4. The Page Access Token doesn't have the required permissions\n\n`;
+              errorMessage += `Solutions:\n`;
+              errorMessage += `- Go to Facebook App Dashboard → App Review → Permissions and Features\n`;
+              errorMessage += `- Request review for: pages_manage_posts, instagram_content_publish\n`;
+              errorMessage += `- Switch app from Development to Live mode (if approved)\n`;
+              errorMessage += `- Re-authenticate the Instagram account after app is live\n`;
+              errorMessage += `- Ensure the Facebook Page is connected to Instagram Business Account\n\n`;
+              errorMessage += `Original error: ${error.message || errorData}`;
+              throw new Error(errorMessage);
+            }
+
+            // Check for specific error codes
+            if (error.code === 9004 || error.error_subcode === 2207052) {
+              errorMessage = `Instagram cannot fetch the media from the provided URL. `;
+              errorMessage += `This often happens when the media URL is not publicly accessible. `;
+              errorMessage += `Solutions: 1) Ensure the media URL is accessible without authentication, `;
+              errorMessage += `2) Check that the URL is publicly accessible (not behind a firewall), `;
+              errorMessage += `3) Verify the media file exists and is accessible. `;
+              errorMessage += `Original error: ${error.message || errorData}`;
+            } else if (error.code === 36003 || error.error_subcode === 2207009 || (error.message && error.message.includes('aspect ratio')) || (error.message && error.message.toLowerCase().includes('aspect ratio')) || (error.error_user_msg && error.error_user_msg.toLowerCase().includes('aspect ratio'))) {
+              // Aspect ratio error - create a custom error that includes aspect ratio flag
+              errorMessage = `Instagram rejected the image due to invalid aspect ratio. `;
+              errorMessage += `\n\nInstagram requirements for ${postType === 'story' ? 'stories' : postType === 'reel' ? 'reels' : 'posts'}: `;
+              if (postType === 'story') {
+                errorMessage += `\n- Stories: Must be 9:16 aspect ratio (vertical, 1080x1920px recommended)`;
+              } else if (postType === 'reel') {
+                errorMessage += `\n- Reels: Must be 9:16 aspect ratio (vertical, 1080x1920px recommended)`;
+              } else {
+                errorMessage += `\n- Regular Posts: Aspect ratio must be between 0.8 and 1.91 `;
+                errorMessage += `\n  (Examples: 4:5 portrait, 1:1 square, 1.91:1 landscape)`;
+                errorMessage += `\n  Minimum dimensions: 600x315px for landscape, 600x750px for portrait`;
+              }
+              errorMessage += `\n\nPlease use an image editor to crop/resize your image to meet these requirements.`;
+              errorMessage += `\n\nMedia URL used: ${publicMediaUrl}`;
+              errorMessage += `\nOriginal error: ${error.error_user_msg || error.message || 'The submitted image with aspect ratio () cannot be published. Please submit an image with a valid aspect ratio.'}`;
+
+              // Create a custom error with aspect ratio flag
+              const aspectRatioError = new Error(errorMessage);
+              aspectRatioError.isAspectRatioError = true;
+              aspectRatioError.mediaUrl = publicMediaUrl;
+              aspectRatioError.postType = postType;
+              throw aspectRatioError;
+            } else if (error.message && error.message.includes('No media') || error.message && error.message.includes('reel')) {
+              errorMessage = `Instagram cannot access the media file. `;
+              errorMessage += `This usually means the video/image URL is not publicly accessible or Instagram cannot fetch it. `;
+              errorMessage += `Please ensure: 1) The media URL is publicly accessible, `;
+              errorMessage += `2) The URL uses HTTPS (required for Instagram), `;
+              errorMessage += `3) The media file is not too large (max 100MB for videos). `;
+              errorMessage += `Media URL used: ${publicMediaUrl} `;
+              errorMessage += `Original error: ${error.message}`;
+            } else {
+              errorMessage = error.error_user_msg || error.message || error.user_msg || errorMessage;
+            }
           }
-
-          // Check for specific error codes
-          if (error.code === 9004 || error.error_subcode === 2207052) {
-            errorMessage = `Instagram cannot fetch the media from the provided URL. `;
-            errorMessage += `This often happens when the media URL is not publicly accessible. `;
-            errorMessage += `Solutions: 1) Ensure the media URL is accessible without authentication, `;
-            errorMessage += `2) Check that the URL is publicly accessible (not behind a firewall), `;
-            errorMessage += `3) Verify the media file exists and is accessible. `;
-            errorMessage += `Original error: ${error.message || errorData}`;
-          } else if (error.code === 36003 || error.error_subcode === 2207009 || (error.message && error.message.includes('aspect ratio')) || (error.message && error.message.toLowerCase().includes('aspect ratio')) || (error.error_user_msg && error.error_user_msg.toLowerCase().includes('aspect ratio'))) {
-            // Aspect ratio error - create a custom error that includes aspect ratio flag
+        } catch (parseError) {
+          // If parsing fails, check if error message contains key phrases
+          if (errorData.toLowerCase().includes('aspect ratio') || errorData.toLowerCase().includes('cannot be published')) {
+            // Aspect ratio error detected in raw error text
             errorMessage = `Instagram rejected the image due to invalid aspect ratio. `;
             errorMessage += `\n\nInstagram requirements for ${postType === 'story' ? 'stories' : postType === 'reel' ? 'reels' : 'posts'}: `;
             if (postType === 'story') {
@@ -664,7 +837,7 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
             }
             errorMessage += `\n\nPlease use an image editor to crop/resize your image to meet these requirements.`;
             errorMessage += `\n\nMedia URL used: ${publicMediaUrl}`;
-            errorMessage += `\nOriginal error: ${error.error_user_msg || error.message || 'The submitted image with aspect ratio () cannot be published. Please submit an image with a valid aspect ratio.'}`;
+            errorMessage += `\nOriginal error: ${errorData}`;
 
             // Create a custom error with aspect ratio flag
             const aspectRatioError = new Error(errorMessage);
@@ -672,64 +845,29 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
             aspectRatioError.mediaUrl = publicMediaUrl;
             aspectRatioError.postType = postType;
             throw aspectRatioError;
-          } else if (error.message && error.message.includes('No media') || error.message && error.message.includes('reel')) {
+          } else if (errorData.includes('No media') || errorData.includes('reel')) {
             errorMessage = `Instagram cannot access the media file. `;
-            errorMessage += `This usually means the video/image URL is not publicly accessible or Instagram cannot fetch it. `;
-            errorMessage += `Please ensure: 1) The media URL is publicly accessible, `;
-            errorMessage += `2) The URL uses HTTPS (required for Instagram), `;
-            errorMessage += `3) The media file is not too large (max 100MB for videos). `;
-            errorMessage += `Media URL used: ${publicMediaUrl} `;
-            errorMessage += `Original error: ${error.message}`;
-          } else {
-            errorMessage = error.error_user_msg || error.message || error.user_msg || errorMessage;
+            errorMessage += `Please ensure the media URL is publicly accessible and uses HTTPS. `;
+            errorMessage += `Media URL: ${publicMediaUrl}`;
           }
         }
-      } catch (parseError) {
-        // If parsing fails, check if error message contains key phrases
-        if (errorData.toLowerCase().includes('aspect ratio') || errorData.toLowerCase().includes('cannot be published')) {
-          // Aspect ratio error detected in raw error text
-          errorMessage = `Instagram rejected the image due to invalid aspect ratio. `;
-          errorMessage += `\n\nInstagram requirements for ${postType === 'story' ? 'stories' : postType === 'reel' ? 'reels' : 'posts'}: `;
-          if (postType === 'story') {
-            errorMessage += `\n- Stories: Must be 9:16 aspect ratio (vertical, 1080x1920px recommended)`;
-          } else if (postType === 'reel') {
-            errorMessage += `\n- Reels: Must be 9:16 aspect ratio (vertical, 1080x1920px recommended)`;
-          } else {
-            errorMessage += `\n- Regular Posts: Aspect ratio must be between 0.8 and 1.91 `;
-            errorMessage += `\n  (Examples: 4:5 portrait, 1:1 square, 1.91:1 landscape)`;
-            errorMessage += `\n  Minimum dimensions: 600x315px for landscape, 600x750px for portrait`;
-          }
-          errorMessage += `\n\nPlease use an image editor to crop/resize your image to meet these requirements.`;
-          errorMessage += `\n\nMedia URL used: ${publicMediaUrl}`;
-          errorMessage += `\nOriginal error: ${errorData}`;
 
-          // Create a custom error with aspect ratio flag
-          const aspectRatioError = new Error(errorMessage);
-          aspectRatioError.isAspectRatioError = true;
-          aspectRatioError.mediaUrl = publicMediaUrl;
-          aspectRatioError.postType = postType;
-          throw aspectRatioError;
-        } else if (errorData.includes('No media') || errorData.includes('reel')) {
-          errorMessage = `Instagram cannot access the media file. `;
-          errorMessage += `Please ensure the media URL is publicly accessible and uses HTTPS. `;
-          errorMessage += `Media URL: ${publicMediaUrl}`;
-        }
+        throw new Error(errorMessage);
       }
 
-      throw new Error(errorMessage);
+      const containerData = await containerResponse.json();
+      creationId = containerData.id;
+
+      if (!creationId) {
+        throw new Error('No creation ID returned from Instagram');
+      }
+
+      console.log('');
+      console.log('  ✅ Container Created Successfully!');
+      console.log('  Container ID:', creationId);
     }
 
-    const containerData = await containerResponse.json();
-    const creationId = containerData.id;
-
-    if (!creationId) {
-      throw new Error('No creation ID returned from Instagram');
-    }
-
-    console.log('');
-    console.log('  ✅ Container Created Successfully!');
-    console.log('  Container ID:', creationId);
-    console.log('  Media Type:', postType === 'story' ? 'STORIES' : postType === 'reel' ? 'REELS' : 'POST');
+    console.log('  Media Type:', postType === 'story' ? 'STORIES' : postType === 'reel' ? 'REELS' : postType === 'carousel' ? 'CAROUSEL' : 'POST');
 
     // For videos (including reels and video posts), we need to check status before publishing
     // Stories (both images and videos) also need status checking - Instagram processes them
@@ -786,6 +924,19 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
               detailedError += `\n2. The video format is not supported (must be MP4/MOV, H.264/H.265)`;
               detailedError += `\n3. The video file is corrupted or incomplete`;
               detailedError += `\n4. The server took too long to serve the file (timeout)`;
+              detailedError += `\n\nOriginal error: ${errorMessage}`;
+              throw new Error(`Video processing failed: ${detailedError}`);
+            }
+
+            if (errorMessage.includes('2207082') || (statusData.error_subcode === 2207082)) {
+              let detailedError = `Instagram rejected the video format (Error 2207082). `;
+              detailedError += `This typically means the video doesn't meet Reels requirements. `;
+              detailedError += `\n\nRequirements for Reels:`;
+              detailedError += `\n1. Aspect Ratio: Must be 9:16 (vertical, 1080x1920 recommended). Landscape videos may be rejected.`;
+              detailedError += `\n2. Duration: 3 seconds to 15 minutes.`;
+              detailedError += `\n3. Format: MP4 or MOV container with H.264 or H.265 codec.`;
+              detailedError += `\n4. Audio: AAC audio codec.`;
+              detailedError += `\n\nSolution: Please convert your video to 9:16 vertical format (1080x1920) and ensure it uses H.264 encoding.`;
               detailedError += `\n\nOriginal error: ${errorMessage}`;
               throw new Error(`Video processing failed: ${detailedError}`);
             }
@@ -1118,8 +1269,9 @@ export async function publishPost(post, client) {
       caption = `${caption}\n\n${hashtagsStr}`;
     }
 
-    // Get first media URL (for now, single image support)
-    const imageUrl = post.mediaUrls && post.mediaUrls.length > 0 ? post.mediaUrls[0] : null;
+    // Get media URLs
+    const mediaUrls = post.mediaUrls || [];
+    const imageUrl = mediaUrls.length > 0 ? mediaUrls[0] : null;
 
     if (!imageUrl) {
       throw new Error('No image URL found in post');
@@ -1129,12 +1281,20 @@ export async function publishPost(post, client) {
     if (post.platform === 'instagram' || post.platform === 'both') {
       if (client.platform === 'instagram' || client.platform === 'manual') {
         // Get post type from post object (default to 'post')
-        // Validate postType is one of: 'post', 'story', 'reel'
-        const validPostTypes = ['post', 'story', 'reel'];
-        const postType = validPostTypes.includes(post.postType) ? post.postType : 'post';
+        // Validate postType is one of: 'post', 'story', 'reel', 'carousel', 'video'
+        const validPostTypes = ['post', 'story', 'reel', 'carousel', 'video'];
+        let postType = validPostTypes.includes(post.postType) ? post.postType : 'post';
+
+        // Auto-switch to carousel if multiple images are present but type is 'post'
+        if (postType === 'post' && mediaUrls.length > 1) {
+          console.log('  ⚠️ Post has multiple images but type is "post". Switching to "carousel".');
+          postType = 'carousel';
+        }
 
         try {
-          results.instagram = await postToInstagram(imageUrl, caption, client, postType);
+          // Pass all media URLs for carousel, otherwise just the first one
+          const mediaData = postType === 'carousel' ? mediaUrls : imageUrl;
+          results.instagram = await postToInstagram(mediaData, caption, client, postType);
           console.log(`✅ Instagram ${postType} successful`);
         } catch (error) {
           console.error('❌ Instagram post failed:', error.message);

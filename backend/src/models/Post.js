@@ -33,7 +33,7 @@ const postSchema = new mongoose.Schema(
     location: { type: String, trim: true },
     postType: {
       type: String,
-      enum: ['post', 'story', 'reel'],
+      enum: ['post', 'story', 'reel', 'carousel', 'video'],
       default: 'post'
     },
     format: {

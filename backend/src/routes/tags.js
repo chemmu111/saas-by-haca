@@ -17,7 +17,7 @@ router.get('/', async (req, res) => {
 
     // Extract all unique tags
     const tagMap = new Map();
-    
+
     posts.forEach(post => {
       if (post.tags && Array.isArray(post.tags)) {
         post.tags.forEach(tag => {
@@ -40,8 +40,8 @@ router.get('/', async (req, res) => {
     // Sort by name
     tags.sort((a, b) => a.name.localeCompare(b.name));
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       data: tags,
       count: tags.length
     });
@@ -61,7 +61,7 @@ router.get('/stats', async (req, res) => {
 
     // Count tag usage
     const tagCounts = new Map();
-    
+
     posts.forEach(post => {
       if (post.tags && Array.isArray(post.tags)) {
         post.tags.forEach(tag => {
@@ -85,8 +85,8 @@ router.get('/stats', async (req, res) => {
     // Sort by count (descending)
     stats.sort((a, b) => b.count - a.count);
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       data: stats,
       count: stats.length
     });
@@ -103,7 +103,7 @@ router.get('/:tagName/posts', async (req, res) => {
     const { limit, skip } = req.query;
 
     // Parse pagination
-    const limitNum = limit ? parseInt(limit) : 50;
+    const limitNum = limit ? parseInt(limit) : 1000; // Increased from 50 to 1000
     const skipNum = skip ? parseInt(skip) : 0;
 
     // Find posts that contain the tag
@@ -123,9 +123,9 @@ router.get('/:tagName/posts', async (req, res) => {
       tags: { $elemMatch: { name: { $regex: new RegExp(tagName, 'i') } } }
     });
 
-    res.json({ 
-      success: true, 
-      data: posts, 
+    res.json({
+      success: true,
+      data: posts,
       count: posts.length,
       total,
       limit: limitNum,

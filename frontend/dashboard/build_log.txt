@@ -1,0 +1,100 @@
+﻿
+> social-media-manager-dashboard@1.0.0 build
+> vite build
+
+[36mvite v5.4.21 [32mbuilding for production...[36m[39m
+transforming...
+node.exe : 
+At C:\Program 
+Files\nodejs\npm.ps1:29 
+char:3
++   & $NODE_EXE 
+$NPM_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~
+    + CategoryInfo        
+      : NotSpecified: (:  
+  String) [], RemoteExc   
+ eption
+    + FullyQualifiedError 
+   Id : NativeCommandErr  
+  or
+ 
+[1m[33mwarn[39m[22m - 
+Your `content` 
+configuration includes a 
+pattern which looks like 
+it's accidentally 
+matching all of 
+`node_modules` and can 
+cause serious performance 
+issues.
+[1m[33mwarn[39m[22m - 
+Pattern: `./src\**\*.ts`
+[1m[33mwarn[39m[22m - 
+See our documentation for 
+recommendations:
+[1m[33mwarn[39m[22m - 
+https://tailwindcss.com/do
+cs/content-configuration#p
+attern-recommendations
+[32mΓ£ô[39m 23 modules transformed.
+[31mx[39m Build failed 
+in 1.26s
+[31merror during build:
+[31m[vite]: Rollup 
+failed to resolve import 
+"react-router-dom" from "D
+:/TRY/saas-by-haca/fronten
+d/auth/Signup.jsx".
+This is most likely 
+unintended because it can 
+break your application at 
+runtime.
+If you do want to 
+externalize this module 
+explicitly add it to
+`build.rollupOptions.exter
+nal`[31m
+    at viteWarn (file:///D
+:/TRY/saas-by-haca/fronten
+d/dashboard/node_modules/v
+ite/dist/node/chunks/dep-B
+K3b2jBa.js:65855:17)
+    at onwarn (file:///D:/
+TRY/saas-by-haca/frontend/
+dashboard/node_modules/@vi
+tejs/plugin-react/dist/ind
+ex.js:90:7)
+    at onRollupWarning (fi
+le:///D:/TRY/saas-by-haca/
+frontend/dashboard/node_mo
+dules/vite/dist/node/chunk
+s/dep-BK3b2jBa.js:65885:5)
+    at onwarn (file:///D:/
+TRY/saas-by-haca/frontend/
+dashboard/node_modules/vit
+e/dist/node/chunks/dep-BK3
+b2jBa.js:65550:7)
+    at file:///D:/TRY/saas
+-by-haca/frontend/dashboar
+d/node_modules/rollup/dist
+/es/shared/node-entry.js:2
+0951:13
+    at Object.logger [as 
+onLog] (file:///D:/TRY/saa
+s-by-haca/frontend/dashboa
+rd/node_modules/rollup/dis
+t/es/shared/node-entry.js:
+22823:9)
+    at ModuleLoader.handle
+InvalidResolvedId (file://
+/D:/TRY/saas-by-haca/front
+end/dashboard/node_modules
+/rollup/dist/es/shared/nod
+e-entry.js:21567:26)
+    at file:///D:/TRY/saas
+-by-haca/frontend/dashboar
+d/node_modules/rollup/dist
+/es/shared/node-entry.js:2
+1525:26[39m

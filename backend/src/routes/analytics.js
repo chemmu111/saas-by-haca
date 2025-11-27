@@ -207,6 +207,17 @@ router.get('/', async (req, res) => {
     );
 
     console.log(`📡 Fetching Instagram analytics for ${instagramClients.length} client(s)...`);
+    console.log(`   Refresh mode: ${refresh === 'true' ? 'YES (bypassing cache)' : 'NO (using cache if available)'}`);
+
+    // Clear cache if refresh requested
+    if (refresh === 'true') {
+      console.log(`🔄 Clearing Instagram cache for fresh data...`);
+      for (const client of instagramClients) {
+        if (client.igUserId) {
+          clearUserCache(client.igUserId);
+        }
+      }
+    }
 
     let allDetailedPosts = [];
 
@@ -232,9 +243,39 @@ router.get('/', async (req, res) => {
         if (igData && igData.success && igData.data) {
           const data = igData.data;
 
-          // Collect detailed posts
-          if (data.allPosts) {
-            allDetailedPosts = [...allDetailedPosts, ...data.allPosts];
+          // Collect detailed posts - ONLY REAL INSTAGRAM API DATA
+          if (data.allPosts && Array.isArray(data.allPosts)) {
+            // Ensure each post has proper metrics structure
+            const formattedPosts = data.allPosts.map(post => ({
+              id: post.id,
+              media_type: post.media_type,
+              thumbnail_url: post.thumbnail_url,
+              caption: post.caption || '',
+              permalink: post.permalink,
+              timestamp: post.timestamp,
+              clientId: client._id,
+              clientName: client.name,
+              metrics: {
+                likes: post.metrics?.likes || post.insights?.likes || 0,
+                comments: post.metrics?.comments || post.insights?.comments || 0,
+                saved: post.metrics?.saved || post.insights?.saved || 0,
+                shares: post.metrics?.shares || post.insights?.shares || 0,
+                reach: post.metrics?.reach || post.insights?.reach || 0,
+                views: post.metrics?.views
+                  || post.insights?.views
+                  || post.insights?.video_views
+                  || post.insights?.videoViews
+                  || post.video_play_count
+                  || 0,
+                engagement: post.metrics?.engagement
+                  || post.insights?.engagement
+                  || post.insights?.interactions
+                  || post.insights?.total_interactions
+                  || ((post.insights?.likes || 0) + (post.insights?.comments || 0) + (post.insights?.saved || 0) + (post.insights?.shares || 0))
+              }
+            }));
+            allDetailedPosts = [...allDetailedPosts, ...formattedPosts];
+            console.log(`   📊 Added ${formattedPosts.length} posts with real metrics from Instagram API`);
           }
 
           // Extract account data
@@ -265,14 +306,10 @@ router.get('/', async (req, res) => {
             console.log(`   📊 Instagram API Response:`);
             console.log(`      Total Views: ${mediaViews}`);
             console.log(`      Total Interactions: ${mediaInteractions}`);
-            console.log(`      Posts by Type:`, data.media.postsByType || {});
+            console.log(`      Posts by Type (raw):`, data.media.postsByType || {});
 
-            // Aggregate post types
-            if (data.media.postsByType) {
-              Object.keys(data.media.postsByType).forEach(type => {
-                postsByTypeFromIG[type] = (postsByTypeFromIG[type] || 0) + (data.media.postsByType[type] || 0);
-              });
-            }
+            // NOTE: We DON'T use data.media.postsByType directly because it doesn't
+            // distinguish between REELS and regular VIDEOs. We'll count from allDetailedPosts instead.
           }
 
           // Extract follower growth
@@ -304,6 +341,32 @@ router.get('/', async (req, res) => {
         console.error(`   ❌ Error fetching IG data for client ${client._id}:`, error.message);
       }
     }
+
+    // COUNT MEDIA TYPES FROM allDetailedPosts (after reel detection)
+    // This ensures we properly distinguish between REELS and regular VIDEOs
+    console.log(`\n📊 Counting media types from ${allDetailedPosts.length} posts...`);
+    allDetailedPosts.forEach(post => {
+      let mediaType = post.media_type;
+
+      // Detect REELS from VIDEO type by checking permalink
+      if (mediaType === 'VIDEO' && post.permalink && post.permalink.includes('/reel/')) {
+        mediaType = 'REELS';
+      }
+
+      // Count by corrected media type
+      if (mediaType === 'IMAGE') {
+        postsByTypeFromIG.IMAGE = (postsByTypeFromIG.IMAGE || 0) + 1;
+      } else if (mediaType === 'VIDEO') {
+        postsByTypeFromIG.VIDEO = (postsByTypeFromIG.VIDEO || 0) + 1;
+      } else if (mediaType === 'CAROUSEL_ALBUM') {
+        postsByTypeFromIG.CAROUSEL_ALBUM = (postsByTypeFromIG.CAROUSEL_ALBUM || 0) + 1;
+      } else if (mediaType === 'REELS') {
+        postsByTypeFromIG.REELS = (postsByTypeFromIG.REELS || 0) + 1;
+      }
+    });
+
+    console.log(`📊 Final media type counts:`, postsByTypeFromIG);
+
 
     // USE ONLY INSTAGRAM DATA - NO DATABASE FALLBACKS
     // However, if Instagram API returns 0 views but we have published REELS in database,
@@ -481,10 +544,47 @@ router.get('/', async (req, res) => {
     console.log('   Engagement Rate:', analytics.engagementRate + '% (Calculated)');
     console.log('   Follower Growth:', analytics.followerGrowth, '(from Instagram API trend)');
     console.log('   Followers Trend:', analytics.followersTrend.length, 'days (from Instagram API)');
+    // Sort detailed posts by timestamp (most recent first) and ensure proper structure
+    const sortedDetailedPosts = allDetailedPosts
+      .filter(post => post && post.id) // Remove any invalid posts
+      .sort((a, b) => {
+        const dateA = new Date(a.timestamp || 0);
+        const dateB = new Date(b.timestamp || 0);
+        return dateB - dateA; // Most recent first
+      })
+      .map(post => ({
+        id: post.id,
+        media_type: post.media_type,
+        thumbnail_url: post.thumbnail_url,
+        caption: post.caption || '',
+        permalink: post.permalink,
+        timestamp: post.timestamp,
+        metrics: {
+          likes: post.metrics?.likes || 0,
+          comments: post.metrics?.comments || 0,
+          saved: post.metrics?.saved || 0,
+          shares: post.metrics?.shares || 0,
+          reach: post.metrics?.reach || 0,
+          views: post.metrics?.views || 0,
+          engagement: post.metrics?.engagement || 0
+        }
+      }));
+
+    console.log(`📊 Final detailedPosts: ${sortedDetailedPosts.length} posts (sorted by timestamp, most recent first)`);
+    if (sortedDetailedPosts.length > 0) {
+      console.log(`   Sample post:`, {
+        id: sortedDetailedPosts[0].id,
+        type: sortedDetailedPosts[0].media_type,
+        views: sortedDetailedPosts[0].metrics?.views,
+        likes: sortedDetailedPosts[0].metrics?.likes,
+        engagement: sortedDetailedPosts[0].metrics?.engagement
+      });
+    }
+
     // Return with metadata
     const responseData = {
       ...analytics,
-      detailedPosts: allDetailedPosts // Pass the full media array with insights
+      detailedPosts: sortedDetailedPosts // Pass sorted and formatted posts with real Instagram API data
     };
 
     res.json(createAnalyticsResponse(responseData, false, 'mixed'));
@@ -700,15 +800,16 @@ router.get('/client/:clientId', async (req, res) => {
         reel: posts.filter(p => p.postType === 'reel').length || 0,
       },
       postsByMonth: getPostsByMonth(posts),
-      // Real engagement metrics from database
-      totalEngagements: totalEngagements || 0,
-      totalViews: totalViews || 0,
+      // Real engagement metrics - Prioritize API data if available
+      totalEngagements: clientTotalEngagements > 0 ? clientTotalEngagements : (totalEngagements || 0),
+      totalViews: clientTotalViews > 0 ? clientTotalViews : (totalViews || 0),
       totalLikes: totalLikes || 0,
       totalComments: totalComments || 0,
       totalShares: totalShares || 0,
       totalSaves: totalSaves || 0,
-      totalFollowers: clientFollowerCount || 0,
-      engagementRate: totalViews > 0 ? ((totalEngagements / totalViews) * 100).toFixed(2) : '0.00',
+      totalFollowers: clientTotalFollowers || 0,
+      engagementRate: (clientTotalViews > 0 || totalViews > 0) ?
+        (((clientTotalEngagements || totalEngagements) / (clientTotalViews || totalViews)) * 100).toFixed(2) : '0.00',
       // Follower growth - not available in database, set to 0
       totalFollowersGained: 0,
       totalFollowersLost: 0,
