@@ -9,7 +9,7 @@ router.get('/', (req, res) => {
     const challenge = req.query['hub.challenge'];
 
     if (mode && token) {
-        if (mode === 'subscribe' && token === process.env.WEBHOOK_VERIFY_TOKEN) {
+        if (mode === 'subscribe' && token === process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN) {
             console.log('WEBHOOK_VERIFIED');
             res.status(200).send(challenge);
         } else {
