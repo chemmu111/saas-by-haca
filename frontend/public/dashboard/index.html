@@ -2,7 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png?v=4" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon.png?v=4" />
+    <link rel="shortcut icon" href="/favicon.png?v=4" />
+    <link rel="apple-touch-icon" href="/favicon.png?v=4" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Permissions-Policy" content="unload=*" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -351,13 +354,13 @@
       // Test if JavaScript is running
       console.log('Dashboard HTML loaded');
 
-      // Show error message if loading takes too long (10 seconds)
+      // Show error message if loading takes too long (30 seconds)
       setTimeout(function() {
         const loadingScreen = document.getElementById('loading-screen');
         if (loadingScreen && loadingScreen.style.display !== 'none') {
           document.getElementById('error-message').classList.add('show');
         }
-      }, 10000);
+      }, 30000);
 
       // Hide loading screen when React app mounts
       window.addEventListener('load', function() {

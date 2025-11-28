@@ -18,7 +18,7 @@ function isValidEmail(email) {
 
 function signToken(user) {
   const secret = process.env.JWT_SECRET || 'dev-secret';
-  return jwt.sign({ sub: user.id, email: user.email, role: user.role, name: user.name }, secret, { expiresIn: '7d' });
+  return jwt.sign({ sub: user.id, email: user.email, role: user.role, name: user.name }, secret, { expiresIn: '1d' });
 }
 
 router.post('/signup', async (req, res) => {

@@ -253,7 +253,7 @@ router.get('/', async (req, res) => {
               caption: post.caption || '',
               permalink: post.permalink,
               timestamp: post.timestamp,
-              clientId: client._id,
+              clientId: client._id.toString(), // Convert to string for filtering
               clientName: client.name,
               metrics: {
                 likes: post.metrics?.likes || post.insights?.likes || 0,
@@ -559,6 +559,8 @@ router.get('/', async (req, res) => {
         caption: post.caption || '',
         permalink: post.permalink,
         timestamp: post.timestamp,
+        clientId: post.clientId?.toString() || post.clientId, // Ensure string for filtering
+        clientName: post.clientName, // Include clientName for display
         metrics: {
           likes: post.metrics?.likes || 0,
           comments: post.metrics?.comments || 0,
@@ -584,6 +586,7 @@ router.get('/', async (req, res) => {
     // Return with metadata
     const responseData = {
       ...analytics,
+      clients: clients.map(c => ({ id: c._id.toString(), name: c.name, platform: c.platform })), // All clients for dropdown
       detailedPosts: sortedDetailedPosts // Pass sorted and formatted posts with real Instagram API data
     };
 

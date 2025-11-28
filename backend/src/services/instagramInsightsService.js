@@ -37,8 +37,8 @@ function getCacheKey(key) {
 function getCached(key) {
   const cacheKey = getCacheKey(key);
   const cached = cache.get(cacheKey);
-  // TEMPORARILY DISABLED CACHE FOR TESTING REELS DETECTION - Set to 0 minutes
-  if (cached && Date.now() - cached.timestamp < 0 * 60 * 1000) { // 0 minutes (disabled)
+  // Cache enabled with 5 minutes TTL for consistent data
+  if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000) { // 5 minutes
     return cached.data;
   }
   cache.delete(cacheKey);
@@ -952,6 +952,22 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
         } else if (item.media_type === 'VIDEO' && item.media_product_type === 'REELS') {
           displayType = 'REELS'; // Fallback
         }
+
+        // Calculate engagement metrics
+        const likes = item.insights?.likes || item.like_count || 0;
+        const comments = item.insights?.comments || item.comments_count || 0;
+        const saved = item.insights?.saved || 0;
+        const shares = item.insights?.shares || 0;
+
+        // Calculate total engagement (sum of all interactions)
+        const calculatedEngagement = likes + comments + saved + shares;
+
+        // Use Instagram's engagement metric if available, otherwise use calculated
+        const finalEngagement = item.insights?.engagement
+          || item.insights?.total_interactions
+          || item.insights?.interactions
+          || calculatedEngagement;
+
         return {
           id: item.id,
           media_type: displayType, // Use corrected type
@@ -960,17 +976,17 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
           permalink: item.permalink,
           timestamp: item.timestamp,
           metrics: {
-            likes: item.insights?.likes || item.like_count || 0,
-            comments: item.insights?.comments || item.comments_count || 0,
-            saved: item.insights?.saved || 0,
-            shares: item.insights?.shares || 0,
+            likes,
+            comments,
+            saved,
+            shares,
             reach: item.insights?.reach || 0,
             views: item.insights?.views || item.video_play_count || 0,
             replies: item.media_type === 'STORY' ? (item.insights?.replies || 0) : 0,
             profileActivity: item.insights?.profileActivity || 0,
             watchTimeAvg: item.insights?.watchTimeAvg || 0,
             watchTimeTotal: item.insights?.watchTimeTotal || 0,
-            engagement: item.insights?.engagement || item.insights?.interactions || 0
+            engagement: finalEngagement
           }
         }
       }),
@@ -983,6 +999,22 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
         } else if (item.media_type === 'VIDEO' && item.media_product_type === 'REELS') {
           displayType = 'REELS'; // Fallback
         }
+
+        // Calculate engagement metrics
+        const likes = item.insights?.likes || item.like_count || 0;
+        const comments = item.insights?.comments || item.comments_count || 0;
+        const saved = item.insights?.saved || 0;
+        const shares = item.insights?.shares || 0;
+
+        // Calculate total engagement (sum of all interactions)
+        const calculatedEngagement = likes + comments + saved + shares;
+
+        // Use Instagram's engagement metric if available, otherwise use calculated
+        const finalEngagement = item.insights?.engagement
+          || item.insights?.total_interactions
+          || item.insights?.interactions
+          || calculatedEngagement;
+
         return {
           id: item.id,
           media_type: displayType, // Use corrected type
@@ -991,24 +1023,34 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
           permalink: item.permalink,
           timestamp: item.timestamp,
           metrics: {
-            likes: item.insights?.likes || item.like_count || 0,
-            comments: item.insights?.comments || item.comments_count || 0,
-            saved: item.insights?.saved || 0,
-            shares: item.insights?.shares || 0,
+            likes,
+            comments,
+            saved,
+            shares,
             reach: item.insights?.reach || 0,
             views: item.insights?.views || item.video_play_count || 0,
             replies: item.media_type === 'STORY' ? (item.insights?.replies || 0) : 0,
             profileActivity: item.insights?.profileActivity || 0,
             watchTimeAvg: item.insights?.watchTimeAvg || 0,
             watchTimeTotal: item.insights?.watchTimeTotal || 0,
-            engagement: item.insights?.engagement || item.insights?.interactions || 0
+            engagement: finalEngagement
           }
         }
       }),
       followerGrowth
     };
 
-    setCache(cacheKey, result);
+    // Cache the result (Instagram API can legitimately return 0 for some metrics)
+    // Only skip caching if we have no data at all
+    const hasData = result.media.total > 0 || result.account.follower_count > 0;
+
+    if (hasData) {
+      setCache(cacheKey, result);
+      console.log(`✅ Cached data for user ${igUserId} (${result.media.total} posts, ${result.account.follower_count} followers)`);
+    } else {
+      console.log(`⚠️ Skipping cache - no data available`);
+    }
+
     return createSuccessResponse(result);
   } catch (error) {
     return createErrorResponse(error, 'fetchInstagramAnalytics');
@@ -1172,19 +1214,19 @@ export function testInstagramAnalyticsIntegration() {
   /*
   const igUserId = process.env.TEST_IG_USER_ID;
   const pageAccessToken = process.env.TEST_PAGE_ACCESS_TOKEN;
-
+ 
   if (igUserId && pageAccessToken) {
     // Test fetchAccountInsights
     const accountResult = await fetchAccountInsights(igUserId, pageAccessToken);
     console.assert(accountResult.success === true, 'Should successfully fetch account insights');
-
+ 
     // Test fetchMediaInsights for REEL
     const mediaResult = await fetchMediaInsights('reel_media_id', pageAccessToken, 'REEL');
     if (mediaResult.success) {
       console.assert(mediaResult.data.views !== undefined, 'REEL should have views metric');
       console.assert(mediaResult.data.impressions === undefined, 'Should NOT have impressions');
     }
-
+ 
     console.log('✅ Integration tests passed');
   } else {
     console.log('⚠️ Skipping integration tests - missing credentials');

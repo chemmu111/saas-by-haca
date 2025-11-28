@@ -316,25 +316,82 @@ const Analytics = () => {
   const chartData = getChartData();
 
   const clientOptions = useMemo(() => {
-    if (!analytics?.detailedPosts) return [];
-    const map = new Map();
-    analytics.detailedPosts.forEach(post => {
-      if (post.clientId) {
-        const name = post.clientName || 'Unnamed Client';
-        if (!map.has(post.clientId)) {
-          map.set(post.clientId, name);
-        }
-      }
-    });
-    return Array.from(map, ([id, name]) => ({ id, name }));
-  }, [analytics?.detailedPosts]);
+    // Use clients from API response (all database clients)
+    if (!analytics?.clients) return [];
+    return analytics.clients.map(client => ({
+      id: client.id,
+      name: client.name || 'Unnamed Client'
+    }));
+  }, [analytics?.clients]);
 
   const sortedDetailedPosts = useMemo(() => {
     if (!analytics?.detailedPosts) return [];
-    const filtered = analytics.detailedPosts.filter(post =>
+
+    console.log('🔍 Client Filter Debug:');
+    console.log('   Selected filter:', clientFilter);
+    console.log('   Total posts:', analytics.detailedPosts.length);
+    if (analytics.detailedPosts.length > 0) {
+      console.log('   Sample post clientId:', analytics.detailedPosts[0].clientId, 'type:', typeof analytics.detailedPosts[0].clientId);
+    }
+
+
+    // Get date range for filtering
+    const dateParams = getDateRangeParams();
+
+    // Normalize dates to timestamps (milliseconds since epoch)
+    const normalizeDate = (dateStr) => {
+      if (!dateStr) return null;
+      const date = new Date(dateStr);
+      return date.getTime();
+    };
+
+    const startTimestamp = dateParams.startDate ? normalizeDate(dateParams.startDate) : null;
+    const endTimestamp = dateParams.endDate ? normalizeDate(dateParams.endDate) : null;
+
+    // Set end timestamp to end of day (add 24 hours minus 1ms)
+    const endOfDayTimestamp = endTimestamp ? endTimestamp + (24 * 60 * 60 * 1000) - 1 : null;
+
+    console.log('🔍 Client Filter Debug:');
+    console.log('   Selected filter:', clientFilter);
+    console.log('   Total posts:', analytics.detailedPosts.length);
+    if (analytics.detailedPosts.length > 0) {
+      console.log('   Sample post clientId:', analytics.detailedPosts[0].clientId, 'type:', typeof analytics.detailedPosts[0].clientId);
+      console.log('   Sample post timestamp:', analytics.detailedPosts[0].timestamp);
+    }
+    console.log('   Date range:', {
+      startDate: dateParams.startDate,
+      endDate: dateParams.endDate,
+      startTimestamp,
+      endOfDayTimestamp
+    });
+
+    // Filter by client
+    const clientFiltered = analytics.detailedPosts.filter(post =>
       clientFilter === 'all' ? true : post.clientId === clientFilter
     );
-    const posts = [...filtered];
+
+    // Filter by date range using timestamp comparison
+    const dateFiltered = clientFiltered.filter(post => {
+      if (!post.timestamp) return false; // Exclude posts without timestamp
+
+      const postTimestamp = new Date(post.timestamp).getTime();
+
+      // Validate the timestamp
+      if (isNaN(postTimestamp)) {
+        console.warn('⚠️ Invalid timestamp for post:', post.id, post.timestamp);
+        return false; // Exclude posts with invalid timestamps
+      }
+
+      // If no date range selected, include all posts
+      if (!startTimestamp || !endOfDayTimestamp) return true;
+
+      // Check if post timestamp is within range
+      return postTimestamp >= startTimestamp && postTimestamp <= endOfDayTimestamp;
+    });
+
+    console.log('   Filtered posts:', dateFiltered.length, '(after client + date filtering)');
+
+    const posts = [...dateFiltered];
     const metric = (post, key) => post.metrics?.[key] || 0;
 
     switch (postSortOption) {
@@ -352,13 +409,109 @@ const Analytics = () => {
       default:
         return posts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     }
-  }, [analytics?.detailedPosts, clientFilter, postSortOption]);
+  }, [analytics?.detailedPosts, clientFilter, postSortOption, dateRange, customStartDate, customEndDate]);
+
+  // Recalculate analytics metrics from filtered posts
+  const computedAnalytics = useMemo(() => {
+    if (!analytics) return null; // Only return null if no analytics data at all
+
+    // Even if sortedDetailedPosts is empty, we should return computed values (all zeros)
+    const postsToProcess = sortedDetailedPosts || [];
+
+    // Calculate totals from filtered posts
+    let totalViews = 0;
+    let totalReach = 0;
+    let totalInteractions = 0;
+    let totalLikes = 0;
+    let totalComments = 0;
+    let totalSaves = 0;
+    let totalShares = 0;
+    let totalEngagements = 0;
+    let totalWatchTime = 0;
+    let watchTimeCount = 0;
+
+    const postsByType = {
+      IMAGE: 0,
+      VIDEO: 0,
+      REELS: 0,
+      CAROUSEL_ALBUM: 0
+    };
+
+    postsToProcess.forEach(post => {
+      const metrics = post.metrics || {};
+
+      totalViews += metrics.views || 0;
+      totalReach += metrics.reach || 0;
+      totalInteractions += metrics.engagement || 0;
+      totalLikes += metrics.likes || 0;
+      totalComments += metrics.comments || 0;
+      totalSaves += metrics.saved || 0;
+      totalShares += metrics.shares || 0;
+      totalEngagements += metrics.engagement || 0;
+
+      if (metrics.watchTimeTotal) {
+        totalWatchTime += metrics.watchTimeTotal;
+        watchTimeCount++;
+      }
+
+      // Count by type
+      const type = post.media_type;
+      if (postsByType.hasOwnProperty(type)) {
+        postsByType[type]++;
+      }
+    });
+
+    const avgWatchTime = watchTimeCount > 0 ? totalWatchTime / watchTimeCount : 0;
+
+    // Calculate engagement rate
+    const engagementRate = totalReach > 0
+      ? ((totalEngagements / totalReach) * 100).toFixed(2)
+      : analytics.engagementRate || 0;
+
+    console.log('📊 Computed Analytics from filtered posts:');
+    console.log('   Total Posts:', postsToProcess.length);
+    console.log('   Total Views:', totalViews);
+    console.log('   Total Reach:', totalReach);
+    console.log('   Total Interactions:', totalInteractions);
+
+    return {
+      ...analytics,
+      totalPosts: postsToProcess.length,
+      totalViews,
+      totalReach,
+      totalInteractions,
+      totalLikes,
+      totalComments,
+      totalSaves,
+      totalShares,
+      totalEngagements,
+      avgWatchTime,
+      reelWatchTimeTotal: totalWatchTime,
+      engagementRate,
+      postsByType: {
+        ...analytics.postsByType,
+        ...postsByType
+      },
+      detailedPosts: sortedDetailedPosts || []
+    };
+  }, [analytics, sortedDetailedPosts]);
 
   // PRO Analytics Calculations
   const proInsights = useMemo(() => {
     if (!analytics) return null;
 
     const posts = analytics.detailedPosts || [];
+
+    // DEBUG: Log the posts data
+    console.log('🔍 ProInsights Calculation:');
+    console.log('   Total posts:', posts.length);
+    if (posts.length > 0) {
+      console.log('   Sample post:', {
+        id: posts[0].id,
+        media_type: posts[0].media_type,
+        metrics: posts[0].metrics
+      });
+    }
 
     // 1. Best & Worst Performing Posts
     const sortedByEngagement = [...posts].sort((a, b) =>
@@ -367,9 +520,15 @@ const Analytics = () => {
     const bestPost = sortedByEngagement[0] || null;
     const worstPost = sortedByEngagement[sortedByEngagement.length - 1] || null;
 
+    console.log('   Best post engagement:', bestPost?.metrics?.engagement || 0);
+    console.log('   Worst post engagement:', worstPost?.metrics?.engagement || 0);
+
     // 2. Average Engagement
     const totalEngagement = posts.reduce((sum, p) => sum + (p.metrics?.engagement || 0), 0);
     const avgEngagement = posts.length > 0 ? Math.round(totalEngagement / posts.length) : 0;
+
+    console.log('   Total engagement:', totalEngagement);
+    console.log('   Average engagement:', avgEngagement);
 
     // 3. Most Active Posting Day
     const dayCounts = {};
@@ -627,8 +786,8 @@ const Analytics = () => {
                   onClick={handleRefresh}
                   disabled={refreshing || timeLeft > 0}
                   className={`px-4 py-2.5 rounded-lg transition-colors font-medium shadow-sm flex items-center gap-2 ${timeLeft > 0
-                      ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                      : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                    ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                    : 'bg-emerald-600 text-white hover:bg-emerald-700'
                     }`}
                 >
                   <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
@@ -680,7 +839,7 @@ const Analytics = () => {
                 <span className="text-xs font-bold tracking-wider text-blue-600 uppercase bg-blue-50 px-2 py-1 rounded-full">Visibility</span>
               </div>
               <h3 className="text-sm font-medium text-slate-500 mb-1">Total Views</h3>
-              <p className="text-3xl font-bold text-slate-900">{analytics.totalViews.toLocaleString()}</p>
+              <p className="text-3xl font-bold text-slate-900">{computedAnalytics.totalViews.toLocaleString()}</p>
             </div>
 
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 relative overflow-hidden group hover:shadow-md transition-all">
@@ -694,7 +853,7 @@ const Analytics = () => {
                 <span className="text-xs font-bold tracking-wider text-emerald-600 uppercase bg-emerald-50 px-2 py-1 rounded-full">Reach</span>
               </div>
               <h3 className="text-sm font-medium text-slate-500 mb-1">Total Reach</h3>
-              <p className="text-3xl font-bold text-slate-900">{analytics.totalReach.toLocaleString()}</p>
+              <p className="text-3xl font-bold text-slate-900">{computedAnalytics.totalReach.toLocaleString()}</p>
             </div>
 
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 relative overflow-hidden group hover:shadow-md transition-all">
@@ -708,7 +867,7 @@ const Analytics = () => {
                 <span className="text-xs font-bold tracking-wider text-purple-600 uppercase bg-purple-50 px-2 py-1 rounded-full">Interactions</span>
               </div>
               <h3 className="text-sm font-medium text-slate-500 mb-1">Total Interactions</h3>
-              <p className="text-3xl font-bold text-slate-900">{analytics.totalInteractions.toLocaleString()}</p>
+              <p className="text-3xl font-bold text-slate-900">{computedAnalytics.totalInteractions.toLocaleString()}</p>
             </div>
 
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 relative overflow-hidden group hover:shadow-md transition-all">
@@ -723,10 +882,10 @@ const Analytics = () => {
               </div>
               <h3 className="text-sm font-medium text-slate-500 mb-1">Avg Watch Time</h3>
               <p className="text-3xl font-bold text-slate-900">
-                {analytics.avgWatchTime ? `${Math.round(analytics.avgWatchTime)}s` : 'N/A'}
+                {computedAnalytics.avgWatchTime ? `${Math.round(computedAnalytics.avgWatchTime)}s` : 'N/A'}
               </p>
               <p className="text-xs text-slate-500 mt-1">
-                Total: {analytics.reelWatchTimeTotal ? `${Math.round(analytics.reelWatchTimeTotal)}s` : 'N/A'}
+                Total: {computedAnalytics.reelWatchTimeTotal ? `${Math.round(computedAnalytics.reelWatchTimeTotal)}s` : 'N/A'}
               </p>
             </div>
 
@@ -742,7 +901,7 @@ const Analytics = () => {
                 <span className="text-xs font-bold tracking-wider text-slate-600 uppercase bg-slate-50 px-2 py-1 rounded-full">Content</span>
               </div>
               <h3 className="text-sm font-medium text-slate-500 mb-1">Total Posts</h3>
-              <p className="text-3xl font-bold text-slate-900">{analytics.totalPosts}</p>
+              <p className="text-3xl font-bold text-slate-900">{computedAnalytics.totalPosts}</p>
             </div>
 
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 relative overflow-hidden group hover:shadow-md transition-all">
@@ -770,7 +929,7 @@ const Analytics = () => {
                 <span className="text-xs font-bold tracking-wider text-yellow-600 uppercase bg-yellow-50 px-2 py-1 rounded-full">Engagement</span>
               </div>
               <h3 className="text-sm font-medium text-slate-500 mb-1">Engagement Rate</h3>
-              <p className="text-3xl font-bold text-slate-900">{parseFloat(analytics.engagementRate).toFixed(1)}%</p>
+              <p className="text-3xl font-bold text-slate-900">{parseFloat(computedAnalytics.engagementRate).toFixed(1)}%</p>
             </div>
 
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 relative overflow-hidden group hover:shadow-md transition-all">
@@ -798,49 +957,36 @@ const Analytics = () => {
               </div>
               <h2 className="text-lg font-semibold text-slate-900">Content Type Breakdown</h2>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {/* Images */}
               <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
                   <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Images</span>
                 </div>
-                <p className="text-2xl font-bold text-blue-900">{analytics.postsByType?.IMAGE || 0}</p>
+                <p className="text-2xl font-bold text-blue-900">{computedAnalytics.postsByType?.IMAGE || 0}</p>
                 <p className="text-xs text-blue-600 mt-1">
-                  {analytics.totalPosts > 0 ? Math.round(((analytics.postsByType?.IMAGE || 0) / analytics.totalPosts) * 100) : 0}% of total
+                  {computedAnalytics.totalPosts > 0 ? Math.round(((computedAnalytics.postsByType?.IMAGE || 0) / computedAnalytics.totalPosts) * 100) : 0}% of total
                 </p>
                 <p className="text-xs text-blue-700 font-medium mt-1">
                   {(viewsByMediaType.IMAGE || 0).toLocaleString()} views
                 </p>
               </div>
 
-              {/* Videos */}
+              {/* Videos (Combined VIDEO + REELS) */}
               <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4 border border-purple-200">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="w-2 h-2 bg-purple-600 rounded-full"></div>
                   <span className="text-xs font-semibold text-purple-700 uppercase tracking-wide">Videos</span>
                 </div>
-                <p className="text-2xl font-bold text-purple-900">{analytics.postsByType?.VIDEO || 0}</p>
+                <p className="text-2xl font-bold text-purple-900">
+                  {(computedAnalytics.postsByType?.VIDEO || 0) + (computedAnalytics.postsByType?.REELS || 0)}
+                </p>
                 <p className="text-xs text-purple-600 mt-1">
-                  {analytics.totalPosts > 0 ? Math.round(((analytics.postsByType?.VIDEO || 0) / analytics.totalPosts) * 100) : 0}% of total
+                  {computedAnalytics.totalPosts > 0 ? Math.round((((computedAnalytics.postsByType?.VIDEO || 0) + (computedAnalytics.postsByType?.REELS || 0)) / computedAnalytics.totalPosts) * 100) : 0}% of total
                 </p>
                 <p className="text-xs text-purple-700 font-medium mt-1">
-                  {(viewsByMediaType.VIDEO || 0).toLocaleString()} views
-                </p>
-              </div>
-
-              {/* Reels */}
-              <div className="bg-gradient-to-br from-pink-50 to-pink-100 rounded-lg p-4 border border-pink-200">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-2 h-2 bg-pink-600 rounded-full"></div>
-                  <span className="text-xs font-semibold text-pink-700 uppercase tracking-wide">Reels</span>
-                </div>
-                <p className="text-2xl font-bold text-pink-900">{analytics.postsByType?.REELS || 0}</p>
-                <p className="text-xs text-pink-600 mt-1">
-                  {analytics.totalPosts > 0 ? Math.round(((analytics.postsByType?.REELS || 0) / analytics.totalPosts) * 100) : 0}% of total
-                </p>
-                <p className="text-xs text-pink-700 font-medium mt-1">
-                  {(viewsByMediaType.REELS || 0).toLocaleString()} views
+                  {((viewsByMediaType.VIDEO || 0) + (viewsByMediaType.REELS || 0)).toLocaleString()} views
                 </p>
               </div>
 
@@ -850,9 +996,9 @@ const Analytics = () => {
                   <div className="w-2 h-2 bg-emerald-600 rounded-full"></div>
                   <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Carousels</span>
                 </div>
-                <p className="text-2xl font-bold text-emerald-900">{analytics.postsByType?.CAROUSEL_ALBUM || 0}</p>
+                <p className="text-2xl font-bold text-emerald-900">{computedAnalytics.postsByType?.CAROUSEL_ALBUM || 0}</p>
                 <p className="text-xs text-emerald-600 mt-1">
-                  {analytics.totalPosts > 0 ? Math.round(((analytics.postsByType?.CAROUSEL_ALBUM || 0) / analytics.totalPosts) * 100) : 0}% of total
+                  {computedAnalytics.totalPosts > 0 ? Math.round(((computedAnalytics.postsByType?.CAROUSEL_ALBUM || 0) / computedAnalytics.totalPosts) * 100) : 0}% of total
                 </p>
                 <p className="text-xs text-emerald-700 font-medium mt-1">
                   {(viewsByMediaType.CAROUSEL_ALBUM || 0).toLocaleString()} views
