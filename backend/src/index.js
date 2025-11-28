@@ -35,8 +35,42 @@ const publicDir = path.resolve(__dirname, '../../frontend/public');
 
 // Middleware
 // CORS configuration with cookie support for cross-origin requests
+const allowedOrigins = [
+  'https://haca-social-x.onrender.com', // Production frontend
+  'http://localhost:3000', // Local development
+  'http://localhost:5173', // Vite dev server
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:5173',
+];
+
+// Add ngrok domains if in development
+if (process.env.NODE_ENV !== 'production') {
+  allowedOrigins.push(/\.ngrok-free\.dev$/);
+  allowedOrigins.push(/\.ngrok\.io$/);
+}
+
 const corsOptions = {
-  origin: true,
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    // Check if origin is in allowed list
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (typeof allowed === 'string') {
+        return allowed === origin;
+      } else if (allowed instanceof RegExp) {
+        return allowed.test(origin);
+      }
+      return false;
+    });
+
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      console.warn(`⚠️ CORS blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   // Cookie settings for cross-origin requests
   exposedHeaders: ['Authorization'],
