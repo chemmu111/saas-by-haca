@@ -12,9 +12,13 @@ export default defineConfig({
     port: 3000,
     host: true, // Listen on all addresses
     allowedHosts: [
+      'localhost',
+      '127.0.0.1',
+      'haca-social-x.onrender.com',
       'geneva-incapacious-romana.ngrok-free.dev',
       '.ngrok-free.dev', // Allow any ngrok-free.dev subdomain
       '.ngrok.io', // Allow any ngrok.io subdomain
+      '.onrender.com', // Allow any onrender.com subdomain
     ],
     headers: {
       'Permissions-Policy': 'unload=*',
