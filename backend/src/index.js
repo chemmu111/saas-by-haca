@@ -232,9 +232,25 @@ app.get('/api/test', (req, res) => {
   });
 });
 
-// Health check route for Render
+// Health check route for Render - Includes DB status
 app.get('/healthz', (req, res) => {
-  res.json({ status: 'ok' });
+  const dbStatus = mongoose.connection.readyState;
+  const statusMap = {
+    0: 'disconnected',
+    1: 'connected',
+    2: 'connecting',
+    3: 'disconnecting',
+  };
+
+  if (dbStatus === 1) {
+    res.json({ status: 'ok', database: 'connected' });
+  } else {
+    res.status(500).json({
+      status: 'error',
+      database: statusMap[dbStatus] || 'unknown',
+      message: 'Database not connected'
+    });
+  }
 });
 
 // Serve static website (login/signup)
@@ -335,10 +351,13 @@ app.use((error, req, res, next) => {
     return next(error);
   }
 
-  // Return JSON error response
+  // Return JSON error response with debug info
   res.status(500).json({
     success: false,
-    error: error.message || 'Internal server error'
+    error: error.message || 'Internal server error',
+    stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+    path: req.path,
+    method: req.method
   });
 });
 
