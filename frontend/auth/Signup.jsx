@@ -17,10 +17,16 @@ const Signup = () => {
     const [error, setError] = useState('');
 
     const getBackendUrl = () => {
+        // Check for environment variable first (production)
+        if (import.meta.env.VITE_API_URL) {
+            return import.meta.env.VITE_API_URL;
+        }
+        // Development mode
         if (window.location.port === '3000') {
             const savedPort = localStorage.getItem('backend_port');
             return savedPort ? `http://localhost:${savedPort}` : 'http://localhost:5000';
         }
+        // Fallback to same origin
         return window.location.origin;
     };
 

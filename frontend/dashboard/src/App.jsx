@@ -13,11 +13,13 @@ import AdminTokenMonitor from './AdminTokenMonitor.jsx';
 
 // Helper function to get backend URL
 const getBackendUrl = () => {
-  // In production, use the same origin
-  // In development, try to detect the backend port
+  // Check for environment variable first (production)
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  // Development mode - Vite dev server
   if (window.location.port === '3000') {
-    // Vite dev server - try backend ports 5001 (common fallback) or 5000
-    // Check localStorage for saved port, otherwise default to 5001
+    // Check localStorage for saved port, otherwise default to 5000
     const savedPort = localStorage.getItem('backend_port');
     if (savedPort) {
       return `http://localhost:${savedPort}`;
@@ -25,7 +27,7 @@ const getBackendUrl = () => {
     // Default to 5000 (your backend port)
     return 'http://localhost:5000';
   }
-  // Production or already on backend server
+  // Fallback to same origin
   return window.location.origin;
 };
 
