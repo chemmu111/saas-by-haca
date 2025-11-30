@@ -283,15 +283,15 @@ app.get('/home.html', (req, res) => {
   res.sendFile(path.join(publicDir, 'dashboard', 'index.html'));
 });
 
-// Routes
+// API Routes - All prefixed with /api
 app.use('/api/auth', authRouter);
 app.use('/api/clients', clientsRouter);
 app.use('/api/oauth', oauthRouter);
 app.use('/api/accounts', accountsRouter);
-app.use('/oauth', accountsOAuthRouter);
+app.use('/api/oauth/accounts', accountsOAuthRouter); // Fixed: added /api prefix
 app.use('/api/posts', postsRouter);
 app.use('/api/webhooks', webhooksRouter);
-app.use('/auth/instagram', instagramGraphAuthRouter);
+app.use('/api/auth/instagram', instagramGraphAuthRouter); // Fixed: added /api prefix
 app.use('/api/tags', tagsRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/reports', reportsRouter);
@@ -301,6 +301,15 @@ app.use('/api/folders', foldersRouter);
 app.use('/api/captions', captionsRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/admin', adminRouter);
+
+// 404 handler for API routes - returns JSON instead of HTML
+app.use('/api/*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    error: 'API endpoint not found',
+    path: req.path
+  });
+});
 
 // Global error handler - ensures all errors return JSON
 app.use((error, req, res, next) => {
