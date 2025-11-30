@@ -7,6 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       'react-router-dom': new URL('./node_modules/react-router-dom', import.meta.url).pathname,
+      'lucide-react': new URL('./node_modules/lucide-react', import.meta.url).pathname,
     },
   },
   build: {
