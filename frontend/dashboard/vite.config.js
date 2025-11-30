@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [react()],
   base: '/',
   build: {
-    outDir: '../public/dashboard',
+    outDir: 'dist',
     emptyOutDir: true,
   },
   server: {
@@ -44,4 +44,5 @@ export default defineConfig({
       '.ngrok.io',
     ],
   },
+  publicDir: 'public',
 })
