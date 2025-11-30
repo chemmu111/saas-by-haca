@@ -4,6 +4,11 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   base: '/',
+  resolve: {
+    alias: {
+      'react-router-dom': new URL('./node_modules/react-router-dom', import.meta.url).pathname,
+    },
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: true,
