@@ -36,9 +36,10 @@ const publicDir = path.resolve(__dirname, '../../frontend/public');
 // Middleware
 // CORS configuration with cookie support for cross-origin requests
 const allowedOrigins = [
-  'https://haca-social-x.onrender.com', // Production frontend
-  'http://localhost:3000', // Development frontend
-  'http://localhost:5000', // Development backend
+  "https://haca-social-x.onrender.com", // Frontend URL
+  "https://haca-social-x-backend.onrender.com", // Backend URL (Render internal call)
+  "http://localhost:3000", // Development frontend
+  "http://localhost:5000", // Development backend
 ];
 
 // Add ngrok URLs from environment if available
@@ -46,24 +47,24 @@ if (process.env.FRONTEND_URL) {
   allowedOrigins.push(process.env.FRONTEND_URL);
 }
 
-const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.log("❌ Blocked CORS origin:", origin);
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.warn(`⚠️ CORS blocked origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  exposedHeaders: ['Authorization'],
-};
-app.use(cors(corsOptions));
+// Trust proxy for deployment cookie/session compatibility
+app.set('trust proxy', 1);
 // Security headers with CSP configuration
 // Build connectSrc based on environment
 const connectSrc = process.env.NODE_ENV !== 'production'
