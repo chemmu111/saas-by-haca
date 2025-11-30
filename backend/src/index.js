@@ -222,13 +222,23 @@ app.get('/.well-known/appspecific/com.chrome.devtools.json', (req, res) => {
   res.status(204).end();
 });
 
+// Root test route - returns JSON for production health check
+app.get('/api/test', (req, res) => {
+  res.json({
+    status: 'ok',
+    server: 'running',
+    time: new Date(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
 // Serve static website (login/signup)
 app.use(express.static(publicDir));
 
 // Serve dashboard assets
 app.use('/dashboard/assets', express.static(path.join(publicDir, 'dashboard', 'assets')));
 
-// Root → React App (Login)
+// Root → React App (Login) - Only serve HTML if not an API route
 app.get('/', (req, res) => {
   res.sendFile(path.join(publicDir, 'dashboard', 'index.html'));
 });
@@ -332,7 +342,7 @@ app.get('/health', (req, res) => {
   res.json({ ok: true });
 });
 
-const PORT = 5000; // Fixed port - do not change
+const PORT = process.env.PORT || 5000; // Use Render's assigned port or 5000 for local
 const MONGODB_URI = process.env.MONGODB_URI;
 
 async function start() {
@@ -363,9 +373,10 @@ async function start() {
       // Continue even if cron fails
     }
 
-    // Start the server on port 5000 only
+    // Start the server on dynamic port (Render assigns this)
     const server = app.listen(PORT, () => {
-      console.log(`🚀 API listening on http://localhost:${PORT}`);
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
     }).on('error', (err) => {
       if (err.code === 'EADDRINUSE') {
         console.error(`❌ Port ${PORT} is already in use. Please free up port ${PORT} and try again.`);
