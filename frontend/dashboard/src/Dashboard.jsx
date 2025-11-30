@@ -218,7 +218,7 @@ const Dashboard = () => {
                 Here's what's happening with your social media empire today. You have <span className="font-semibold text-blue-600">{stats.totalClients} active clients</span> and <span className="font-semibold text-violet-600">{stats.totalPosts} posts</span> managed.
               </p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3 mt-4 md:mt-0">
               {quickActions.map((action, idx) => (
                 <button
                   key={idx}

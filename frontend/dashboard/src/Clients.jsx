@@ -214,7 +214,7 @@ const Clients = () => {
             </h1>
             <p className="text-gray-600 mt-2">Manage your social media clients and connections</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="bg-white border border-gray-200 rounded-lg p-1 flex">
               <button
                 onClick={() => setViewMode('grid')}

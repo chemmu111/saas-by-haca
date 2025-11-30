@@ -222,7 +222,7 @@ const ClientCard = ({ client, onEdit, onDelete, onConnectInstagram, onViewDetail
                     Last synced: {client.lastTokenRefresh ? new Date(client.lastTokenRefresh).toLocaleDateString() : 'Never'}
                 </span>
                 <button
-                    className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                     onClick={(e) => { e.stopPropagation(); navigate(`/dashboard/clients/${client._id}`); }}
                 >
                     View Dashboard <ExternalLink size={14} />
