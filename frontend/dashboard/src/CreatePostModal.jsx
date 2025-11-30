@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import {
-  X, Upload, Image, Video, Hash, Calendar, Clock, Send,
+  X, Upload, Image as ImageIcon, Video, Hash, Calendar, Clock, Send,
   AlertCircle, CheckCircle, Loader, Sparkles, Crop, RotateCw,
   Instagram, Facebook, Eye, ExternalLink, Save, Trash2, Plus,
   Zap, MessageCircle, Music, Sticker, Lightbulb, Info

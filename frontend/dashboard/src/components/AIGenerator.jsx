@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Sparkles, Copy, Check } from 'lucide-react';
+import { getBackendUrl } from '../utils/api';
 
 const AIGenerator = ({ type = 'caption', onSelect }) => {
     const [topic, setTopic] = useState('');
@@ -15,7 +16,8 @@ const AIGenerator = ({ type = 'caption', onSelect }) => {
             const token = localStorage.getItem('auth_token');
             const endpoint = type === 'caption' ? 'generate-caption' : 'generate-hashtags';
 
-            const res = await fetch(`http://localhost:5000/api/ai/${endpoint}`, {
+            const backendUrl = getBackendUrl();
+            const res = await fetch(`${backendUrl}/api/ai/${endpoint}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
