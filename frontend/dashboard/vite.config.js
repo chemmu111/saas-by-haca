@@ -23,7 +23,8 @@ export default defineConfig({
     headers: {
       'Permissions-Policy': 'unload=*',
     },
-    proxy: {
+    // Proxy only in development mode
+    proxy: process.env.NODE_ENV !== 'production' ? {
       '/api': {
         target: 'http://localhost:5000',
         changeOrigin: true,
@@ -34,7 +35,7 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
-    },
+    } : undefined,
   },
 })
 
