@@ -232,6 +232,11 @@ app.get('/api/test', (req, res) => {
   });
 });
 
+// Health check route for Render
+app.get('/healthz', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
 // Serve static website (login/signup)
 app.use(express.static(publicDir));
 
