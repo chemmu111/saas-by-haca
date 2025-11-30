@@ -63,7 +63,12 @@ router.get('/', async (req, res) => {
     res.json({ success: true, data: clients, count: clients.length });
   } catch (error) {
     console.error('Error fetching clients:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch clients' });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch clients',
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 
