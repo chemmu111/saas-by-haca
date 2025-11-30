@@ -33,6 +33,18 @@ const app = express();
 // Serve static files from frontend/public
 const publicDir = path.resolve(__dirname, '../../frontend/public');
 
+// Security middleware
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: false, // Disable CSP for API
+}));
+
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`📥 ${req.method} ${req.path}`);
+  next();
+});
+
 // Middleware
 // CORS configuration with cookie support for cross-origin requests
 const allowedOrigins = [
