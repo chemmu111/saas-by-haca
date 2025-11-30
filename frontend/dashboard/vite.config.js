@@ -11,6 +11,14 @@ export default defineConfig({
   server: {
     port: 3000,
     host: true,
+    allowedHosts: [
+      'localhost',
+      '127.0.0.1',
+      'haca-social-x.onrender.com',
+      '.onrender.com',
+      '.ngrok-free.dev',
+      '.ngrok.io',
+    ],
     proxy: {
       '/api': {
         target: 'http://localhost:5000',
@@ -27,5 +35,13 @@ export default defineConfig({
   preview: {
     host: true,
     port: 3000,
+    allowedHosts: [
+      'localhost',
+      '127.0.0.1',
+      'haca-social-x.onrender.com',
+      '.onrender.com',
+      '.ngrok-free.dev',
+      '.ngrok.io',
+    ],
   },
 })
