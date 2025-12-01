@@ -6,7 +6,7 @@ const router = express.Router();
 // GET /auth/instagram/login - Redirect to Facebook OAuth for Instagram Graph API
 router.get('/login', (req, res) => {
   const FB_APP_ID = process.env.FB_APP_ID || '';
-  const REDIRECT_URI = process.env.OAUTH_REDIRECT_URI || 'http://localhost:5000/auth/instagram/callback';
+  const REDIRECT_URI = process.env.OAUTH_REDIRECT_URI || 'http://localhost:5000/api/auth/facebook/callback';
 
   // Instagram Graph API scopes
   const SCOPES = [
@@ -56,7 +56,7 @@ router.get('/callback', async (req, res) => {
 
     const FB_APP_ID = process.env.FB_APP_ID || '';
     const FB_APP_SECRET = process.env.FB_APP_SECRET || '';
-    const REDIRECT_URI = process.env.OAUTH_REDIRECT_URI || 'http://localhost:5000/auth/instagram/callback';
+    const REDIRECT_URI = process.env.OAUTH_REDIRECT_URI || 'http://localhost:5000/api/auth/facebook/callback';
 
     if (!FB_APP_ID || !FB_APP_SECRET) {
       return res.status(500).json({

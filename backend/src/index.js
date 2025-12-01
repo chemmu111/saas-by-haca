@@ -334,7 +334,7 @@ app.use('/api/accounts', accountsRouter);
 app.use('/api/oauth/accounts', accountsOAuthRouter); // Fixed: added /api prefix
 app.use('/api/posts', postsRouter);
 app.use('/api/webhooks', webhooksRouter);
-app.use('/api/auth/instagram', instagramGraphAuthRouter); // Fixed: added /api prefix
+app.use('/api/auth/facebook', instagramGraphAuthRouter); // Updated to match user request
 app.use('/api/tags', tagsRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/reports', reportsRouter);

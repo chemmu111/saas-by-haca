@@ -108,7 +108,9 @@ router.get('/callback/:platform', async (req, res) => {
       console.log('📱 Starting Instagram Business API OAuth flow...');
 
       // Instagram Business API OAuth flow via Facebook Graph API
-      const redirectUri = `${process.env.API_URL || 'http://localhost:5001'}/api/oauth/callback/instagram`;
+      // Robustly construct base URL by removing trailing slash and any existing /api path
+      const baseUrl = (process.env.API_URL || 'http://localhost:5001').replace(/\/$/, '').replace(/\/api.*$/, '');
+      const redirectUri = `${baseUrl}/api/oauth/callback/instagram`;
       console.log('  Redirect URI:', redirectUri);
 
       // For Instagram Business API, use Facebook App ID (can also use INSTAGRAM_CLIENT_ID if it's set to Facebook App ID)
@@ -484,7 +486,9 @@ router.get('/callback/:platform', async (req, res) => {
       console.log('📘 Starting Facebook OAuth flow...');
 
       // Facebook OAuth flow
-      const redirectUri = `${process.env.API_URL || 'http://localhost:5001'}/api/oauth/callback/facebook`;
+      // Robustly construct base URL by removing trailing slash and any existing /api path
+      const baseUrl = (process.env.API_URL || 'http://localhost:5001').replace(/\/$/, '').replace(/\/api.*$/, '');
+      const redirectUri = `${baseUrl}/api/oauth/callback/facebook`;
       console.log('  Redirect URI:', redirectUri);
 
       const facebookClientId = process.env.FACEBOOK_CLIENT_ID || '';
@@ -831,7 +835,9 @@ router.post('/authorize', requireAuth, async (req, res) => {
       email,
       userId: userId.toString()
     })).toString('base64');
-    const redirectUri = `${process.env.API_URL || 'http://localhost:5001'}/api/oauth/callback/${platform}`;
+    // Robustly construct base URL by removing trailing slash and any existing /api path
+    const baseUrl = (process.env.API_URL || 'http://localhost:5001').replace(/\/$/, '').replace(/\/api.*$/, '');
+    const redirectUri = `${baseUrl}/api/oauth/callback/${platform}`;
 
     let authUrl;
 
