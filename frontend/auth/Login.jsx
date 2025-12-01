@@ -84,7 +84,7 @@ const Login = () => {
             if (data.success) {
                 setForgotStatus({ step: 'verify', type: 'success', message: 'Verification code sent to your email.' });
             } else {
-                setForgotStatus({ ...forgotStatus, type: 'error', message: data.error || 'Failed to send code.' });
+                setForgotStatus({ ...forgotStatus, type: 'error', message: data.details || data.error || 'Failed to send code.' });
             }
         } catch (err) {
             setForgotStatus({ ...forgotStatus, type: 'error', message: 'Network error. Try again.' });

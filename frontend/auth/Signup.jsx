@@ -81,7 +81,7 @@ const Signup = () => {
                 localStorage.setItem('user_info', JSON.stringify(data.user));
                 navigate('/dashboard');
             } else {
-                setError(data.error || 'Signup failed. Please try again.');
+                setError(data.details || data.error || 'Signup failed. Please try again.');
             }
         } catch (err) {
             console.error('Signup error:', err);

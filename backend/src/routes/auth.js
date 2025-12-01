@@ -78,7 +78,7 @@ router.post('/signup', async (req, res) => {
     }
   } catch (err) {
     console.error('Signup error', err);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error', details: err.message, stack: err.stack });
   }
 });
 
@@ -289,7 +289,7 @@ router.post('/forgot-password', async (req, res) => {
     }
   } catch (err) {
     console.error('Forgot password error', err);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error', details: err.message, stack: err.stack });
   }
 });
 
