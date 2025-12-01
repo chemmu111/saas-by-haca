@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useOutletContext } from 'react-router-dom';
+// import { useOutletContext } from 'react-router-dom';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { Loader2, AlertCircle } from 'lucide-react';
@@ -47,7 +47,7 @@ const TokenExpiredModal = ({ show, onClose, onReconnect }) => {
 };
 
 const Analytics = () => {
-  const { user } = useOutletContext();
+  // const { user } = useOutletContext(); // Removed to fix crash - context not available here
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
@@ -195,17 +195,17 @@ const Analytics = () => {
     if (dateRange === 'last7') past.setDate(now.getDate() - 7);
     if (dateRange === 'last30') past.setDate(now.getDate() - 30);
     if (dateRange === 'custom' && customStartDate) {
-        past.setTime(new Date(customStartDate).getTime());
+      past.setTime(new Date(customStartDate).getTime());
     }
 
     if (dateRange !== 'all') {
       filteredPosts = filteredPosts.filter(post => new Date(post.timestamp) >= past);
     }
-    
+
     if (dateRange === 'custom' && customEndDate) {
-        const end = new Date(customEndDate);
-        end.setHours(23, 59, 59);
-        filteredPosts = filteredPosts.filter(post => new Date(post.timestamp) <= end);
+      const end = new Date(customEndDate);
+      end.setHours(23, 59, 59);
+      filteredPosts = filteredPosts.filter(post => new Date(post.timestamp) <= end);
     }
 
     // Recalculate aggregates based on filtered posts if needed

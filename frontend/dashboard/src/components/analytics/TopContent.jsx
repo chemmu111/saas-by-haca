@@ -27,6 +27,15 @@ const TopContent = ({ posts }) => {
         { id: 'shares', label: 'Shares', icon: Share2 },
     ];
 
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+    const getMediaUrl = (url) => {
+        if (!url) return null;
+        if (url.startsWith('http')) return url;
+        if (url.startsWith('/uploads')) return `${API_URL}${url}`;
+        return url;
+    };
+
     return (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
             <div className="flex items-center justify-between mb-6">
@@ -37,8 +46,8 @@ const TopContent = ({ posts }) => {
                             key={metric.id}
                             onClick={() => setSortMetric(metric.id)}
                             className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${sortMetric === metric.id
-                                    ? 'bg-white text-slate-900 shadow-sm'
-                                    : 'text-slate-500 hover:text-slate-700'
+                                ? 'bg-white text-slate-900 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700'
                                 }`}
                         >
                             <metric.icon size={12} />
@@ -53,7 +62,7 @@ const TopContent = ({ posts }) => {
                     <div key={post.id} className="flex items-start gap-4 p-3 rounded-lg hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
                         <div className="relative w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-slate-100 border border-slate-200">
                             {post.thumbnail_url ? (
-                                <img src={post.thumbnail_url} alt="Post thumbnail" className="w-full h-full object-cover" />
+                                <img src={getMediaUrl(post.thumbnail_url)} alt="Post thumbnail" className="w-full h-full object-cover" />
                             ) : (
                                 <div className="w-full h-full flex items-center justify-center text-slate-300">
                                     <Eye size={20} />
