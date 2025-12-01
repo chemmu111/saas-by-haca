@@ -5,7 +5,7 @@ import crypto from 'crypto';
 import User from '../models/User.js';
 import VerificationCode from '../models/VerificationCode.js';
 import PasswordReset from '../models/PasswordReset.js';
-import { sendVerificationEmail, sendPasswordResetEmail } from '../services/emailService.js';
+import { sendVerificationEmail, sendPasswordResetEmail, sendOtpEmail } from '../services/emailService.js';
 import Client from '../models/Client.js';
 import mongoose from 'mongoose';
 import { refreshLongLivedToken } from '../services/instagramTokenService.js';
@@ -35,12 +35,90 @@ router.post('/signup', async (req, res) => {
     if (existing) return res.status(409).json({ error: 'Email already in use' });
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = await User.create({ name: name.trim(), email: email.toLowerCase(), passwordHash, role: userRole });
+    // Create user with isVerified: false
+    const user = await User.create({
+      name: name.trim(),
+      email: email.toLowerCase(),
+      passwordHash,
+      role: userRole,
+      isVerified: false
+    });
 
-    const token = signToken(user);
-    res.status(201).json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+    // Generate 6-digit verification code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+
+    // Save verification code
+    await VerificationCode.create({
+      email: user.email.toLowerCase(),
+      code: verificationCode,
+      expiresAt: expiresAt,
+      purpose: 'signup',
+      userId: user._id
+    });
+
+    // Send verification email
+    try {
+      await sendOtpEmail(user.email, verificationCode, 'signup');
+      res.status(201).json({
+        requiresVerification: true,
+        message: 'Verification code sent to your email',
+        email: user.email
+      });
+    } catch (emailError) {
+      console.error('Error sending signup verification email:', emailError);
+      // Still return success but warn about email
+      res.status(201).json({
+        requiresVerification: true,
+        message: 'Account created but failed to send verification email. Please try resending code.',
+        email: user.email,
+        emailError: true
+      });
+    }
   } catch (err) {
     console.error('Signup error', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/auth/verify-signup - Verify signup OTP
+router.post('/verify-signup', async (req, res) => {
+  try {
+    const { email, code } = req.body || {};
+    if (!email || !isValidEmail(email)) return res.status(400).json({ error: 'Valid email is required' });
+    if (!code || code.length !== 6) return res.status(400).json({ error: 'Valid 6-digit code is required' });
+
+    const verification = await VerificationCode.findOne({
+      email: email.toLowerCase(),
+      code: code,
+      purpose: 'signup',
+      used: false,
+      expiresAt: { $gt: new Date() }
+    });
+
+    if (!verification) {
+      return res.status(401).json({ error: 'Invalid or expired verification code' });
+    }
+
+    const user = await User.findById(verification.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Mark user as verified
+    user.isVerified = true;
+    await user.save();
+
+    // Mark code as used
+    verification.used = true;
+    await verification.save();
+
+    // Generate token and return user
+    const token = signToken(user);
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+  } catch (err) {
+    console.error('Verify signup error', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -155,7 +233,7 @@ router.post('/verify-code', async (req, res) => {
   }
 });
 
-// POST /api/auth/forgot-password - Request password reset
+// POST /api/auth/forgot-password - Request password reset OTP
 router.post('/forgot-password', async (req, res) => {
   try {
     const { email } = req.body || {};
@@ -167,50 +245,46 @@ router.post('/forgot-password', async (req, res) => {
     // Find user by email
     const user = await User.findOne({ email: email.toLowerCase() });
 
-    // Always return success (security best practice - don't reveal if email exists)
+    // Always return success (security best practice)
     if (!user) {
       return res.json({
         success: true,
-        message: 'If an account with that email exists, a password reset link has been sent.'
+        message: 'If an account with that email exists, a verification code has been sent.'
       });
     }
 
-    // Generate secure random token
-    const resetToken = crypto.randomBytes(32).toString('hex');
-
-    // Set expiration to 1 hour from now
+    // Generate 6-digit verification code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 1);
+    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
 
-    // Delete any existing unused reset tokens for this user
-    await PasswordReset.deleteMany({
+    // Delete any existing unused codes for this user/purpose
+    await VerificationCode.deleteMany({
       email: email.toLowerCase(),
+      purpose: 'reset',
       used: false
     });
 
-    // Save reset token
-    await PasswordReset.create({
+    // Save verification code
+    await VerificationCode.create({
       email: email.toLowerCase(),
-      token: resetToken,
-      userId: user._id,
-      expiresAt: expiresAt
+      code: verificationCode,
+      expiresAt: expiresAt,
+      purpose: 'reset',
+      userId: user._id
     });
 
-    // Generate reset URL
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5001';
-    const resetUrl = `${frontendUrl}/reset-password.html?token=${resetToken}`;
-
-    // Send password reset email
+    // Send OTP email
     try {
-      await sendPasswordResetEmail(user.email, resetToken, resetUrl);
+      await sendOtpEmail(user.email, verificationCode, 'reset');
       return res.json({
         success: true,
-        message: 'If an account with that email exists, a password reset link has been sent.'
+        message: 'If an account with that email exists, a verification code has been sent.'
       });
     } catch (emailError) {
-      console.error('Error sending password reset email:', emailError);
+      console.error('Error sending password reset OTP:', emailError);
       return res.status(500).json({
-        error: 'Failed to send password reset email. Please try again.'
+        error: 'Failed to send verification code. Please try again.'
       });
     }
   } catch (err) {
@@ -219,32 +293,30 @@ router.post('/forgot-password', async (req, res) => {
   }
 });
 
-// POST /api/auth/reset-password - Reset password with token
+// POST /api/auth/reset-password - Reset password with OTP
 router.post('/reset-password', async (req, res) => {
   try {
-    const { token, password } = req.body || {};
+    const { email, code, password } = req.body || {};
 
-    if (!token) {
-      return res.status(400).json({ error: 'Reset token is required' });
-    }
+    if (!email || !isValidEmail(email)) return res.status(400).json({ error: 'Email is required' });
+    if (!code || code.length !== 6) return res.status(400).json({ error: 'Valid 6-digit code is required' });
+    if (!password || password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
 
-    if (!password || password.length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters' });
-    }
-
-    // Find reset token
-    const passwordReset = await PasswordReset.findOne({
-      token: token,
+    // Find verification code
+    const verification = await VerificationCode.findOne({
+      email: email.toLowerCase(),
+      code: code,
+      purpose: 'reset',
       used: false,
       expiresAt: { $gt: new Date() }
     });
 
-    if (!passwordReset) {
-      return res.status(401).json({ error: 'Invalid or expired reset token' });
+    if (!verification) {
+      return res.status(401).json({ error: 'Invalid or expired verification code' });
     }
 
     // Get user
-    const user = await User.findById(passwordReset.userId);
+    const user = await User.findById(verification.userId);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -256,15 +328,9 @@ router.post('/reset-password', async (req, res) => {
     user.passwordHash = passwordHash;
     await user.save();
 
-    // Mark reset token as used
-    passwordReset.used = true;
-    await passwordReset.save();
-
-    // Delete all unused reset tokens for this user (security)
-    await PasswordReset.deleteMany({
-      email: user.email.toLowerCase(),
-      used: false
-    });
+    // Mark code as used
+    verification.used = true;
+    await verification.save();
 
     return res.json({
       success: true,
@@ -272,6 +338,49 @@ router.post('/reset-password', async (req, res) => {
     });
   } catch (err) {
     console.error('Reset password error', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/auth/resend-otp - Resend OTP
+router.post('/resend-otp', async (req, res) => {
+  try {
+    const { email, purpose } = req.body || {};
+    if (!email || !isValidEmail(email)) return res.status(400).json({ error: 'Valid email is required' });
+    if (!['signup', 'reset', 'login'].includes(purpose)) return res.status(400).json({ error: 'Valid purpose is required' });
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      // Security: Don't reveal user existence
+      return res.json({ success: true, message: 'If account exists, code sent.' });
+    }
+
+    // Generate new code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+
+    // Invalidate old unused codes for this purpose
+    await VerificationCode.updateMany(
+      { email: email.toLowerCase(), purpose: purpose, used: false },
+      { used: true }
+    );
+
+    // Save new code
+    await VerificationCode.create({
+      email: user.email.toLowerCase(),
+      code: verificationCode,
+      expiresAt: expiresAt,
+      purpose: purpose,
+      userId: user._id
+    });
+
+    // Send email
+    await sendOtpEmail(user.email, verificationCode, purpose);
+
+    res.json({ success: true, message: 'Verification code resent.' });
+  } catch (err) {
+    console.error('Resend OTP error', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -12,7 +12,9 @@ const Login = () => {
     const [error, setError] = useState('');
     const [showForgotModal, setShowForgotModal] = useState(false);
     const [forgotEmail, setForgotEmail] = useState('');
-    const [forgotStatus, setForgotStatus] = useState({ type: '', message: '' });
+    const [forgotCode, setForgotCode] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [forgotStatus, setForgotStatus] = useState({ step: 'email', type: '', message: '' }); // step: email, verify, success
 
     const getBackendUrl = () => {
         // Check for environment variable first (production)
@@ -66,7 +68,8 @@ const Login = () => {
 
     const handleForgotPassword = async (e) => {
         e.preventDefault();
-        setForgotStatus({ type: '', message: '' });
+        setForgotStatus({ ...forgotStatus, type: '', message: '' });
+        setIsLoading(true);
 
         try {
             const backendUrl = getBackendUrl();
@@ -79,12 +82,51 @@ const Login = () => {
             const data = await response.json();
 
             if (data.success) {
-                setForgotStatus({ type: 'success', message: 'Reset link sent to your email.' });
+                setForgotStatus({ step: 'verify', type: 'success', message: 'Verification code sent to your email.' });
             } else {
-                setForgotStatus({ type: 'error', message: data.error || 'Failed to send reset link.' });
+                setForgotStatus({ ...forgotStatus, type: 'error', message: data.error || 'Failed to send code.' });
             }
         } catch (err) {
-            setForgotStatus({ type: 'error', message: 'Network error. Try again.' });
+            setForgotStatus({ ...forgotStatus, type: 'error', message: 'Network error. Try again.' });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleResetPassword = async (e) => {
+        e.preventDefault();
+        setForgotStatus({ ...forgotStatus, type: '', message: '' });
+
+        if (newPassword.length < 8) {
+            setForgotStatus({ ...forgotStatus, type: 'error', message: 'Password must be at least 8 characters.' });
+            return;
+        }
+
+        setIsLoading(true);
+
+        try {
+            const backendUrl = getBackendUrl();
+            const response = await fetch(`${backendUrl}/api/auth/reset-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: forgotEmail,
+                    code: forgotCode,
+                    password: newPassword
+                }),
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                setForgotStatus({ step: 'success', type: 'success', message: 'Password reset successfully.' });
+            } else {
+                setForgotStatus({ ...forgotStatus, type: 'error', message: data.error || 'Failed to reset password.' });
+            }
+        } catch (err) {
+            setForgotStatus({ ...forgotStatus, type: 'error', message: 'Network error. Try again.' });
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -164,7 +206,10 @@ const Login = () => {
                     <div className="modal-overlay" onClick={() => setShowForgotModal(false)}></div>
                     <div className="modal-content">
                         <div className="modal-header">
-                            <h2 className="modal-title">Forgot Password?</h2>
+                            <h2 className="modal-title">
+                                {forgotStatus.step === 'reset' ? 'Reset Password' :
+                                    forgotStatus.step === 'verify' ? 'Verify Code' : 'Forgot Password?'}
+                            </h2>
                             <button
                                 type="button"
                                 className="modal-close"
@@ -173,44 +218,137 @@ const Login = () => {
                                 <X size={24} />
                             </button>
                         </div>
-                        <form onSubmit={handleForgotPassword}>
-                            <p className="modal-description">Enter your email address and we'll send you a link to reset your password.</p>
 
-                            <div className="field-group">
-                                <label htmlFor="forgot-email">Email</label>
-                                <div className="input-wrapper">
-                                    <input
-                                        id="forgot-email"
-                                        type="email"
-                                        value={forgotEmail}
-                                        onChange={(e) => setForgotEmail(e.target.value)}
-                                        placeholder="Enter your email"
-                                        required
-                                    />
+                        {forgotStatus.step === 'email' && (
+                            <form onSubmit={handleForgotPassword}>
+                                <p className="modal-description">Enter your email address and we'll send you a verification code.</p>
+
+                                <div className="field-group">
+                                    <label htmlFor="forgot-email">Email</label>
+                                    <div className="input-wrapper">
+                                        <input
+                                            id="forgot-email"
+                                            type="email"
+                                            value={forgotEmail}
+                                            onChange={(e) => setForgotEmail(e.target.value)}
+                                            placeholder="Enter your email"
+                                            required
+                                        />
+                                    </div>
                                 </div>
+
+                                {forgotStatus.message && (
+                                    <div className={`mb-4 p-3 rounded-lg text-sm flex items-center gap-2 ${forgotStatus.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                                        {forgotStatus.type === 'success' && <Check size={16} />}
+                                        {forgotStatus.message}
+                                    </div>
+                                )}
+
+                                <button className="btn-login" type="submit" disabled={isLoading}>
+                                    <span>{isLoading ? 'Sending...' : 'Send Code'}</span>
+                                    {!isLoading && <ArrowRight size={20} />}
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className="btn-back-to-login"
+                                    onClick={() => setShowForgotModal(false)}
+                                >
+                                    Back to Login
+                                </button>
+                            </form>
+                        )}
+
+                        {forgotStatus.step === 'verify' && (
+                            <form onSubmit={handleResetPassword}>
+                                <p className="modal-description">
+                                    Enter the 6-digit code sent to <strong>{forgotEmail}</strong> and your new password.
+                                </p>
+
+                                <div className="field-group">
+                                    <label htmlFor="reset-code">Verification Code</label>
+                                    <div className="input-wrapper">
+                                        <input
+                                            id="reset-code"
+                                            type="text"
+                                            value={forgotCode}
+                                            onChange={(e) => setForgotCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                            placeholder="Enter 6-digit code"
+                                            className="text-center text-xl tracking-widest font-mono"
+                                            required
+                                            maxLength={6}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="field-group">
+                                    <label htmlFor="new-password">New Password</label>
+                                    <div className="input-wrapper">
+                                        <input
+                                            id="new-password"
+                                            type={showPassword ? "text" : "password"}
+                                            value={newPassword}
+                                            onChange={(e) => setNewPassword(e.target.value)}
+                                            placeholder="Enter new password"
+                                            required
+                                            minLength={8}
+                                        />
+                                        <button
+                                            type="button"
+                                            className="toggle-password"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                        >
+                                            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {forgotStatus.message && (
+                                    <div className={`mb-4 p-3 rounded-lg text-sm flex items-center gap-2 ${forgotStatus.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                                        {forgotStatus.type === 'success' && <Check size={16} />}
+                                        {forgotStatus.message}
+                                    </div>
+                                )}
+
+                                <button className="btn-login" type="submit" disabled={isLoading}>
+                                    <span>{isLoading ? 'Resetting...' : 'Reset Password'}</span>
+                                    {!isLoading && <Check size={20} />}
+                                </button>
+
+                                <div className="mt-4 text-center">
+                                    <button
+                                        type="button"
+                                        onClick={handleForgotPassword}
+                                        className="text-blue-600 hover:text-blue-800 text-sm"
+                                    >
+                                        Resend Code
+                                    </button>
+                                </div>
+                            </form>
+                        )}
+
+                        {forgotStatus.step === 'success' && (
+                            <div className="text-center py-6">
+                                <div className="mx-auto w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-4">
+                                    <Check size={32} />
+                                </div>
+                                <h3 className="text-xl font-bold text-gray-900 mb-2">Password Reset!</h3>
+                                <p className="text-gray-600 mb-6">Your password has been successfully reset. You can now login with your new password.</p>
+                                <button
+                                    type="button"
+                                    className="btn-login"
+                                    onClick={() => {
+                                        setShowForgotModal(false);
+                                        setForgotStatus({ step: 'email', message: '', type: '' });
+                                        setForgotEmail('');
+                                        setForgotCode('');
+                                        setNewPassword('');
+                                    }}
+                                >
+                                    Back to Login
+                                </button>
                             </div>
-
-                            {forgotStatus.message && (
-                                <div className={`mb-4 p-3 rounded-lg text-sm flex items-center gap-2 ${forgotStatus.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
-                                    }`}>
-                                    {forgotStatus.type === 'success' && <Check size={16} />}
-                                    {forgotStatus.message}
-                                </div>
-                            )}
-
-                            <button className="btn-login" type="submit">
-                                <span>Send Reset Link</span>
-                                <ArrowRight size={20} />
-                            </button>
-
-                            <button
-                                type="button"
-                                className="btn-back-to-login"
-                                onClick={() => setShowForgotModal(false)}
-                            >
-                                Back to Login
-                            </button>
-                        </form>
+                        )}
                     </div>
                 </div>
             )}

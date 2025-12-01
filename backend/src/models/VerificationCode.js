@@ -6,6 +6,7 @@ const verificationCodeSchema = new mongoose.Schema(
     code: { type: String, required: true },
     expiresAt: { type: Date, required: true },
     used: { type: Boolean, default: false },
+    purpose: { type: String, enum: ['login', 'signup', 'reset'], default: 'login' },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
   },
   { timestamps: true }

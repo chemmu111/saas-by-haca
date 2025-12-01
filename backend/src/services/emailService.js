@@ -10,41 +10,66 @@ const transporter = nodemailer.createTransport({
 });
 
 /**
- * Send verification code email to admin
- * @param {string} email - Admin email address
- * @param {string} verificationCode - 6-digit verification code
+ * Send OTP email for various purposes
+ * @param {string} email - Recipient email
+ * @param {string} code - OTP code
+ * @param {string} type - Type of OTP (signup, login, reset)
  * @returns {Promise<Object>} - Email sending result
  */
-export async function sendVerificationEmail(email, verificationCode) {
+export async function sendOtpEmail(email, code, type = 'login') {
   try {
+    let subject = 'Verification Code';
+    let title = 'Verification Code';
+    let message = 'Please use the verification code below:';
+
+    if (type === 'signup') {
+      subject = 'Verify Your Account - Haris&Co.';
+      title = 'Verify Your Email';
+      message = 'Welcome to Haris&Co.! Please verify your email address to complete your registration:';
+    } else if (type === 'reset') {
+      subject = 'Password Reset Code - Haris&Co.';
+      title = 'Reset Password';
+      message = 'You requested to reset your password. Use the code below to proceed:';
+    } else if (type === 'login') {
+      subject = 'Login Verification Code - Haris&Co.';
+      title = 'Login Verification';
+      message = 'You requested to login. Please use the verification code below:';
+    }
+
     const mailOptions = {
       from: 'tech.haca@gmail.com',
       to: email,
-      subject: 'Admin Login Verification Code',
+      subject: subject,
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #4f46e5;">Admin Login Verification</h2>
-          <p>Hello Admin,</p>
-          <p>You have requested to login to the admin panel. Please use the verification code below:</p>
-          <div style="background: #f3f4f6; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0;">
-            <h1 style="color: #8b5cf6; font-size: 32px; letter-spacing: 8px; margin: 0;">${verificationCode}</h1>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #4f46e5; text-align: center;">${title}</h2>
+          <p style="color: #374151; font-size: 16px;">Hello,</p>
+          <p style="color: #374151; font-size: 16px;">${message}</p>
+          
+          <div style="background: #f3f4f6; border-radius: 12px; padding: 24px; text-align: center; margin: 30px 0;">
+            <h1 style="color: #8b5cf6; font-size: 36px; letter-spacing: 8px; margin: 0; font-weight: bold;">${code}</h1>
           </div>
-          <p style="color: #6b7280; font-size: 14px;">This code will expire in 10 minutes.</p>
-          <p style="color: #6b7280; font-size: 14px;">If you didn't request this code, please ignore this email.</p>
-          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
-          <p style="color: #9ca3af; font-size: 12px;">This is an automated email. Please do not reply.</p>
+          
+          <p style="color: #6b7280; font-size: 14px; text-align: center;">This code will expire in 10 minutes.</p>
+          <p style="color: #6b7280; font-size: 14px; text-align: center;">If you didn't request this code, please ignore this email.</p>
+          
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+          <p style="color: #9ca3af; font-size: 12px; text-align: center;">© Haris&Co. - Social Media Management Platform</p>
         </div>
       `
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log('Verification email sent:', info.messageId);
+    console.log(`OTP email sent (${type}):`, info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error('Error sending verification email:', error);
-    throw new Error('Failed to send verification email');
+    console.error('Error sending OTP email:', error);
+    throw new Error('Failed to send OTP email');
   }
 }
+
+// Keep the old function for backward compatibility if needed, but alias it
+export const sendVerificationEmail = (email, code) => sendOtpEmail(email, code, 'login');
 
 /**
  * Send monthly report email
@@ -345,6 +370,7 @@ export async function sendInstagramAspectRatioErrorEmail(email, userName, errorM
 }
 
 export default {
+  sendOtpEmail,
   sendVerificationEmail,
   sendPasswordResetEmail,
   sendMonthlyReportEmail,
