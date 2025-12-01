@@ -221,6 +221,7 @@ router.get('/', async (req, res) => {
     let igTotalSaves = 0;
     let totalFollowerGrowth = 0;
     let followersTrendData = [];
+    let accountTrend = []; // Store impressions and reach trend data
     let postsByTypeFromIG = {
       IMAGE: 0,
       VIDEO: 0,
@@ -354,6 +355,23 @@ router.get('/', async (req, res) => {
                   date: day.date,
                   follower_count: day.follower_count || 0,
                   followers: day.followers || day.follower_count || 0
+                });
+              }
+            });
+          }
+
+          // Extract account trend data (impressions and reach)
+          if (data.trends && data.trends.engagement && Array.isArray(data.trends.engagement)) {
+            data.trends.engagement.forEach(day => {
+              const existingDay = accountTrend.find(d => d.date === day.date);
+              if (existingDay) {
+                existingDay.reach += day.reach || 0;
+                existingDay.impressions += day.impressions || 0;
+              } else {
+                accountTrend.push({
+                  date: day.date,
+                  reach: day.reach || 0,
+                  impressions: day.impressions || 0
                 });
               }
             });
