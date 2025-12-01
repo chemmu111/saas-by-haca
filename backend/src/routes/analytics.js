@@ -183,6 +183,32 @@ router.get('/', async (req, res) => {
     // Fetch real Instagram data for Instagram clients - ONLY USE INSTAGRAM API DATA
     let totalFollowers = 0;
     let totalAccountReach = 0; // Account-level reach (daily trend)
+    let totalMediaReach = 0;
+    let totalMediaImpressions = 0;
+    let totalMediaInteractions = 0;
+    let totalWatchTimeAvgSum = 0;
+    let totalWatchTimeTotal = 0;
+    let watchTimeSampleCount = 0;
+    let profileActivity = {
+      website_clicks: 0,
+      email_contacts: 0,
+      phone_call_clicks: 0,
+      text_message_clicks: 0,
+      get_directions_clicks: 0,
+      profile_views: 0
+    };
+
+    if (accountInsights) {
+      profileActivity = {
+        website_clicks: accountInsights.website_clicks || 0,
+        email_contacts: accountInsights.email_contacts || 0,
+        phone_call_clicks: accountInsights.phone_call_clicks || 0,
+        text_message_clicks: accountInsights.text_message_clicks || 0,
+        get_directions_clicks: accountInsights.get_directions_clicks || 0,
+        profile_views: accountInsights.profile_views || 0
+      };
+      totalMediaImpressions = accountInsights.impressions || 0;
+    }
     let igTotalViews = 0;
     let igTotalInteractions = 0;
     let igTotalWatchTime = 0;
@@ -464,6 +490,7 @@ router.get('/', async (req, res) => {
       totalEngagements: igTotalEngagements,
       totalViews: totalViews,
       totalReach: totalAccountReach,
+      totalImpressions: totalMediaImpressions, // From Account Insights
       totalInteractions: igTotalInteractions || 0,
       avgWatchTime: igAvgWatchTimeCount > 0 ? igAvgWatchTimeSum / igAvgWatchTimeCount : 0,
       totalWatchTime: igTotalWatchTime,
@@ -482,7 +509,10 @@ router.get('/', async (req, res) => {
       // Note: engagementTrend from database is kept for historical data
       // But followersTrend is ONLY from Instagram API
       engagementTrend: engagementTrend || [],
+      engagementTrend: engagementTrend || [],
       followersTrend: followersTrendData, // ONLY from Instagram API - NO DATABASE FALLBACK
+      impressionsTrend: accountTrend.map(d => ({ date: d.date, impressions: d.impressions || 0, reach: d.reach || 0 })),
+      profileActivity: profileActivity,
       // Top performing post
       topPost: topPost ? {
         id: topPost._id,

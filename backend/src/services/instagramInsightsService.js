@@ -319,8 +319,8 @@ export async function fetchAccountInsightsTrend(igUserId, pageAccessToken) {
       return createSuccessResponse(cached);
     }
 
-    // Daily trends: reach and follower_count CAN be combined
-    const metrics = 'reach,follower_count';
+    // Daily trends: reach and follower_count CAN be combined. Adding impressions if available.
+    const metrics = 'reach,follower_count,impressions';
     const url = `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=${metrics}&period=day&access_token=${pageAccessToken}`;
 
     const response = await fetch(url);
@@ -343,7 +343,7 @@ export async function fetchAccountInsightsTrend(igUserId, pageAccessToken) {
             const date = value.end_time ? value.end_time.split('T')[0] : null;
             if (date) {
               if (!dailyData[date]) {
-                dailyData[date] = { date, follower_count: 0, reach: 0 };
+                dailyData[date] = { date, follower_count: 0, reach: 0, impressions: 0 };
               }
               dailyData[date][metric.name] = value.value || 0;
             }

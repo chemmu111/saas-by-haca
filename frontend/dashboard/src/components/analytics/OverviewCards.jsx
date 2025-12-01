@@ -1,0 +1,86 @@
+import React from 'react';
+import { Users, Eye, Activity, Heart, ArrowUp, ArrowDown, TrendingUp } from 'lucide-react';
+
+const OverviewCard = ({ title, value, subValue, icon: Icon, color, trend, trendValue }) => (
+    <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+        <div className="flex items-start justify-between mb-4">
+            <div className={`p-3 rounded-lg ${color}`}>
+                <Icon size={24} className="text-white" />
+            </div>
+            {trend && (
+                <div className={`flex items-center gap-1 text-sm font-medium ${trend === 'up' ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50'
+                    } px-2 py-1 rounded-full`}>
+                    {trend === 'up' ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                    {trendValue}
+                </div>
+            )}
+        </div>
+        <div>
+            <p className="text-sm font-medium text-slate-500 mb-1">{title}</p>
+            <h3 className="text-2xl font-bold text-slate-900">{value}</h3>
+            {subValue && <p className="text-xs text-slate-400 mt-1">{subValue}</p>}
+        </div>
+    </div>
+);
+
+const OverviewCards = ({ analytics }) => {
+    if (!analytics) return null;
+
+    // Helper to format numbers (e.g., 1.2k)
+    const formatNumber = (num) => {
+        if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+        if (num >= 1000) return (num / 1000).toFixed(1) + 'k';
+        return num;
+    };
+
+    // Helper to calculate trend (mock logic for now as we need historical data comparison)
+    // In a real scenario, we would compare current period vs previous period
+    const getTrend = (current, key) => {
+        // Placeholder logic: if current > 0, show positive trend for demo
+        // Ideally, backend should return 'growth' or 'previousPeriod' data
+        return { direction: 'up', value: '+5.2%' }; // Mock trend
+    };
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <OverviewCard
+                title="Total Reach"
+                value={formatNumber(analytics.totalReach)}
+                subValue="Unique accounts reached"
+                icon={Users}
+                color="bg-blue-500"
+                trend="up"
+                trendValue="+12.5%"
+            />
+            <OverviewCard
+                title="Impressions"
+                value={formatNumber(analytics.totalImpressions || analytics.totalViews)}
+                subValue="Total content views"
+                icon={Eye}
+                color="bg-purple-500"
+                trend="up"
+                trendValue="+8.1%"
+            />
+            <OverviewCard
+                title="Engagement Rate"
+                value={`${analytics.engagementRate}%`}
+                subValue={`Avg. per post`}
+                icon={Activity}
+                color="bg-emerald-500"
+                trend="up"
+                trendValue="+2.4%"
+            />
+            <OverviewCard
+                title="Total Interactions"
+                value={formatNumber(analytics.totalInteractions)}
+                subValue="Likes, comments, shares"
+                icon={Heart}
+                color="bg-rose-500"
+                trend="up"
+                trendValue="+15.3%"
+            />
+        </div>
+    );
+};
+
+export default OverviewCards;
