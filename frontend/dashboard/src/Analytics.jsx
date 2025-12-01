@@ -68,7 +68,7 @@ const Analytics = () => {
 
   // Helper to build URL with auth
   const buildUrl = (path) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('auth_token');
     const url = new URL(`${API_URL}${path}`);
     return { url: url.toString(), headers: { 'Authorization': `Bearer ${token}` } };
   };
