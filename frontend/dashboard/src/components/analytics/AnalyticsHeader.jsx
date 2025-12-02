@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, RefreshCw, Calendar, AlertTriangle } from 'lucide-react';
+import { Download, RefreshCw, Calendar, AlertTriangle, ToggleLeft, ToggleRight } from 'lucide-react';
 
 const AnalyticsHeader = ({
     version,
@@ -14,7 +14,9 @@ const AnalyticsHeader = ({
     handleRefresh,
     handleExportPDF,
     exportingPDF,
-    tokenStatus
+    tokenStatus,
+    autoRefreshEnabled,
+    setAutoRefreshEnabled
 }) => {
     return (
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between mb-8">
@@ -77,13 +79,26 @@ const AnalyticsHeader = ({
                         </div>
                     )}
 
+                    {/* Auto-Refresh Toggle */}
+                    <button
+                        onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
+                        className={`px-4 py-2 rounded-lg transition-all font-medium shadow-sm flex items-center gap-2 text-sm border ${autoRefreshEnabled
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                            }`}
+                        title={autoRefreshEnabled ? 'Auto-refresh enabled (every 5 min)' : 'Auto-refresh disabled'}
+                    >
+                        {autoRefreshEnabled ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
+                        Auto-Refresh
+                    </button>
+
                     {/* Refresh Button */}
                     <button
                         onClick={handleRefresh}
                         disabled={refreshing || timeLeft > 0}
                         className={`px-4 py-2 rounded-lg transition-all font-medium shadow-sm flex items-center gap-2 text-sm ${timeLeft > 0
-                                ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
-                                : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 hover:border-slate-300'
+                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+                            : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 hover:border-slate-300'
                             }`}
                     >
                         <RefreshCw size={16} className={refreshing ? 'animate-spin text-blue-600' : 'text-slate-500'} />

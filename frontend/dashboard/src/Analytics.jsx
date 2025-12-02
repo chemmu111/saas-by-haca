@@ -4,7 +4,7 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { Loader2, AlertCircle } from 'lucide-react';
 
-// Import new modular components
+// Import existing modular components
 import AnalyticsHeader from './components/analytics/AnalyticsHeader';
 import OverviewCards from './components/analytics/OverviewCards';
 import ChartsSection from './components/analytics/ChartsSection';
@@ -13,6 +13,17 @@ import TopContent from './components/analytics/TopContent';
 import HashtagPerformance from './components/analytics/HashtagPerformance';
 import ProfileActivity from './components/analytics/ProfileActivity';
 import PostingHeatmap from './components/analytics/PostingHeatmap';
+
+// Import new enhanced components
+import ProfileGrowthCard from './components/analytics/ProfileGrowthCard';
+import AudienceMetricsCard from './components/analytics/AudienceMetricsCard';
+import EngagementBreakdownCard from './components/analytics/EngagementBreakdownCard';
+import PostsPerformanceTable from './components/analytics/PostsPerformanceTable';
+import PlatformComparisonCard from './components/analytics/PlatformComparisonCard';
+import TopHashtagsCard from './components/analytics/TopHashtagsCard';
+import BestPostingTimeCard from './components/analytics/BestPostingTimeCard';
+import ContentTypeEngagementCard from './components/analytics/ContentTypeEngagementCard';
+import VideoViewsChart from './components/analytics/VideoViewsChart';
 
 // Helper for token expiry modal
 const TokenExpiredModal = ({ show, onClose, onReconnect }) => {
@@ -62,8 +73,11 @@ const Analytics = () => {
   const [exportingPDF, setExportingPDF] = useState(false);
   const [tokenStatus, setTokenStatus] = useState(null);
   const [showTokenExpiredModal, setShowTokenExpiredModal] = useState(false);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState(5 * 60 * 1000); // 5 minutes
 
   const dashboardRef = useRef(null);
+  const autoRefreshTimerRef = useRef(null);
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
   // Helper to build URL with auth
@@ -138,6 +152,31 @@ const Analytics = () => {
       return () => clearTimeout(timer);
     }
   }, [timeLeft]);
+
+  // Auto-refresh functionality
+  useEffect(() => {
+    if (!autoRefreshEnabled) {
+      if (autoRefreshTimerRef.current) {
+        clearInterval(autoRefreshTimerRef.current);
+        autoRefreshTimerRef.current = null;
+      }
+      return;
+    }
+
+    // Set up auto-refresh interval
+    autoRefreshTimerRef.current = setInterval(() => {
+      console.log('🔄 Auto-refreshing analytics data...');
+      fetchAnalytics(true);
+    }, autoRefreshInterval);
+
+    // Cleanup on unmount or when dependencies change
+    return () => {
+      if (autoRefreshTimerRef.current) {
+        clearInterval(autoRefreshTimerRef.current);
+        autoRefreshTimerRef.current = null;
+      }
+    };
+  }, [autoRefreshEnabled, autoRefreshInterval]);
 
   const handleRefresh = () => {
     if (timeLeft > 0) return;
@@ -250,7 +289,7 @@ const Analytics = () => {
   return (
     <div className="max-w-[1600px] mx-auto p-6" ref={dashboardRef}>
       <AnalyticsHeader
-        version="v2.1"
+        version="v3.0"
         lastUpdated={lastUpdated}
         clientFilter={clientFilter}
         setClientFilter={setClientFilter}
@@ -263,12 +302,42 @@ const Analytics = () => {
         handleExportPDF={handleExportPDF}
         exportingPDF={exportingPDF}
         tokenStatus={tokenStatus}
+        autoRefreshEnabled={autoRefreshEnabled}
+        setAutoRefreshEnabled={setAutoRefreshEnabled}
       />
 
+      {/* Overview Cards */}
       <OverviewCards analytics={filteredAnalytics} />
 
+      {/* Profile Growth & Audience Metrics */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        <ProfileGrowthCard analytics={filteredAnalytics} />
+        <AudienceMetricsCard analytics={filteredAnalytics} />
+      </div>
+
+      {/* Engagement Breakdown */}
+      <div className="mb-8">
+        <EngagementBreakdownCard analytics={filteredAnalytics} />
+      </div>
+
+      {/* Charts Section - Enhanced */}
       <ChartsSection analytics={filteredAnalytics} />
 
+      {/* Video Views Chart */}
+      <div className="mb-8">
+        <VideoViewsChart posts={filteredAnalytics?.detailedPosts} />
+      </div>
+
+      {/* Platform Comparison & Content Type Performance */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        <PlatformComparisonCard
+          analytics={filteredAnalytics}
+          posts={filteredAnalytics?.detailedPosts}
+        />
+        <ContentTypeEngagementCard posts={filteredAnalytics?.detailedPosts} />
+      </div>
+
+      {/* Content Breakdown & Top Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
         <ContentBreakdown analytics={filteredAnalytics} />
         <div className="lg:col-span-2">
@@ -276,9 +345,21 @@ const Analytics = () => {
         </div>
       </div>
 
+      {/* Top Hashtags & Best Posting Times */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        <HashtagPerformance analytics={filteredAnalytics} />
+        <TopHashtagsCard posts={filteredAnalytics?.detailedPosts} />
+        <BestPostingTimeCard posts={filteredAnalytics?.detailedPosts} />
+      </div>
+
+      {/* Posts Performance Table */}
+      <div className="mb-8">
+        <PostsPerformanceTable posts={filteredAnalytics?.detailedPosts} />
+      </div>
+
+      {/* Profile Activity & Posting Heatmap */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
         <ProfileActivity analytics={filteredAnalytics} />
+        <HashtagPerformance analytics={filteredAnalytics} />
       </div>
 
       <div className="mb-8">
