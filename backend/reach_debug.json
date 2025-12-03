@@ -1,0 +1,37 @@
+{
+  "status": 200,
+  "url": "https://graph.facebook.com/v22.0/17841477797074422/insights?metric=reach&period=days_28&access_token=REDACTED",
+  "data": {
+    "data": [
+      {
+        "name": "reach",
+        "period": "days_28",
+        "values": [
+          {
+            "value": 1900,
+            "end_time": "2025-12-02T08:00:00+0000"
+          },
+          {
+            "value": 1902,
+            "end_time": "2025-12-02T08:00:00+0000"
+          },
+          {
+            "value": 0,
+            "end_time": "2025-12-02T08:00:00+0000"
+          },
+          {
+            "value": 0,
+            "end_time": "2025-12-02T08:00:00+0000"
+          }
+        ],
+        "title": "Reach",
+        "description": "The total number of times that the business account's media objects have been uniquely viewed.",
+        "id": "17841477797074422/insights/reach/days_28"
+      }
+    ],
+    "paging": {
+      "previous": "https://graph.facebook.com/v24.0/17841477797074422/insights?access_token=EAAf0p4LmEfQBQAwZBw9uHsKb2aMEWKQCpqRXWuInAxSwhtQs6iZCQ9QLqIz1br6ZAHnZBIus45kZCsBPMvY7YHgqrD7v6rqtjaP6uAPLjkQj4hGN2DBjwZBkN0Dm9ZBZB5TodKbxsamNoUrCkDbdjXotys4h7uyi29Jd4VW01t0pDiCTlIAEeyHoJZCcs3QCiKfrW1SZAV&metric=reach&period=days_28&since=1764330126&until=1764502926",
+      "next": "https://graph.facebook.com/v24.0/17841477797074422/insights?access_token=EAAf0p4LmEfQBQAwZBw9uHsKb2aMEWKQCpqRXWuInAxSwhtQs6iZCQ9QLqIz1br6ZAHnZBIus45kZCsBPMvY7YHgqrD7v6rqtjaP6uAPLjkQj4hGN2DBjwZBkN0Dm9ZBZB5TodKbxsamNoUrCkDbdjXotys4h7uyi29Jd4VW01t0pDiCTlIAEeyHoJZCcs3QCiKfrW1SZAV&metric=reach&period=days_28&since=1764675728&until=1764848528"
+    }
+  }
+}

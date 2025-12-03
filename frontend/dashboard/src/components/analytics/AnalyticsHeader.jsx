@@ -47,8 +47,8 @@ const AnalyticsHeader = ({
                         className="text-sm font-medium text-slate-700 focus:outline-none bg-transparent border-none cursor-pointer"
                     >
                         <option value="all">All Clients</option>
-                        {clientOptions.map(option => (
-                            <option key={option.id} value={option.id}>
+                        {clientOptions.map((option, index) => (
+                            <option key={option.id || index} value={option.id}>
                                 {option.name}
                             </option>
                         ))}
@@ -83,8 +83,8 @@ const AnalyticsHeader = ({
                     <button
                         onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
                         className={`px-4 py-2 rounded-lg transition-all font-medium shadow-sm flex items-center gap-2 text-sm border ${autoRefreshEnabled
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                             }`}
                         title={autoRefreshEnabled ? 'Auto-refresh enabled (every 5 min)' : 'Auto-refresh disabled'}
                     >

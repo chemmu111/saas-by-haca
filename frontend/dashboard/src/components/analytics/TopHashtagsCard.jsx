@@ -52,7 +52,7 @@ const TopHashtagsCard = ({ posts }) => {
             {/* Top 5 Chart */}
             <div className="mb-6">
                 <h4 className="text-sm font-semibold text-slate-700 mb-3">Top 5 by Engagement</h4>
-                <div className="h-[200px] w-full">
+                <div className="h-[200px] w-full" style={{ minHeight: '200px' }}>
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={chartData} layout="vertical">
                             <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />

@@ -46,11 +46,9 @@ const OverviewCards = ({ analytics }) => {
             <OverviewCard
                 title="Total Reach"
                 value={formatNumber(analytics.totalReach)}
-                subValue="Unique accounts reached"
+                subValue="Unique accounts reached (28 days)"
                 icon={Users}
                 color="bg-blue-500"
-                trend="up"
-                trendValue="+12.5%"
             />
             <OverviewCard
                 title="Impressions"
@@ -58,8 +56,6 @@ const OverviewCards = ({ analytics }) => {
                 subValue="Total content views"
                 icon={Eye}
                 color="bg-purple-500"
-                trend="up"
-                trendValue="+8.1%"
             />
             <OverviewCard
                 title="Engagement Rate"
@@ -67,8 +63,6 @@ const OverviewCards = ({ analytics }) => {
                 subValue={`Avg. per post`}
                 icon={Activity}
                 color="bg-emerald-500"
-                trend="up"
-                trendValue="+2.4%"
             />
             <OverviewCard
                 title="Total Interactions"
@@ -76,8 +70,6 @@ const OverviewCards = ({ analytics }) => {
                 subValue="Likes, comments, shares"
                 icon={Heart}
                 color="bg-rose-500"
-                trend="up"
-                trendValue="+15.3%"
             />
         </div>
     );

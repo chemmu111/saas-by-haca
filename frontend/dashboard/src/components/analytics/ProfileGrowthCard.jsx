@@ -8,11 +8,38 @@ const ProfileGrowthCard = ({ analytics }) => {
 
     const currentFollowers = analytics.totalFollowers || 0;
     const followerGrowth = analytics.followerGrowth || 0;
-    const followersGained = analytics.totalFollowersGained || 0;
-    const followersLost = analytics.totalFollowersLost || 0;
+
+    // Calculate followers gained/lost from trend data
+    const followersTrend = analytics.followersTrend || [];
+    let followersGained = 0;
+    let followersLost = 0;
+    let netGrowth = 0;
+
+    if (followersTrend.length >= 2) {
+        // Calculate from first to last data point in trend
+        const firstData = followersTrend[0];
+        const lastData = followersTrend[followersTrend.length - 1];
+        const firstCount = firstData.followers || firstData.follower_count || 0;
+        const lastCount = lastData.followers || lastData.follower_count || 0;
+
+        netGrowth = lastCount - firstCount;
+
+        if (netGrowth > 0) {
+            followersGained = netGrowth;
+            followersLost = 0;
+        } else if (netGrowth < 0) {
+            followersGained = 0;
+            followersLost = Math.abs(netGrowth);
+        }
+    } else {
+        // No trend data: show current followers as total gained
+        // This is accurate for accounts without historical data
+        netGrowth = currentFollowers;
+        followersGained = currentFollowers;
+        followersLost = 0;
+    }
 
     // Calculate month-over-month from trend data
-    const followersTrend = analytics.followersTrend || [];
     let momPercentage = 0;
     let momDirection = 'neutral';
 
@@ -32,6 +59,18 @@ const ProfileGrowthCard = ({ analytics }) => {
         date: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
         followers: item.followers || item.follower_count || 0
     }));
+
+    // Override with API follower metrics if available (from daily snapshots)
+    const followerMetrics = analytics.followerMetrics || {};
+    if (followerMetrics.hasData) {
+        followersGained = followerMetrics.gained;
+        followersLost = followerMetrics.lost;
+        netGrowth = followerMetrics.netGrowth;
+    }
+
+    // Only show metrics if we have actual trend data or API snapshot data
+    const hasTrendData = followersTrend.length >= 2 || (followerMetrics && followerMetrics.hasData);
+    const hasChartData = followersTrend.length > 0;
 
     return (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
@@ -61,44 +100,65 @@ const ProfileGrowthCard = ({ analytics }) => {
             </div>
 
             {/* Growth Metrics */}
-            <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="bg-emerald-50 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-1">
-                        <ArrowUp size={16} className="text-emerald-600" />
-                        <span className="text-2xl font-bold text-emerald-900">{formatNumber(followersGained)}</span>
+            {hasTrendData ? (
+                <>
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div className="bg-emerald-50 rounded-lg p-4">
+                            <div className="flex items-center gap-2 mb-1">
+                                <ArrowUp size={16} className="text-emerald-600" />
+                                <span className="text-2xl font-bold text-emerald-900">{formatNumber(followersGained)}</span>
+                            </div>
+                            <p className="text-xs text-emerald-700 font-medium">Followers Gained</p>
+                        </div>
+                        <div className="bg-rose-50 rounded-lg p-4">
+                            <div className="flex items-center gap-2 mb-1">
+                                <ArrowDown size={16} className="text-rose-600" />
+                                <span className="text-2xl font-bold text-rose-900">{formatNumber(followersLost)}</span>
+                            </div>
+                            <p className="text-xs text-rose-700 font-medium">Followers Lost</p>
+                        </div>
                     </div>
-                    <p className="text-xs text-emerald-700 font-medium">Followers Gained</p>
-                </div>
-                <div className="bg-rose-50 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-1">
-                        <ArrowDown size={16} className="text-rose-600" />
-                        <span className="text-2xl font-bold text-rose-900">{formatNumber(followersLost)}</span>
-                    </div>
-                    <p className="text-xs text-rose-700 font-medium">Followers Lost</p>
-                </div>
-            </div>
 
-            {/* Net Growth */}
-            <div className={`rounded-lg p-4 mb-6 ${followerGrowth >= 0 ? 'bg-blue-50' : 'bg-orange-50'
-                }`}>
-                <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-slate-700">Net Growth</span>
-                    <div className="flex items-center gap-2">
-                        {followerGrowth >= 0 ? (
-                            <ArrowUp size={16} className="text-blue-600" />
-                        ) : (
-                            <ArrowDown size={16} className="text-orange-600" />
-                        )}
-                        <span className={`text-xl font-bold ${followerGrowth >= 0 ? 'text-blue-900' : 'text-orange-900'
-                            }`}>
-                            {followerGrowth >= 0 ? '+' : ''}{formatNumber(followerGrowth)}
-                        </span>
+                    {/* Snapshot Info */}
+                    {followerMetrics.hasData && (
+                        <div className="mb-4 px-3 py-2 bg-blue-50 rounded-lg border border-blue-100">
+                            <div className="flex items-center justify-between text-xs">
+                                <span className="text-blue-700 font-medium">
+                                    📸 Tracked over {followerMetrics.period || '30 days'}
+                                </span>
+                                <span className="text-blue-600">
+                                    {followerMetrics.snapshotCount ? `${followerMetrics.snapshotCount} snapshots` : 'Real-time data'}
+                                </span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Net Growth */}
+                    <div className={`rounded-lg p-4 mb-6 ${netGrowth >= 0 ? 'bg-blue-50' : 'bg-orange-50'}`}>
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-slate-700">Net Growth</span>
+                            <div className="flex items-center gap-2">
+                                {netGrowth >= 0 ? (
+                                    <ArrowUp size={16} className="text-blue-600" />
+                                ) : (
+                                    <ArrowDown size={16} className="text-orange-600" />
+                                )}
+                                <span className={`text-xl font-bold ${netGrowth >= 0 ? 'text-blue-900' : 'text-orange-900'}`}>
+                                    {netGrowth >= 0 ? '+' : ''}{formatNumber(netGrowth)}
+                                </span>
+                            </div>
+                        </div>
                     </div>
+                </>
+            ) : (
+                <div className="bg-slate-50 rounded-lg p-6 mb-6 text-center">
+                    <p className="text-sm text-slate-500">Follower trend data not available</p>
+                    <p className="text-xs text-slate-400 mt-1">Historical data will appear after 24 hours</p>
                 </div>
-            </div>
+            )}
 
             {/* Trend Chart */}
-            {chartData.length > 0 && (
+            {hasChartData && (
                 <div>
                     <h4 className="text-sm font-semibold text-slate-700 mb-3">30-Day Trend</h4>
                     <div className="h-[120px] w-full">

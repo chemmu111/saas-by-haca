@@ -21,6 +21,7 @@ const postSchema = new mongoose.Schema(
       required: true
     },
     mediaUrls: [{ type: String }], // Array of image/video URLs
+    thumbnailUrl: { type: String, trim: true }, // Thumbnail URL for videos
     musicUrl: { type: String, trim: true }, // Music/audio URL for posts and stories
     musicTitle: { type: String, trim: true }, // Music title
     musicArtist: { type: String, trim: true }, // Music artist

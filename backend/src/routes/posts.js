@@ -468,9 +468,24 @@ router.post('/', async (req, res) => {
 
   // Helper function to send response only once
   const sendResponse = (statusCode, data) => {
-    if (responseSent) return;
+    if (responseSent) {
+      console.warn('⚠️ Response already sent, ignoring subsequent sendResponse call');
+      return;
+    }
     responseSent = true;
-    res.status(statusCode).json(data);
+    console.log(`📤 Sending response: ${statusCode}`, data.success ? 'Success' : 'Error');
+    try {
+      res.status(statusCode).json(data);
+    } catch (err) {
+      console.error('❌ Error sending JSON response:', err);
+      // Fallback to simple error if JSON serialization fails
+      try {
+        res.status(500).json({ success: false, error: 'Failed to serialize response' });
+      } catch (e) {
+        console.error('❌ Critical: Failed to send fallback response:', e);
+        res.end();
+      }
+    }
   };
 
   try {
@@ -854,7 +869,7 @@ router.post('/', async (req, res) => {
 
     sendResponse(201, { success: true, data: postData });
   } catch (error) {
-    console.error('Error creating post:', error);
+    console.error('❌ Error creating post (catch block):', error);
     if (!responseSent) {
       if (error.name === 'CastError') {
         return sendResponse(400, {
@@ -862,7 +877,11 @@ router.post('/', async (req, res) => {
           error: 'Invalid client ID'
         });
       }
-      sendResponse(500, { success: false, error: error.message || 'Failed to create post' });
+      sendResponse(500, {
+        success: false,
+        error: error.message || 'Failed to create post',
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
     }
   }
 

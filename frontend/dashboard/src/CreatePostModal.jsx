@@ -3,7 +3,8 @@ import {
   X, Upload, Image as ImageIcon, Video, Hash, Calendar, Clock, Send,
   AlertCircle, CheckCircle, Loader, Sparkles, Crop, RotateCw,
   Instagram, Facebook, Eye, ExternalLink, Save, Trash2, Plus,
-  Zap, MessageCircle, Music, Sticker, Lightbulb, Info
+  Zap, MessageCircle, Music, Sticker, Lightbulb, Info,
+  Smartphone, LayoutGrid, Maximize2, Minimize2, Square, RectangleHorizontal, RectangleVertical
 } from 'lucide-react';
 
 // Import our custom hooks
@@ -11,6 +12,7 @@ import { useMediaDetector } from './hooks/useMediaDetector';
 import { useClientCapabilities } from './hooks/useClientCapabilities';
 import { useAIHashtags } from './hooks/useAIHashtags';
 import { useScheduling } from './hooks/useScheduling';
+import { useImageCrop } from './hooks/useImageCrop';
 import AIGenerator from './components/AIGenerator.jsx';
 import { validateVideo } from './utils/instagramVideoValidator';
 
@@ -73,6 +75,7 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
     useClientCapabilities(formData.clientId, formData.platform, formData.postType);
   const { suggestions: hashtagSuggestions, loading: hashtagsLoading, generateHashtags, clearSuggestions } = useAIHashtags();
   const { getSuggestedTimes, validateScheduledTime } = useScheduling();
+  const { canvasRef, autoCropToRatio, applyCrop, initializeCrop } = useImageCrop();
 
   // Show toast notification
   const showToast = (message, type = 'success') => {
@@ -321,17 +324,25 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
       setSelectedMediaIndex(mediaIndex);
       setShowCropper(true);
       setCurrentStep('crop');
+    }
+  };
 
-      // Auto-crop based on format
+  // Initialize cropper when showing
+  useEffect(() => {
+    if (currentStep === 'crop' && showCropper && formData.mediaFiles[selectedMediaIndex]) {
+      const media = formData.mediaFiles[selectedMediaIndex];
       const targetRatio = {
         square: '1:1',
         portrait: '4:5',
         landscape: '16:9'
       }[formData.format] || '1:1';
 
-      autoCropToRatio(media.preview, targetRatio);
+      // Small timeout to ensure canvas is mounted
+      setTimeout(() => {
+        initializeCrop(media.preview, targetRatio);
+      }, 100);
     }
-  };
+  }, [currentStep, showCropper, selectedMediaIndex, formData.mediaFiles, formData.format]);
 
   const handleApplyCrop = async () => {
     const cropped = await applyCrop();
@@ -767,17 +778,52 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
     <>
       {/* Modal Backdrop */}
       <div className="fixed inset-0 z-50 overflow-y-auto">
-        <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+        <div className="flex items-center justify-center min-h-screen px-4 p-6">
           <div
             className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity cursor-pointer"
             onClick={handleClose}
           />
 
           {/* Modal Panel */}
-          <div className="inline-block align-bottom bg-white rounded-2xl shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-6xl sm:w-full max-h-[90vh] overflow-hidden">
-            <form onSubmit={(e) => handleSubmit(e, false)}>
+          <div className="relative bg-white rounded-2xl shadow-2xl transform transition-all w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Full Modal Loading Overlay */}
+            {(loading || uploadProgress.total > 0 || publishProgress.step) && (
+              <div className="absolute inset-0 bg-white/90 backdrop-blur-sm flex items-center justify-center z-50 rounded-2xl">
+                <div className="flex flex-col items-center gap-4 p-8 bg-white rounded-2xl shadow-xl border border-gray-100 max-w-sm w-full mx-4">
+                  <div className="relative">
+                    <div className="w-16 h-16 border-4 border-blue-100 rounded-full animate-spin border-t-blue-600"></div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Send size={24} className="text-blue-600" />
+                    </div>
+                  </div>
+
+                  <div className="text-center w-full">
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">
+                      {publishProgress.step === 'upload' && 'Uploading Media'}
+                      {publishProgress.step === 'saving' && 'Saving Post'}
+                      {publishProgress.step === 'publishing' && 'Publishing to Instagram'}
+                      {publishProgress.step === 'processing' && 'Finishing Up'}
+                      {publishProgress.step === 'complete' && 'Success!'}
+                      {publishProgress.step === 'error' && 'Error Occurred'}
+                    </h3>
+                    <p className="text-gray-500 text-sm mb-4">{publishProgress.message || 'Please wait while we process your request...'}</p>
+
+                    {uploadProgress.total > 0 && (
+                      <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                        <div
+                          className="h-full bg-blue-600 transition-all duration-300 ease-out"
+                          style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <form onSubmit={(e) => handleSubmit(e, false)} className="flex flex-col flex-1 min-h-0">
               {/* Modal Header */}
-              <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+              <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 flex items-center justify-between rounded-t-2xl flex-none">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-white bg-opacity-20 rounded-xl flex items-center justify-center">
                     <Send className="text-white" size={20} />
@@ -804,9 +850,9 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
               </div>
 
               {/* Modal Body */}
-              <div className="flex max-h-[calc(100vh-200px)]">
+              <div className="flex flex-1 min-h-0 overflow-hidden">
                 {/* Left Panel - Form */}
-                <div className="flex-1 p-6 overflow-y-auto">
+                <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
                   {currentStep === 'compose' && (
                     <div className="space-y-6">
                       {/* Client Selection */}
@@ -916,26 +962,37 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
                             <label className="block text-sm font-semibold text-gray-700 mb-3">
                               Format / Aspect Ratio
                             </label>
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                               {[
-                                { value: 'square', label: 'Square (1:1)', desc: '1080×1080' },
-                                { value: 'portrait', label: 'Portrait (4:5)', desc: '1080×1350' },
-                                { value: 'landscape', label: 'Landscape (1.91:1)', desc: '1080×608' },
-                                { value: 'carousel-square', label: 'Carousel Square', desc: '1080×1080' }
-                              ].map(format => (
-                                <button
-                                  key={format.value}
-                                  type="button"
-                                  onClick={() => setFormData(prev => ({ ...prev, format: format.value }))}
-                                  className={`p-3 rounded-lg border-2 text-left transition-all ${formData.format === format.value
-                                    ? 'border-blue-500 bg-blue-50'
-                                    : 'border-gray-200 hover:border-gray-300'
-                                    }`}
-                                >
-                                  <div className="font-medium text-sm">{format.label}</div>
-                                  <div className="text-xs text-gray-500">{format.desc}</div>
-                                </button>
-                              ))}
+                                { value: 'square', label: 'Square', ratio: '1:1', icon: Square, desc: '1080×1080' },
+                                { value: 'portrait', label: 'Portrait', ratio: '4:5', icon: RectangleVertical, desc: '1080×1350' },
+                                { value: 'landscape', label: 'Landscape', ratio: '1.91:1', icon: RectangleHorizontal, desc: '1080×608' },
+                                { value: 'carousel-square', label: 'Carousel', ratio: '1:1', icon: LayoutGrid, desc: 'Multi-image' }
+                              ].map(format => {
+                                const Icon = format.icon;
+                                const isSelected = formData.format === format.value;
+                                return (
+                                  <button
+                                    key={format.value}
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({ ...prev, format: format.value }))}
+                                    className={`relative flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all duration-200 ${isSelected
+                                      ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm'
+                                      : 'border-gray-200 bg-white hover:border-blue-200 hover:bg-gray-50 text-gray-600'
+                                      }`}
+                                  >
+                                    <div className={`mb-2 p-2 rounded-lg ${isSelected ? 'bg-blue-100' : 'bg-gray-100'}`}>
+                                      <Icon size={20} className={isSelected ? 'text-blue-600' : 'text-gray-500'} />
+                                    </div>
+                                    <span className="text-xs font-bold">{format.label}</span>
+                                    <span className="text-[10px] opacity-70 mt-0.5">{format.ratio}</span>
+
+                                    {isSelected && (
+                                      <div className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full"></div>
+                                    )}
+                                  </button>
+                                );
+                              })}
                             </div>
                           </div>
                         )}
@@ -945,8 +1002,8 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
                       <div className="bg-gray-50 rounded-xl p-4">
                         <label className="block text-sm font-semibold text-gray-700 mb-3">
                           Media Files *
-                          {formData.postType === 'reel' && <span className="text-red-500 ml-1">(Video required)</span>}
-                          {formData.postType === 'video' && <span className="text-red-500 ml-1">(Video required)</span>}
+                          {formData.postType === 'reel' && formData.mediaFiles.length === 0 && <span className="text-red-500 ml-1">(Video required)</span>}
+                          {formData.postType === 'video' && formData.mediaFiles.length === 0 && <span className="text-red-500 ml-1">(Video required)</span>}
                           {formData.postType === 'carousel' && <span className="text-red-500 ml-1">
                             {formData.mediaFiles.length > 0 ? `(${formData.mediaFiles.length} items)` : '(2-10 images required)'}
                           </span>}
@@ -1107,88 +1164,6 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
                         </div>
                       </div>
 
-                      {/* Hashtags */}
-                      <div className="bg-gray-50 rounded-xl p-4">
-                        <label className="block text-sm font-semibold text-gray-700 mb-3">
-                          Hashtags
-                        </label>
-
-                        {/* Hashtag Input */}
-                        <div className="flex gap-2 mb-3">
-                          <div className="flex-1 relative">
-                            <Hash className="absolute left-3 top-3 text-gray-400" size={16} />
-                            <input
-                              type="text"
-                              value={formData.hashtagInput}
-                              onChange={(e) => setFormData(prev => ({ ...prev, hashtagInput: e.target.value }))}
-                              onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddHashtag())}
-                              className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              placeholder="Enter hashtag and press Enter"
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={handleAddHashtag}
-                            className="px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
-                          >
-                            <Plus size={16} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setAiGeneratorType('hashtag');
-                              setShowAIGenerator(true);
-                            }}
-                            className="px-4 py-3 bg-purple-100 text-purple-600 rounded-xl hover:bg-purple-200 transition-colors"
-                            title="AI Hashtags"
-                          >
-                            <Sparkles size={16} />
-                          </button>
-                        </div>
-
-                        {/* Hashtag Tags */}
-                        {formData.hashtags.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mb-3">
-                            {formData.hashtags.map((tag, index) => (
-                              <span
-                                key={index}
-                                className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-sm"
-                              >
-                                #{tag}
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveHashtag(tag)}
-                                  className="text-blue-600 hover:text-blue-800"
-                                >
-                                  <X size={12} />
-                                </button>
-                              </span>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* AI Suggestions */}
-                        {hashtagSuggestions.length > 0 && (
-                          <div className="border-t pt-3">
-                            <p className="text-sm font-medium text-gray-700 mb-2">AI Suggestions:</p>
-                            <div className="flex flex-wrap gap-2">
-                              {hashtagSuggestions.slice(0, 10).map((suggestion, index) => (
-                                <button
-                                  key={index}
-                                  type="button"
-                                  onClick={() => handleInsertHashtagSuggestion(suggestion.tag)}
-                                  disabled={formData.hashtags.includes(suggestion.tag)}
-                                  className="px-3 py-1 bg-purple-50 text-purple-600 rounded-full text-sm hover:bg-purple-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                  title={`Relevance: ${suggestion.relevance}%`}
-                                >
-                                  #{suggestion.tag}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
                       {/* Scheduling */}
                       <div className="bg-gray-50 rounded-xl p-4">
                         <label className="block text-sm font-semibold text-gray-700 mb-3">
@@ -1283,203 +1258,185 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
                 </div>
 
                 {/* Right Panel - Preview */}
-                <div className="w-96 bg-gray-50 p-6 border-l border-gray-200">
-                  <div className="sticky top-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Preview</h3>
+                <div className="w-96 bg-white p-6 border-l border-gray-200 flex flex-col items-center justify-center relative">
+                  <div className="sticky top-6 z-10 w-full max-w-[280px]">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 text-center">Preview</h3>
 
-                    {/* Platform Preview */}
-                    <div className="bg-white rounded-xl p-4 shadow-sm mb-6">
-                      <div className="flex items-center gap-2 mb-3">
-                        {formData.platform === 'instagram' && <Instagram className="text-purple-600" size={20} />}
-                        {formData.platform === 'facebook' && <Facebook className="text-blue-600" size={20} />}
-                        {formData.platform === 'both' && (
-                          <>
-                            <Instagram className="text-purple-600" size={20} />
-                            <Facebook className="text-blue-600" size={20} />
-                          </>
-                        )}
-                        <span className="font-medium capitalize">{formData.platform}</span>
-                        <span className="text-sm text-gray-500 capitalize">• {formData.postType}</span>
+                    {/* Phone Frame */}
+                    <div className="bg-white rounded-[2rem] border-[6px] border-gray-900 shadow-2xl overflow-hidden relative h-[520px] flex flex-col">
+                      {/* Notch/Status Bar */}
+                      <div className="bg-white px-5 py-2.5 flex justify-between items-center border-b border-gray-50 z-20">
+                        <span className="text-[10px] font-semibold text-gray-900">9:41</span>
+                        <div className="flex gap-1">
+                          <div className="w-3 h-2 bg-gray-900 rounded-[1px]"></div>
+                          <div className="w-0.5 h-2 bg-gray-900 rounded-[1px]"></div>
+                        </div>
                       </div>
 
-                      {/* Media Preview */}
-                      {formData.mediaFiles.length > 0 && (
-                        <div className="mb-3">
-                          {formData.mediaFiles[0].file?.type?.startsWith('video/') ? (
-                            <video
-                              src={formData.mediaFiles[0].preview}
-                              className="w-full h-48 object-cover rounded-lg"
-                              controls={false}
-                            />
-                          ) : (
-                            <img
-                              src={formData.mediaFiles[0].preview}
-                              alt="Post preview"
-                              className="w-full h-48 object-cover rounded-lg"
-                            />
-                          )}
-                        </div>
-                      )}
-
-                      {/* Caption Preview */}
-                      {formData.caption && (
-                        <p className="text-sm text-gray-700 mb-2">{formData.caption}</p>
-                      )}
-
-                      {/* Hashtags Preview */}
-                      {formData.hashtags.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {formData.hashtags.slice(0, 5).map((tag, index) => (
-                            <span key={index} className="text-sm text-blue-600">#{tag}</span>
-                          ))}
-                          {formData.hashtags.length > 5 && (
-                            <span className="text-sm text-gray-500">+{formData.hashtags.length - 5} more</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Post Insights (after publishing) */}
-                    {showInsights && publishResult && (
-                      <div className="bg-white rounded-xl p-4 shadow-sm">
-                        <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                          <CheckCircle className="text-green-500" size={16} />
-                          Post Published
-                        </h4>
-
-                        {getPostInsights(publishResult)?.platforms.map((platform, index) => (
-                          <div key={index} className="mb-3 p-3 bg-gray-50 rounded-lg">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                {platform.platform === 'instagram' && <Instagram className="text-purple-600" size={16} />}
-                                {platform.platform === 'facebook' && <Facebook className="text-blue-600" size={16} />}
-                                <span className="font-medium capitalize">{platform.platform}</span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => openPostUrl(platform.platform, platform.url)}
-                                className="text-blue-600 hover:text-blue-800"
-                              >
-                                <ExternalLink size={14} />
-                              </button>
+                      {/* App Header */}
+                      <div className="px-3 py-2 flex items-center justify-between border-b border-gray-100">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-500 p-[1.5px]">
+                            <div className="w-full h-full rounded-full bg-white p-[1.5px]">
+                              <img
+                                src={`https://ui-avatars.com/api/?name=${clients.find(c => c._id === formData.clientId)?.name || 'User'}&background=random`}
+                                alt="Profile"
+                                className="w-full h-full rounded-full object-cover"
+                              />
                             </div>
-                            <p className="text-xs text-gray-500 mt-1">
-                              Post ID: {platform.postId}
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-bold text-gray-900 leading-tight">
+                              {clients.find(c => c._id === formData.clientId)?.name || 'username'}
+                            </p>
+                            <p className="text-[8px] text-gray-500 leading-tight">
+                              {formData.location || 'Original Audio'}
                             </p>
                           </div>
-                        ))}
-
-                        <button
-                          type="button"
-                          onClick={handleClose}
-                          className="w-full mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                        >
-                          Done
-                        </button>
+                        </div>
+                        <div className="text-gray-900">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" /></svg>
+                        </div>
                       </div>
-                    )}
+
+                      {/* Content Scroll Area */}
+                      <div className="flex-1 overflow-y-auto bg-white [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+                        {/* Media */}
+                        <div className="relative bg-gray-100 min-h-[250px] flex items-center justify-center">
+                          {formData.mediaFiles.length > 0 ? (
+                            formData.mediaFiles[0].file?.type?.startsWith('video/') ? (
+                              <video
+                                src={formData.mediaFiles[0].preview}
+                                className="w-full h-full object-cover max-h-[320px]"
+                                controls={false}
+                                autoPlay
+                                muted
+                                loop
+                              />
+                            ) : (
+                              <img
+                                src={formData.mediaFiles[0].preview}
+                                alt="Post preview"
+                                className="w-full h-full object-cover max-h-[320px]"
+                              />
+                            )
+                          ) : (
+                            <div className="text-gray-400 flex flex-col items-center">
+                              <ImageIcon size={24} className="mb-2 opacity-50" />
+                              <span className="text-[10px]">No media selected</span>
+                            </div>
+                          )}
+
+                          {/* Carousel Indicators */}
+                          {formData.mediaFiles.length > 1 && (
+                            <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-1.5 z-10">
+                              {formData.mediaFiles.map((_, i) => (
+                                <div key={i} className={`w-1.5 h-1.5 rounded-full ${i === 0 ? 'bg-blue-500' : 'bg-white/60'}`}></div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Action Bar */}
+                        <div className="px-3 py-2 flex justify-between items-center">
+                          <div className="flex gap-3">
+                            <svg className="w-5 h-5 text-gray-900" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                            <svg className="w-5 h-5 text-gray-900" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+                            <svg className="w-5 h-5 text-gray-900" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                          </div>
+                          <svg className="w-5 h-5 text-gray-900" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+                        </div>
+
+                        {/* Caption & Comments */}
+                        <div className="px-3 pb-4">
+                          <div className="text-[10px] font-bold mb-1">1,234 likes</div>
+                          <div className="text-[10px]">
+                            <span className="font-bold mr-2">{clients.find(c => c._id === formData.clientId)?.name || 'username'}</span>
+                            <span className="text-gray-900">{formData.caption || 'Write a caption...'}</span>
+                          </div>
+
+                          {/* Hashtags */}
+                          {formData.hashtags.length > 0 && (
+                            <div className="mt-1 text-[10px] text-blue-900">
+                              {formData.hashtags.map(t => `#${t}`).join(' ')}
+                            </div>
+                          )}
+
+                          <div className="text-[8px] text-gray-500 mt-2 uppercase">2 hours ago</div>
+                        </div>
+                      </div>
+
+                      {/* Bottom Nav Mock */}
+                      <div className="border-t border-gray-100 px-4 py-2 flex justify-between items-center bg-white">
+                        <svg className="w-5 h-5 text-gray-900" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+                        <svg className="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        <div className="w-5 h-5 rounded-md border-2 border-gray-900 flex items-center justify-center"><Plus size={12} /></div>
+                        <svg className="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                        <div className="w-5 h-5 rounded-full bg-gray-200"></div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Modal Footer */}
               {currentStep === 'compose' && (
-                <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 rounded-b-2xl">
-                  {/* Progress Indicator */}
-                  {(loading || uploadProgress.total > 0 || publishProgress.step) && (
-                    <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                      {uploadProgress.total > 0 && (
-                        <div className="mb-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-medium text-blue-900">
-                              Uploading {uploadProgress.fileName}...
-                            </span>
-                            <span className="text-sm text-blue-700">
-                              {uploadProgress.current} / {uploadProgress.total}
-                            </span>
-                          </div>
-                          <div className="w-full bg-blue-200 rounded-full h-2">
-                            <div
-                              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                              style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
-                            />
-                          </div>
-                        </div>
-                      )}
-                      {publishProgress.step && (
-                        <div className="flex items-center gap-3">
-                          <Loader size={20} className="animate-spin text-blue-600" />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-blue-900">
-                              {publishProgress.step === 'upload' && '📤 Uploading media files...'}
-                              {publishProgress.step === 'saving' && '💾 Saving post...'}
-                              {publishProgress.step === 'publishing' && '🚀 Publishing to Instagram...'}
-                              {publishProgress.step === 'processing' && '⏳ Processing on Instagram...'}
-                              {publishProgress.step === 'complete' && '✅ Complete!'}
-                              {publishProgress.step === 'error' && '❌ Error'}
-                            </p>
-                            <p className="text-xs text-blue-700 mt-1">{publishProgress.message}</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                <div className="bg-white px-6 py-4 border-t border-gray-200 rounded-b-2xl flex items-center justify-between relative z-20 flex-none">
 
-                  <div className="flex items-center justify-between">
-                    <div className="flex gap-3">
+
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={(e) => handleSubmit(e, true)}
+                      disabled={loading}
+                      className="flex items-center gap-2 px-4 py-2.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-colors font-medium"
+                    >
+                      <Save size={18} />
+                      Save Draft
+                    </button>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={handleClose}
+                      className="px-6 py-2.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-colors font-medium"
+                      disabled={loading}
+                    >
+                      Cancel
+                    </button>
+
+                    {editingPost && editingPost.status === 'scheduled' && (
                       <button
                         type="button"
-                        onClick={(e) => handleSubmit(e, true)}
-                        disabled={loading}
-                        className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50"
+                        onClick={handlePublishNow}
+                        disabled={publishing}
+                        className="px-6 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-semibold shadow-sm hover:shadow-md disabled:opacity-50"
                       >
-                        <Save size={16} />
-                        Save Draft
+                        {publishing ? <Loader size={18} className="animate-spin" /> : 'Publish Now'}
                       </button>
-                    </div>
+                    )}
 
-                    <div className="flex gap-3">
-                      <button
-                        type="button"
-                        onClick={handleClose}
-                        className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-                        disabled={loading}
-                      >
-                        Cancel
-                      </button>
-
-                      {editingPost && editingPost.status === 'scheduled' && (
-                        <button
-                          type="button"
-                          onClick={handlePublishNow}
-                          disabled={publishing}
-                          className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
-                        >
-                          {publishing ? <Loader size={16} className="animate-spin" /> : 'Publish Now'}
-                        </button>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="flex items-center gap-2 px-8 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all font-semibold shadow-md hover:shadow-lg disabled:opacity-50 transform hover:-translate-y-0.5"
+                    >
+                      {loading && <Loader size={18} className="animate-spin" />}
+                      {editingPost ? 'Update Post' : (
+                        formData.scheduleType === 'schedule' ? (
+                          <>
+                            <Calendar size={18} />
+                            Schedule Post
+                          </>
+                        ) : (
+                          <>
+                            <Send size={18} />
+                            Publish Now
+                          </>
+                        )
                       )}
-
-                      <button
-                        type="submit"
-                        disabled={loading}
-                        className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                      >
-                        {loading && <Loader size={16} className="animate-spin" />}
-                        {editingPost ? 'Update Post' : (
-                          formData.scheduleType === 'schedule' ? (
-                            <>
-                              <Calendar size={16} />
-                              Schedule Post
-                            </>
-                          ) : (
-                            <>
-                              <Send size={16} />
-                              Publish Now
-                            </>
-                          )
-                        )}
-                      </button>
-                    </div>
+                    </button>
                   </div>
                 </div>
               )}

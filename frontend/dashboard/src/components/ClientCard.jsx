@@ -219,7 +219,7 @@ const ClientCard = ({ client, onEdit, onDelete, onConnectInstagram, onViewDetail
             {/* Footer Actions */}
             <div className="bg-gray-50 px-5 py-3 border-t border-gray-100 flex items-center justify-between group-hover:bg-blue-50/50 transition-colors">
                 <span className="text-xs text-gray-500">
-                    Last synced: {client.lastTokenRefresh ? new Date(client.lastTokenRefresh).toLocaleDateString() : 'Never'}
+                    Last synced: {client.statsLastUpdated ? new Date(client.statsLastUpdated).toLocaleString() : 'Never'}
                 </span>
                 <button
                     className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"

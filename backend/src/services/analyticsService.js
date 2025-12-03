@@ -175,10 +175,14 @@ export async function updateClientStats(client) {
       const totalReach = data.account?.reach || 0;
 
       let engagementRate = '0%';
-      if (totalReach > 0) {
-        engagementRate = ((totalEngagements / totalReach) * 100).toFixed(2) + '%';
-      } else if (totalFollowers > 0) {
-        engagementRate = ((totalEngagements / totalFollowers) * 100).toFixed(2) + '%';
+      const totalPosts = data.media?.total || 1;
+
+      if (totalFollowers > 0) {
+        // Average Engagement Rate per Post: ((Total Engagements / Total Posts) / Followers) * 100
+        engagementRate = (((totalEngagements / totalPosts) / totalFollowers) * 100).toFixed(2) + '%';
+      } else if (totalReach > 0) {
+        // Fallback to reach if no followers (unlikely for active accounts)
+        engagementRate = (((totalEngagements / totalPosts) / totalReach) * 100).toFixed(2) + '%';
       }
 
       return {

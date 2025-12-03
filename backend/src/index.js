@@ -26,6 +26,7 @@ import foldersRouter from './routes/folders.js';
 import captionsRouter from './routes/captions.js';
 import aiRouter from './routes/ai.js';
 import adminRouter from './routes/admin.js';
+import followerSnapshotsRouter from './routes/followerSnapshots.js';
 
 // Create Express app
 const app = express();
@@ -52,20 +53,40 @@ const allowedOrigins = [
   "https://haca-social-x-backend.onrender.com", // Backend URL (Render internal call)
   "http://localhost:3000", // Development frontend
   "http://localhost:5000", // Development backend
+  "http://localhost:5173", // Vite dev server
 ];
 
-// Add ngrok URLs from environment if available
-if (process.env.FRONTEND_URL) {
+// Add production frontend URL from environment
+if (process.env.FRONTEND_URL && !allowedOrigins.includes(process.env.FRONTEND_URL)) {
   allowedOrigins.push(process.env.FRONTEND_URL);
 }
+
+// Add local frontend URL from environment (ngrok)
+if (process.env.FRONTEND_URL_LOCAL && !allowedOrigins.includes(process.env.FRONTEND_URL_LOCAL)) {
+  allowedOrigins.push(process.env.FRONTEND_URL_LOCAL);
+}
+
+// Add ngrok URL from environment
+if (process.env.NGROK_URL && !allowedOrigins.includes(process.env.NGROK_URL)) {
+  allowedOrigins.push(process.env.NGROK_URL);
+}
+
+console.log('✅ CORS allowed origins:', allowedOrigins);
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
+      // Allow requests with no origin (like mobile apps or Postman)
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      // Check if origin is allowed or if it's an ngrok domain
+      if (allowedOrigins.includes(origin) || origin.endsWith('.ngrok-free.dev') || origin.endsWith('.ngrok.io')) {
         callback(null, true);
       } else {
         console.log("❌ Blocked CORS origin:", origin);
+        console.log("   Allowed origins:", allowedOrigins);
         callback(new Error("Not allowed by CORS"));
       }
     },
@@ -344,6 +365,7 @@ app.use('/api/folders', foldersRouter);
 app.use('/api/captions', captionsRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/follower-snapshots', followerSnapshotsRouter);
 
 // 404 handler for API routes - returns JSON instead of HTML
 app.use('/api/*', (req, res) => {
@@ -406,6 +428,15 @@ async function start() {
       initTokenMonitoringCron();
     } catch (error) {
       console.warn('⚠️ Failed to start token monitoring cron:', error.message);
+      // Continue even if cron fails
+    }
+
+    // Start the follower snapshot cron job
+    try {
+      const { initFollowerSnapshotCron } = await import('./cron/followerSnapshotCron.js');
+      initFollowerSnapshotCron();
+    } catch (error) {
+      console.warn('⚠️ Failed to start follower snapshot cron:', error.message);
       // Continue even if cron fails
     }
 

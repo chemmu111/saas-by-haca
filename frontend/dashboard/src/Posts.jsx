@@ -37,6 +37,13 @@ const Posts = () => {
 
       if (url.startsWith('http://') || url.startsWith('https://')) {
         const urlObj = new URL(url);
+
+        // Fix: If the URL points to production but we are local/ngrok, rewrite it to use our backend
+        // This fixes CORS issues when the DB has production URLs but we want to serve files locally
+        if (urlObj.hostname.includes('onrender.com')) {
+          return `${backendUrl}${urlObj.pathname}`;
+        }
+
         if (urlObj.hostname.includes('ngrok')) {
           return `${backendUrl}${urlObj.pathname}`;
         }
@@ -456,13 +463,24 @@ const Posts = () => {
                         {isVideo ? (
                           <>
                             {failedMediaUrls.has(normalizedMediaUrl) ? (
-                              <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-100 text-gray-400">
-                                <Video size={48} className="mb-2" />
-                                <p className="text-xs text-center px-2">Video not available</p>
-                              </div>
+                              post.thumbnailUrl ? (
+                                <img
+                                  src={normalizeMediaUrl(post.thumbnailUrl)}
+                                  alt="Post thumbnail"
+                                  className="w-full h-full object-cover"
+                                  loading="lazy"
+                                  crossOrigin="anonymous"
+                                />
+                              ) : (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-100 text-gray-400">
+                                  <Video size={48} className="mb-2" />
+                                  <p className="text-xs text-center px-2">Video not available</p>
+                                </div>
+                              )
                             ) : (
                               <video
                                 src={normalizedMediaUrl}
+                                poster={post.thumbnailUrl ? normalizeMediaUrl(post.thumbnailUrl) : undefined}
                                 className="w-full h-full object-cover"
                                 muted
                                 playsInline

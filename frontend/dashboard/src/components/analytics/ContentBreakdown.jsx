@@ -27,7 +27,7 @@ const ContentBreakdown = ({ analytics }) => {
     return (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
             <h3 className="text-lg font-bold text-slate-900 mb-4">Content Breakdown</h3>
-            <div className="h-[250px] w-full">
+            <div className="h-[250px] w-full" style={{ minHeight: '250px' }}>
                 <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                         <Pie

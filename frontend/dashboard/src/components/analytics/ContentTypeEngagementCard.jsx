@@ -143,7 +143,7 @@ const ContentTypeEngagementCard = ({ posts }) => {
             {pieData.length > 0 && (
                 <div>
                     <h4 className="text-sm font-semibold text-slate-700 mb-3">Content Distribution</h4>
-                    <div className="h-[200px] w-full">
+                    <div className="h-[200px] w-full" style={{ minHeight: '200px' }}>
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie

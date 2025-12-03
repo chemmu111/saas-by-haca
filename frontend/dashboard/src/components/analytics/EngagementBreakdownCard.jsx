@@ -89,7 +89,7 @@ const EngagementBreakdownCard = ({ analytics }) => {
             {totalEngagements > 0 && (
                 <div>
                     <h4 className="text-sm font-semibold text-slate-700 mb-3">Distribution</h4>
-                    <div className="h-[180px] w-full">
+                    <div className="h-[180px] w-full" style={{ minHeight: '180px' }}>
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={chartData}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />

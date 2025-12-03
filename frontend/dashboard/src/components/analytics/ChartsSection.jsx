@@ -61,8 +61,8 @@ const ChartsSection = ({ analytics }) => {
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
                             className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${activeTab === tab.id
-                                    ? 'bg-white text-slate-900 shadow-sm'
-                                    : 'text-slate-500 hover:text-slate-700'
+                                ? 'bg-white text-slate-900 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700'
                                 }`}
                         >
                             {tab.label}
@@ -71,7 +71,7 @@ const ChartsSection = ({ analytics }) => {
                 </div>
             </div>
 
-            <div className="h-[350px] w-full">
+            <div className="h-[350px] w-full" style={{ minHeight: '350px' }}>
                 <ResponsiveContainer width="100%" height="100%">
                     {activeTab === 'engagement' && (
                         <AreaChart data={engagementData}>

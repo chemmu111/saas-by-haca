@@ -27,12 +27,12 @@ export default defineConfig({
     ],
     proxy: {
       '/api': {
-        target: 'https://haca-social-x-backend.onrender.com',
+        target: 'http://localhost:5000',
         changeOrigin: true,
         secure: false,
       },
       '/uploads': {
-        target: 'https://haca-social-x-backend.onrender.com',
+        target: 'http://localhost:5000',
         changeOrigin: true,
         secure: false,
       },

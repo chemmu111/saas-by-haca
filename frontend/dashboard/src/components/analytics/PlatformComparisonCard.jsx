@@ -118,23 +118,28 @@ const PlatformComparisonCard = ({ analytics, posts }) => {
                 </div>
 
                 {/* Facebook */}
-                <div className="border-2 border-blue-200 rounded-lg p-4 bg-gradient-to-br from-blue-50 to-indigo-50">
-                    <div className="flex items-center gap-2 mb-4">
+                <div className="border-2 border-blue-200 rounded-lg p-4 bg-gradient-to-br from-blue-50 to-indigo-50 relative overflow-hidden">
+                    <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center z-10">
+                        <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-sm">
+                            Coming Soon
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-2 mb-4 opacity-50">
                         <Facebook size={24} className="text-blue-600" />
                         <h4 className="font-bold text-slate-900">Facebook</h4>
                     </div>
-                    <div className="space-y-3">
+                    <div className="space-y-3 opacity-50">
                         <div>
                             <p className="text-xs text-slate-600">Posts</p>
-                            <p className="text-2xl font-bold text-slate-900">{facebookMetrics.posts}</p>
+                            <p className="text-2xl font-bold text-slate-900">--</p>
                         </div>
                         <div>
                             <p className="text-xs text-slate-600">Total Engagement</p>
-                            <p className="text-lg font-semibold text-slate-900">{formatNumber(facebookMetrics.engagement)}</p>
+                            <p className="text-lg font-semibold text-slate-900">--</p>
                         </div>
                         <div>
                             <p className="text-xs text-slate-600">Engagement Rate</p>
-                            <p className="text-lg font-semibold text-blue-600">{facebookMetrics.engagementRate}%</p>
+                            <p className="text-lg font-semibold text-blue-600">--</p>
                         </div>
                     </div>
                 </div>
@@ -143,7 +148,7 @@ const PlatformComparisonCard = ({ analytics, posts }) => {
             {/* Comparison Chart */}
             <div>
                 <h4 className="text-sm font-semibold text-slate-700 mb-3">Side-by-Side Comparison</h4>
-                <div className="h-[250px] w-full">
+                <div className="h-[250px] w-full" style={{ minHeight: '250px' }}>
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={comparisonData}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />

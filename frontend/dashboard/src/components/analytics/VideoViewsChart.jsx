@@ -118,8 +118,8 @@ const VideoViewsChart = ({ posts }) => {
                     <button
                         onClick={() => setViewMode('daily')}
                         className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${viewMode === 'daily'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                             }`}
                     >
                         Daily
@@ -127,8 +127,8 @@ const VideoViewsChart = ({ posts }) => {
                     <button
                         onClick={() => setViewMode('cumulative')}
                         className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${viewMode === 'cumulative'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                             }`}
                     >
                         Cumulative
@@ -153,7 +153,7 @@ const VideoViewsChart = ({ posts }) => {
             </div>
 
             {/* Chart */}
-            <div className="h-[300px] w-full">
+            <div className="h-[300px] w-full" style={{ minHeight: '300px' }}>
                 <ResponsiveContainer width="100%" height="100%">
                     {viewMode === 'daily' ? (
                         <LineChart data={chartData}>

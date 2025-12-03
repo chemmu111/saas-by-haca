@@ -7,8 +7,8 @@ export const useImageCrop = () => {
 
   const aspectRatios = {
     '1:1': 1,
-    '4:5': 4/5,
-    '16:9': 16/9
+    '4:5': 4 / 5,
+    '16:9': 16 / 9
   };
 
   const initializeCrop = (imageSrc, aspectRatio = '1:1') => {
@@ -40,16 +40,28 @@ export const useImageCrop = () => {
       // Draw image
       ctx.drawImage(img, 0, 0, width, height);
 
-      // Initialize crop area
-      const cropSize = Math.min(width, height) * 0.8;
-      const cropX = (width - cropSize) / 2;
-      const cropY = (height - cropSize) / 2;
+      // Initialize crop area based on aspect ratio
+      const ratioValue = aspectRatios[aspectRatio] || 1;
+      let cropWidth, cropHeight;
+
+      if (width / height > ratioValue) {
+        // Image is wider than target ratio
+        cropHeight = height * 0.8;
+        cropWidth = cropHeight * ratioValue;
+      } else {
+        // Image is taller than target ratio
+        cropWidth = width * 0.8;
+        cropHeight = cropWidth / ratioValue;
+      }
+
+      const cropX = (width - cropWidth) / 2;
+      const cropY = (height - cropHeight) / 2;
 
       setCropData({
         x: cropX,
         y: cropY,
-        width: cropSize,
-        height: cropSize,
+        width: cropWidth,
+        height: cropHeight,
         aspectRatio,
         imageWidth: width,
         imageHeight: height

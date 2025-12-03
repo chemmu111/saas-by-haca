@@ -12,6 +12,7 @@ import {
   calculateEngagementRate,
   getCacheInfo
 } from '../services/analyticsResponseHandler.js';
+import { calculateGrowth } from '../services/followerSnapshotService.js';
 
 const router = express.Router();
 
@@ -74,8 +75,12 @@ router.get('/', async (req, res) => {
     // If refresh=true, fetch latest engagement metrics from APIs (limited to avoid rate limits)
     if (refresh === 'true') {
       // Update follower counts for clients (limit to 5 to avoid rate limits)
-      for (let i = 0; i < Math.min(clients.length, 5); i++) {
-        const client = clients[i];
+      // Parallelize updates to improve speed
+      const updatePromises = [];
+
+      // Update follower counts for clients (limit to 5)
+      const clientsToUpdate = clients.slice(0, 5);
+      updatePromises.push(...clientsToUpdate.map(async (client) => {
         try {
           const followerCount = await updateClientFollowerCount(client);
           if (followerCount !== null) {
@@ -86,12 +91,12 @@ router.get('/', async (req, res) => {
         } catch (error) {
           console.error(`Error updating follower count for client ${client._id}:`, error);
         }
-      }
+      }));
 
-      // Update engagement metrics for published posts (limit to 10 to avoid rate limits)
+      // Update engagement metrics for published posts (limit to 10)
       const publishedPosts = posts.filter(p => p.status === 'published' && (p.instagramPostId || p.facebookPostId));
-      for (let i = 0; i < Math.min(publishedPosts.length, 10); i++) {
-        const post = publishedPosts[i];
+      const postsToUpdate = publishedPosts.slice(0, 10);
+      updatePromises.push(...postsToUpdate.map(async (post) => {
         try {
           const metrics = await updatePostEngagementMetrics(post, post.client);
           if (metrics) {
@@ -104,7 +109,10 @@ router.get('/', async (req, res) => {
         } catch (error) {
           console.error(`Error updating engagement metrics for post ${post._id}:`, error);
         }
-      }
+      }));
+
+      // Wait for all updates to complete
+      await Promise.all(updatePromises);
 
       // Re-fetch posts after updates
       if (clientIds.length > 0) {
@@ -189,6 +197,7 @@ router.get('/', async (req, res) => {
     let totalWatchTimeAvgSum = 0;
     let totalWatchTimeTotal = 0;
     let watchTimeSampleCount = 0;
+    let accountInsights = null; // Initialize accountInsights
     let profileActivity = {
       website_clicks: 0,
       email_contacts: 0,
@@ -197,6 +206,7 @@ router.get('/', async (req, res) => {
       get_directions_clicks: 0,
       profile_views: 0
     };
+
 
     if (accountInsights) {
       profileActivity = {
@@ -282,6 +292,7 @@ router.get('/', async (req, res) => {
               timestamp: post.timestamp,
               clientId: client._id.toString(), // Convert to string for filtering
               clientName: client.name,
+              platform: 'instagram',
               metrics: {
                 likes: post.metrics?.likes || post.insights?.likes || 0,
                 comments: post.metrics?.comments || post.insights?.comments || 0,
@@ -307,7 +318,7 @@ router.get('/', async (req, res) => {
 
           // Extract account data
           totalFollowers += data.account?.follower_count || 0;
-          totalAccountReach += data.account?.reach || 0;
+          totalAccountReach += data.account?.reach_28d || data.account?.reach || 0;
 
           // Extract media metrics - ONLY FROM INSTAGRAM API
           if (data.media) {
@@ -457,6 +468,36 @@ router.get('/', async (req, res) => {
       .filter(p => p.status === 'published' && p.engagement && p.engagement.engagements > 0)
       .sort((a, b) => (b.engagement?.engagements || 0) - (a.engagement?.engagements || 0))[0];
 
+    // Calculate follower growth metrics from snapshots (Backend Logic)
+    let followerMetrics = { hasData: false };
+    try {
+      let totalGained = 0;
+      let totalLost = 0;
+      let hasAnyData = false;
+
+      for (const client of clients) {
+        const metrics = await calculateGrowth(client._id, 30);
+        if (metrics.hasData) {
+          totalGained += metrics.gained;
+          totalLost += metrics.lost;
+          hasAnyData = true;
+        }
+      }
+
+      if (hasAnyData) {
+        followerMetrics = {
+          current: totalFollowers,
+          gained: totalGained,
+          lost: totalLost,
+          netGrowth: totalGained - totalLost,
+          period: '30days',
+          hasData: true
+        };
+      }
+    } catch (err) {
+      console.error('Error calculating aggregated growth:', err);
+    }
+
     // Calculate analytics - ONLY USE INSTAGRAM API DATA
     const totalPostsFromIG = Object.values(postsByTypeFromIG).reduce((sum, count) => sum + count, 0);
 
@@ -526,9 +567,25 @@ router.get('/', async (req, res) => {
       // Trends - FROM INSTAGRAM API ONLY
       // Note: engagementTrend from database is kept for historical data
       // But followersTrend is ONLY from Instagram API
-      engagementTrend: engagementTrend || [],
-      engagementTrend: engagementTrend || [],
+      // Trends - Calculate engagement trend from API posts (allDetailedPosts)
+      engagementTrend: (() => {
+        const dailyEngagement = {};
+        allDetailedPosts.forEach(post => {
+          if (post.timestamp) {
+            const date = new Date(post.timestamp).toISOString().split('T')[0];
+            if (!dailyEngagement[date]) {
+              dailyEngagement[date] = { date, engagements: 0, views: 0 };
+            }
+            dailyEngagement[date].engagements += post.metrics.engagement || 0;
+            dailyEngagement[date].views += post.metrics.views || 0;
+          }
+        });
+        return Object.values(dailyEngagement)
+          .sort((a, b) => new Date(a.date) - new Date(b.date))
+          .slice(-30);
+      })(),
       followersTrend: followersTrendData, // ONLY from Instagram API - NO DATABASE FALLBACK
+      followerMetrics,
       impressionsTrend: accountTrend.map(d => ({ date: d.date, impressions: d.impressions || 0, reach: d.reach || 0 })),
       profileActivity: profileActivity,
       // Top performing post
@@ -609,6 +666,7 @@ router.get('/', async (req, res) => {
         timestamp: post.timestamp,
         clientId: post.clientId?.toString() || post.clientId, // Ensure string for filtering
         clientName: post.clientName, // Include clientName for display
+        platform: post.platform || 'instagram',
         metrics: {
           likes: post.metrics?.likes || 0,
           comments: post.metrics?.comments || 0,
@@ -836,6 +894,14 @@ router.get('/client/:clientId', async (req, res) => {
       return true;
     }).length;
 
+    // Calculate follower growth metrics from snapshots
+    let followerMetrics = { hasData: false };
+    try {
+      followerMetrics = await calculateGrowth(client._id, 30);
+    } catch (err) {
+      console.error('Error calculating client growth:', err);
+    }
+
     const analytics = {
       clientId: client._id,
       clientName: client.name || 'Unknown Client',
@@ -865,9 +931,11 @@ router.get('/client/:clientId', async (req, res) => {
       totalFollowersGained: 0,
       totalFollowersLost: 0,
       followerGrowth: 0,
+      followerMetrics,
       // Trends
       engagementTrend: engagementTrend || [],
       followersTrend: [], // Empty since we don't have follower data
+      followerMetrics,
       // Top performing post
       topPost: topPost ? {
         id: topPost._id,
@@ -1113,7 +1181,56 @@ router.get('/overview', async (req, res) => {
     // Validate no dummy data
     validateRealData(overviewData);
 
-    res.json(createAnalyticsResponse(overviewData, refresh !== 'true', 'instagram_api'));
+    // Calculate follower metrics from snapshots
+    let followerMetrics = {
+      current: totalFollowers,
+      gained: totalFollowers,
+      lost: 0,
+      netGrowth: totalFollowers,
+      period: '30days',
+      hasData: false
+    };
+
+    try {
+      const { calculateGrowth } = await import('../services/followerSnapshotService.js');
+
+      // Calculate for all clients and aggregate
+      let totalGained = 0;
+      let totalLost = 0;
+      let hasAnyData = false;
+
+      for (const client of clients) {
+        if (client.platform === 'instagram') {
+          const metrics = await calculateGrowth(client._id, 30);
+          if (metrics.hasData) {
+            totalGained += metrics.gained;
+            totalLost += metrics.lost;
+            hasAnyData = true;
+          }
+        }
+      }
+
+      if (hasAnyData) {
+        followerMetrics = {
+          current: totalFollowers,
+          gained: totalGained,
+          lost: totalLost,
+          netGrowth: totalGained - totalLost,
+          period: '30days',
+          hasData: true
+        };
+      }
+    } catch (error) {
+      console.warn('⚠️ Could not calculate follower metrics:', error.message);
+    }
+
+    // Add follower metrics to overview data
+    const responseData = {
+      ...overviewData,
+      followerMetrics
+    };
+
+    res.json(createAnalyticsResponse(responseData, refresh !== 'true', 'instagram_api'));
   } catch (error) {
     console.error('Error fetching overview analytics:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch overview analytics' });

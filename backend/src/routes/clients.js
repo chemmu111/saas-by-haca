@@ -41,7 +41,7 @@ router.get('/', async (req, res) => {
     const now = new Date();
     const clientsToUpdate = clients.filter(c =>
       c.platform === 'instagram' &&
-      c.tokenStatus === 'active' &&
+      c.tokenStatus && c.tokenStatus.state === 'active' &&
       (!c.statsLastUpdated || (now - new Date(c.statsLastUpdated)) > 24 * 60 * 60 * 1000)
     );
 
@@ -60,7 +60,37 @@ router.get('/', async (req, res) => {
       });
     }
 
-    res.json({ success: true, data: clients, count: clients.length });
+    // Calculate dynamic token status for each client
+    const clientsWithDynamicStatus = clients.map(client => {
+      const clientObj = client.toObject();
+
+      if (clientObj.platform === 'instagram' && clientObj.tokenExpiresAt) {
+        const now = new Date();
+        const expiresAt = new Date(clientObj.tokenExpiresAt);
+        const diffTime = expiresAt - now;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        // Update status object
+        if (!clientObj.tokenStatus) {
+          clientObj.tokenStatus = {};
+        }
+
+        clientObj.tokenStatus.expiresInDays = diffDays;
+
+        // Update state based on days remaining
+        if (diffDays <= 0) {
+          clientObj.tokenStatus.state = 'expired';
+        } else if (diffDays <= 7) {
+          clientObj.tokenStatus.state = 'expiring';
+        } else {
+          clientObj.tokenStatus.state = 'active';
+        }
+      }
+
+      return clientObj;
+    });
+
+    res.json({ success: true, data: clientsWithDynamicStatus, count: clientsWithDynamicStatus.length });
   } catch (error) {
     console.error('Error fetching clients:', error);
     res.status(500).json({

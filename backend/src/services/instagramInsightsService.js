@@ -282,10 +282,53 @@ export async function fetchAccountInsights(igUserId, pageAccessToken) {
       console.warn('⚠️ Failed to fetch additional account metrics');
     }
 
+    // Fetch 28-day reach for "Total Reach" metric
+    let reach28d = 0;
+    try {
+      const reachUrl = `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=reach&period=days_28&access_token=${pageAccessToken}`;
+      console.log(`   📡 Fetching 28-day reach...`);
+      const reachRes = await fetch(reachUrl);
+      const reachDebug = await reachRes.json(); // Read body once
+
+      // Log to file for debugging
+      try {
+        const fs = await import('fs');
+        fs.writeFileSync('reach_debug.json', JSON.stringify({
+          status: reachRes.status,
+          url: reachUrl.replace(pageAccessToken, 'REDACTED'),
+          data: reachDebug
+        }, null, 2));
+      } catch (e) { console.error('Failed to write debug log', e); }
+
+      if (reachRes.ok) {
+        console.log('   ✅ 28-day reach response:', JSON.stringify(reachDebug));
+        if (reachDebug.data && reachDebug.data.length > 0 && reachDebug.data[0].values && reachDebug.data[0].values.length > 0) {
+          // Find the latest NON-ZERO value (iterate backwards)
+          const values = reachDebug.data[0].values;
+          let latestValue = 0;
+          for (let i = values.length - 1; i >= 0; i--) {
+            if (values[i].value > 0) {
+              latestValue = values[i].value;
+              break;
+            }
+          }
+          reach28d = latestValue;
+          console.log(`   ✅ Extracted 28-day reach: ${reach28d}`);
+        } else {
+          console.warn('   ⚠️ 28-day reach data structure unexpected or empty');
+        }
+      } else {
+        console.error('   ❌ Failed to fetch 28-day reach. Status:', reachRes.status, reachDebug);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch 28-day reach:', err.message);
+    }
+
     const result = {
       follower_count: followerCount || 0,
       profile_views: profileViews || additionalData.profile_views || 0,
-      reach: additionalData.reach || 0,
+      reach: additionalData.reach || 0, // Daily reach (yesterday)
+      reach_28d: reach28d || additionalData.reach || 0, // 28-day reach (fallback to daily)
       impressions: additionalData.impressions || 0,
       website_clicks: additionalData.website_clicks || 0,
       email_contacts: additionalData.email_contacts || 0,
@@ -750,7 +793,7 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
 
     console.log(`📡 Fetching Instagram analytics for user: ${igUserId}`);
 
-    const cacheKey = `instagram_analytics_${igUserId}_v2`;
+    const cacheKey = `instagram_analytics_${igUserId}_v4`;
     const cached = getCached(cacheKey);
     if (cached) {
       console.log(`✅ Using cached data for ${igUserId}`);
@@ -867,10 +910,13 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
       }
     });
 
-    // Calculate engagement rate
+    // Calculate engagement rate (Average Engagement Rate per Post)
+    // Formula: ((Total Engagements / Total Posts) / Follower Count) * 100
     const followerCount = accountInsights.follower_count || 1;
+    const totalPosts = media.length || 1;
+
     const engagementRate = totalEngagements > 0
-      ? ((totalEngagements / followerCount) * 100).toFixed(2)
+      ? (((totalEngagements / totalPosts) / followerCount) * 100).toFixed(2)
       : '0.00';
 
     // Calculate follower growth from trend data
@@ -909,6 +955,7 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
       account: {
         follower_count: accountInsights.follower_count || 0,
         reach: latestReach,
+        reach_28d: accountInsights.reach_28d || 0,
         profile_views: accountInsights.profile_views || 0,
         impressions: accountInsights.impressions || 0,
         website_clicks: accountInsights.website_clicks || 0,

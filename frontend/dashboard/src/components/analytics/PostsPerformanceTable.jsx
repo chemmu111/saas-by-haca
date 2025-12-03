@@ -9,19 +9,9 @@ const PostsPerformanceTable = ({ posts }) => {
     const [filterType, setFilterType] = useState('all');
     const postsPerPage = 10;
 
-    if (!posts || posts.length === 0) {
-        return (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                <h3 className="text-lg font-bold text-slate-900 mb-4">Posts Performance</h3>
-                <div className="flex items-center justify-center h-[200px] text-slate-400">
-                    No posts data available
-                </div>
-            </div>
-        );
-    }
-
     // Filter posts by type
     const filteredPosts = useMemo(() => {
+        if (!posts || posts.length === 0) return [];
         if (filterType === 'all') return posts;
         return posts.filter(post => {
             const type = post.media_type || post.postType;
@@ -122,6 +112,18 @@ const PostsPerformanceTable = ({ posts }) => {
         a.click();
     };
 
+    // Empty state - check after all hooks
+    if (!posts || posts.length === 0) {
+        return (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <h3 className="text-lg font-bold text-slate-900 mb-4">Posts Performance</h3>
+                <div className="flex items-center justify-center h-[200px] text-slate-400">
+                    No posts data available
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
             <div className="flex items-center justify-between mb-6">
@@ -148,8 +150,8 @@ const PostsPerformanceTable = ({ posts }) => {
                             setCurrentPage(1);
                         }}
                         className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${filterType === type
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                             }`}
                     >
                         {type === 'all' ? 'All Posts' : type.replace('_', ' ')}
