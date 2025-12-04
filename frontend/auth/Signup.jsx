@@ -308,18 +308,6 @@ const Signup = () => {
                         {!isLoading && <ArrowRight size={18} />}
                     </button>
 
-                    <div className="auth-divider">Or continue with</div>
-
-                    <button type="button" className="btn-google mb-4"> {/* Reduced mb-6 to mb-4 */}
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M23.52 12.29C23.52 11.43 23.44 10.6 23.3 9.8H12V14.51H18.46C18.18 15.99 17.34 17.25 16.08 18.1L19.945 21.1C22.2 19.01 23.52 15.92 23.52 12.29Z" fill="#4285F4" />
-                            <path d="M12 24C15.24 24 17.965 22.935 19.945 21.1L16.08 18.1C15.005 18.82 13.62 19.26 12 19.26C8.875 19.26 6.22 17.15 5.265 14.29L1.275 17.385C3.25 21.3 7.31 24 12 24Z" fill="#34A853" />
-                            <path d="M5.265 14.29C5.015 13.56 4.875 12.79 4.875 12C4.875 11.21 5.015 10.44 5.265 9.71L1.275 6.615C0.46 8.235 0 10.06 0 12C0 13.94 0.46 15.765 1.275 17.385L5.265 14.29Z" fill="#FBBC05" />
-                            <path d="M12 4.74C13.765 4.74 15.35 5.345 16.6 6.535L20.03 3.105C17.96 1.18 15.235 0 12 0C7.31 0 3.25 2.7 1.275 6.615L5.265 9.71C6.22 6.85 8.875 4.74 12 4.74Z" fill="#EA4335" />
-                        </svg>
-                        Continue with Google
-                    </button>
-
                     <div className="auth-footer">
                         Already have an account? <Link to="/login">Login</Link>
                     </div>
