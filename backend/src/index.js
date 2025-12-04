@@ -8,6 +8,7 @@ import helmet from 'helmet';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import mongoose from 'mongoose';
 import { connectDB } from './database/connection.js';
 
 const __filename = fileURLToPath(import.meta.url);
