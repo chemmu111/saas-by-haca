@@ -507,7 +507,8 @@ router.post('/', async (req, res) => {
       location,
       postType,
       format,
-      publishImmediately
+      publishImmediately,
+      coverUrl
     } = req.body;
 
     // Handle draft saving (simplified validation)
@@ -689,6 +690,7 @@ router.post('/', async (req, res) => {
       location: location ? location.trim() : '',
       postType: postType || 'post',
       format: finalFormat,
+      coverUrl: coverUrl ? coverUrl.trim() : undefined,
       createdBy: req.user.sub
     });
 

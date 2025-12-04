@@ -17,6 +17,7 @@ const Posts = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [postToDelete, setPostToDelete] = useState(null);
   const [failedMediaUrls, setFailedMediaUrls] = useState(new Set());
+  const [retryingMediaUrls, setRetryingMediaUrls] = useState(new Set());
 
   const getBackendUrl = () => {
     if (window.location.port === '3000') {
@@ -479,7 +480,7 @@ const Posts = () => {
                               )
                             ) : (
                               <video
-                                src={normalizedMediaUrl}
+                                src={retryingMediaUrls.has(normalizedMediaUrl) ? firstMediaUrl : normalizedMediaUrl}
                                 poster={post.thumbnailUrl ? normalizeMediaUrl(post.thumbnailUrl) : undefined}
                                 className="w-full h-full object-cover"
                                 muted
@@ -487,6 +488,12 @@ const Posts = () => {
                                 preload="metadata"
                                 crossOrigin="anonymous"
                                 onError={(e) => {
+                                  // Try original URL if normalized failed and they are different
+                                  if (firstMediaUrl && firstMediaUrl !== normalizedMediaUrl && !retryingMediaUrls.has(normalizedMediaUrl)) {
+                                    setRetryingMediaUrls(prev => new Set(prev).add(normalizedMediaUrl));
+                                    return;
+                                  }
+                                  
                                   // Silently handle missing media - placeholders will show
                                   setFailedMediaUrls(prev => new Set(prev).add(normalizedMediaUrl));
                                   e.target.style.display = 'none';
@@ -509,12 +516,18 @@ const Posts = () => {
                             </div>
                           ) : (
                             <img
-                              src={normalizedMediaUrl}
+                              src={retryingMediaUrls.has(normalizedMediaUrl) ? firstMediaUrl : normalizedMediaUrl}
                               alt="Post media"
                               className="w-full h-full object-cover"
                               loading="lazy"
                               crossOrigin="anonymous"
                               onError={(e) => {
+                                // Try original URL if normalized failed and they are different
+                                if (firstMediaUrl && firstMediaUrl !== normalizedMediaUrl && !retryingMediaUrls.has(normalizedMediaUrl)) {
+                                  setRetryingMediaUrls(prev => new Set(prev).add(normalizedMediaUrl));
+                                  return;
+                                }
+
                                 // Silently handle missing media - placeholders will show
                                 setFailedMediaUrls(prev => new Set(prev).add(normalizedMediaUrl));
                                 e.target.style.display = 'none';

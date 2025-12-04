@@ -340,7 +340,7 @@ async function verifyPagePermissions(pageAccessToken, igUserId, pageId = null) {
  * @param {string} postType - Type of post: 'post', 'story', or 'reel'
  * @returns {Promise<Object>} - Post ID and status
  */
-export async function postToInstagram(mediaUrl, caption, client, postType = 'post') {
+export async function postToInstagram(mediaUrl, caption, client, postType = 'post', coverUrl = null) {
   try {
     // Validate and normalize postType
     const validPostTypes = ['post', 'story', 'reel', 'carousel', 'video'];
@@ -721,7 +721,16 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
           containerParams.append('caption', caption);
         }
         // Reels can have a cover image (optional but recommended)
-        // We'll skip cover_url for now as it requires an additional image
+        if (coverUrl) {
+          console.log('  🖼️  Adding Cover Photo for Reel');
+          // Process cover image to ensure it meets Instagram requirements (optional but good practice)
+          // For now, we assume the cover URL is already a public URL
+          const publicCoverUrl = getPublicImageUrl(coverUrl);
+          if (publicCoverUrl) {
+            containerParams.append('cover_url', publicCoverUrl);
+            console.log('  ✅ Cover URL added:', publicCoverUrl);
+          }
+        }
       } else {
         // Regular image post
         console.log('  🖼️  Post Type: IMAGE');
@@ -1294,7 +1303,7 @@ export async function publishPost(post, client) {
         try {
           // Pass all media URLs for carousel, otherwise just the first one
           const mediaData = postType === 'carousel' ? mediaUrls : imageUrl;
-          results.instagram = await postToInstagram(mediaData, caption, client, postType);
+          results.instagram = await postToInstagram(mediaData, caption, client, postType, post.coverUrl);
           console.log(`✅ Instagram ${postType} successful`);
         } catch (error) {
           console.error('❌ Instagram post failed:', error.message);

@@ -4,7 +4,8 @@ import {
   AlertCircle, CheckCircle, Loader, Sparkles, Crop, RotateCw,
   Instagram, Facebook, Eye, ExternalLink, Save, Trash2, Plus,
   Zap, MessageCircle, Music, Sticker, Lightbulb, Info,
-  Smartphone, LayoutGrid, Maximize2, Minimize2, Square, RectangleHorizontal, RectangleVertical
+  Smartphone, LayoutGrid, Maximize2, Minimize2, Square, RectangleHorizontal, RectangleVertical,
+  ChevronRight, ChevronDown, Heart, Share2, Bookmark
 } from 'lucide-react';
 
 // Import our custom hooks
@@ -50,7 +51,8 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
     mediaFiles: [],
     hashtagInput: '',
     musicUrl: '',
-    location: ''
+    location: '',
+    coverImage: null
   });
 
   // UI state
@@ -153,22 +155,39 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
 
   const fetchClients = async () => {
     try {
+      setLoading(true);
       const token = localStorage.getItem('auth_token');
-      const backendUrl = getBackendUrl();
+      // Use relative URL to leverage Vite proxy or same-origin in production
+      const url = '/api/clients';
 
-      const response = await fetch(`${backendUrl}/api/clients`, {
+      console.log('Fetching clients from:', url);
+
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const result = await response.json();
       if (result.success) {
         setClients(result.data || []);
+        if (result.data && result.data.length === 0) {
+          console.log('No clients found for this user.');
+        }
+      } else {
+        console.error('Failed to fetch clients:', result.error);
+        showToast('Failed to load clients: ' + result.error, 'error');
       }
     } catch (err) {
       console.error('Error fetching clients:', err);
+      showToast('Error loading clients. Please try refreshing.', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -463,6 +482,13 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
         musicUrl: formData.musicUrl,
         location: formData.location
       };
+
+      // Upload cover image if present
+      if (formData.coverImage) {
+        setPublishProgress({ step: 'upload', message: 'Uploading cover image...' });
+        const coverUrl = await uploadMedia(formData.coverImage);
+        postData.coverUrl = coverUrl;
+      }
 
       if (formData.scheduleType === 'schedule') {
         postData.scheduledTime = new Date(formData.scheduledTime).toISOString();
@@ -777,759 +803,494 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
   return (
     <>
       {/* Modal Backdrop */}
-      <div className="fixed inset-0 z-50 overflow-y-auto">
-        <div className="flex items-center justify-center min-h-screen px-4 p-6">
-          <div
-            className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity cursor-pointer"
-            onClick={handleClose}
-          />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm font-sans">
+        <div
+          className="fixed inset-0"
+          onClick={handleClose}
+        />
 
-          {/* Modal Panel */}
-          <div className="relative bg-white rounded-2xl shadow-2xl transform transition-all w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
-            {/* Full Modal Loading Overlay */}
-            {(loading || uploadProgress.total > 0 || publishProgress.step) && (
-              <div className="absolute inset-0 bg-white/90 backdrop-blur-sm flex items-center justify-center z-50 rounded-2xl">
-                <div className="flex flex-col items-center gap-4 p-8 bg-white rounded-2xl shadow-xl border border-gray-100 max-w-sm w-full mx-4">
-                  <div className="relative">
-                    <div className="w-16 h-16 border-4 border-blue-100 rounded-full animate-spin border-t-blue-600"></div>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Send size={24} className="text-blue-600" />
+        {/* Modal Panel - Maximized Size */}
+        <div className="relative bg-white rounded-[20px] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)] w-[98vw] h-[95vh] flex flex-col overflow-hidden border border-gray-100">
+
+          {/* Full Modal Loading Overlay */}
+          {(loading || uploadProgress.total > 0 || publishProgress.step) && (
+            <div className="absolute inset-0 bg-white/90 backdrop-blur-md flex items-center justify-center z-50 rounded-[20px]">
+              <div className="flex flex-col items-center gap-6 p-8 bg-white rounded-3xl shadow-2xl border border-gray-100 max-w-sm w-full mx-4">
+                <div className="relative">
+                  <div className="w-16 h-16 border-[5px] border-[#6A4DFF]/20 rounded-full animate-spin border-t-[#6A4DFF]"></div>
+                </div>
+                <div className="text-center w-full">
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">
+                    {publishProgress.step === 'upload' && 'Uploading Media'}
+                    {publishProgress.step === 'saving' && 'Saving Post'}
+                    {publishProgress.step === 'publishing' && 'Publishing...'}
+                    {publishProgress.step === 'processing' && 'Finishing Up'}
+                    {publishProgress.step === 'complete' && 'Success!'}
+                    {publishProgress.step === 'error' && 'Error Occurred'}
+                  </h3>
+                  <p className="text-gray-500 text-sm font-medium">{publishProgress.message || 'Please wait...'}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={(e) => handleSubmit(e, false)} className="flex flex-col flex-1 h-full overflow-hidden">
+
+            {/* 1. Top Bar */}
+            <div className="flex-none px-8 py-5 border-b border-[#E9E9E9] bg-white flex items-center justify-between z-20">
+              <div className="flex flex-col gap-1">
+                <h2 className="text-[20px] font-semibold text-gray-900 tracking-tight">Create New Post</h2>
+              </div>
+
+              {/* Stepper Navigation */}
+              <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-4 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-[#6A4DFF] font-bold border-b-2 border-[#6A4DFF] pb-0.5">1. Details</span>
+                </div>
+                <div className="w-8 h-[1px] bg-gray-300"></div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-400 font-medium">2. Content</span>
+                </div>
+                <div className="w-8 h-[1px] bg-gray-300"></div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-400 font-medium">3. Schedule</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleClose}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-full transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* 2. Main Content Area (2-Column Split) */}
+            <div className="flex flex-1 overflow-hidden">
+
+              {/* Left Column: Form (60%) */}
+              <div className="w-[60%] overflow-y-auto [&::-webkit-scrollbar]:hidden p-8 border-r border-[#E9E9E9] bg-white">
+                <div className="max-w-3xl mx-auto space-y-8">
+
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Post Details</h3>
+                  </div>
+
+                  {/* Account Selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Select Account
+                    </label>
+                    <div className="relative">
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                        <div className="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+                          {formData.clientId ? (
+                            <img src={`https://ui-avatars.com/api/?name=${clients.find(c => c._id === formData.clientId)?.name}&background=random`} alt="" className="w-full h-full" />
+                          ) : (
+                            <span className="text-[10px]">?</span>
+                          )}
+                        </div>
+                      </div>
+                      <select
+                        value={formData.clientId}
+                        onChange={(e) => setFormData(prev => ({ ...prev, clientId: e.target.value }))}
+                        required
+                        className="w-full pl-10 pr-10 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#6A4DFF]/20 focus:border-[#6A4DFF] appearance-none text-sm text-gray-900 font-medium transition-all hover:border-gray-300"
+                      >
+                        <option value="">Choose a social account...</option>
+                        {clients.map(client => (
+                          <option key={client._id} value={client._id}>
+                            {client.name} ({client.platform === 'instagram' ? 'Instagram' : 'Facebook'})
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
                     </div>
                   </div>
 
-                  <div className="text-center w-full">
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">
-                      {publishProgress.step === 'upload' && 'Uploading Media'}
-                      {publishProgress.step === 'saving' && 'Saving Post'}
-                      {publishProgress.step === 'publishing' && 'Publishing to Instagram'}
-                      {publishProgress.step === 'processing' && 'Finishing Up'}
-                      {publishProgress.step === 'complete' && 'Success!'}
-                      {publishProgress.step === 'error' && 'Error Occurred'}
-                    </h3>
-                    <p className="text-gray-500 text-sm mb-4">{publishProgress.message || 'Please wait while we process your request...'}</p>
-
-                    {uploadProgress.total > 0 && (
-                      <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-                        <div
-                          className="h-full bg-blue-600 transition-all duration-300 ease-out"
-                          style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <form onSubmit={(e) => handleSubmit(e, false)} className="flex flex-col flex-1 min-h-0">
-              {/* Modal Header */}
-              <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 flex items-center justify-between rounded-t-2xl flex-none">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-white bg-opacity-20 rounded-xl flex items-center justify-center">
-                    <Send className="text-white" size={20} />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-white">
-                      {editingPost ? 'Edit Post' : 'Create New Post'}
-                    </h2>
-                    <p className="text-blue-100 text-sm">
-                      {currentStep === 'compose' && 'Compose your post'}
-                      {currentStep === 'crop' && 'Crop your image'}
-                      {currentStep === 'preview' && 'Preview your post'}
-                      {currentStep === 'publish' && 'Publishing...'}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleClose}
-                  className="text-white hover:bg-white hover:bg-opacity-20 rounded-lg p-2 transition-colors"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-
-              {/* Modal Body */}
-              <div className="flex flex-1 min-h-0 overflow-hidden">
-                {/* Left Panel - Form */}
-                <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
-                  {currentStep === 'compose' && (
-                    <div className="space-y-6">
-                      {/* Client Selection */}
-                      <div className="bg-gray-50 rounded-xl p-4">
-                        <label className="block text-sm font-semibold text-gray-700 mb-3">
-                          Social Account *
-                        </label>
+                  {/* Platform & Type */}
+                  <div className="grid grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Platform
+                      </label>
+                      <div className="relative">
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2">
+                          {formData.platform === 'instagram' ? <Instagram size={18} className="text-pink-600" /> :
+                            formData.platform === 'facebook' ? <Facebook size={18} className="text-blue-600" /> :
+                              <LayoutGrid size={18} className="text-gray-500" />}
+                        </div>
                         <select
-                          value={formData.clientId}
-                          onChange={(e) => setFormData(prev => ({ ...prev, clientId: e.target.value }))}
-                          required
-                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                          value={formData.platform}
+                          onChange={(e) => setFormData(prev => ({ ...prev, platform: e.target.value }))}
+                          className="w-full pl-10 pr-10 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#6A4DFF]/20 focus:border-[#6A4DFF] appearance-none text-sm text-gray-900 font-medium transition-all hover:border-gray-300"
                         >
-                          <option value="">Choose an account...</option>
-                          {clients.map(client => (
-                            <option key={client._id} value={client._id}>
-                              {client.name} - {client.platform === 'instagram' ? 'Instagram' : 'Facebook'}
+                          {getAvailablePlatforms().map(platform => (
+                            <option key={platform} value={platform}>
+                              {platform === 'instagram' ? 'Instagram' :
+                                platform === 'facebook' ? 'Facebook' : 'Both'}
                             </option>
                           ))}
                         </select>
-
-                        {/* Client Status Indicator */}
-                        {formData.clientId && clientPermissions && (
-                          <div className="mt-3 flex items-center gap-2">
-                            {clientPermissions.canAccessInstagram ? (
-                              <CheckCircle className="text-green-500" size={16} />
-                            ) : (
-                              <AlertCircle className="text-red-500" size={16} />
-                            )}
-                            <span className="text-sm text-gray-600">
-                              {clientPermissions.canAccessInstagram
-                                ? 'Instagram connected'
-                                : 'Instagram not connected - limited features'}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Platform & Post Type Selection */}
-                      <div className="bg-gray-50 rounded-xl p-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          {/* Platform Selection */}
-                          <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-3">
-                              Platform *
-                            </label>
-                            <select
-                              value={formData.platform}
-                              onChange={(e) => {
-                                const newPlatform = e.target.value;
-                                // Auto-adjust post type if needed
-                                let newPostType = formData.postType;
-                                if (newPlatform === 'facebook' && (formData.postType === 'story' || formData.postType === 'reel')) {
-                                  newPostType = 'post';
-                                }
-                                setFormData(prev => ({ ...prev, platform: newPlatform, postType: newPostType }));
-                              }}
-                              required
-                              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                            >
-                              {getAvailablePlatforms().map(platform => (
-                                <option key={platform} value={platform}>
-                                  {platform === 'instagram' ? 'Instagram' :
-                                    platform === 'facebook' ? 'Facebook' : 'Both Platforms'}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          {/* Post Type Selection */}
-                          <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-3">
-                              Content Type *
-                            </label>
-                            <select
-                              value={formData.postType}
-                              onChange={(e) => {
-                                const newPostType = e.target.value;
-                                // Auto-set format based on post type
-                                let autoFormat = formData.format;
-                                if (newPostType === 'reel') {
-                                  autoFormat = 'reel';
-                                } else if (newPostType === 'story') {
-                                  autoFormat = 'story';
-                                }
-                                setFormData(prev => ({ ...prev, postType: newPostType, format: autoFormat }));
-                              }}
-                              required
-                              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                            >
-                              {getAvailablePostTypes().map(type => (
-                                <option key={type} value={type}>
-                                  {type === 'post' ? 'Feed Post' :
-                                    type === 'story' ? 'Story' :
-                                      type === 'reel' ? 'Reel' :
-                                        type === 'carousel' ? `Carousel ${formData.mediaFiles.length > 1 ? `(${formData.mediaFiles.length} items)` : ''}` :
-                                          type === 'video' ? 'Feed Video' : type}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-
-                        {/* Format Selection (conditional) */}
-                        {(formData.postType === 'post' || formData.postType === 'video') && (
-                          <div className="mt-4">
-                            <label className="block text-sm font-semibold text-gray-700 mb-3">
-                              Format / Aspect Ratio
-                            </label>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                              {[
-                                { value: 'square', label: 'Square', ratio: '1:1', icon: Square, desc: '1080×1080' },
-                                { value: 'portrait', label: 'Portrait', ratio: '4:5', icon: RectangleVertical, desc: '1080×1350' },
-                                { value: 'landscape', label: 'Landscape', ratio: '1.91:1', icon: RectangleHorizontal, desc: '1080×608' },
-                                { value: 'carousel-square', label: 'Carousel', ratio: '1:1', icon: LayoutGrid, desc: 'Multi-image' }
-                              ].map(format => {
-                                const Icon = format.icon;
-                                const isSelected = formData.format === format.value;
-                                return (
-                                  <button
-                                    key={format.value}
-                                    type="button"
-                                    onClick={() => setFormData(prev => ({ ...prev, format: format.value }))}
-                                    className={`relative flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all duration-200 ${isSelected
-                                      ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm'
-                                      : 'border-gray-200 bg-white hover:border-blue-200 hover:bg-gray-50 text-gray-600'
-                                      }`}
-                                  >
-                                    <div className={`mb-2 p-2 rounded-lg ${isSelected ? 'bg-blue-100' : 'bg-gray-100'}`}>
-                                      <Icon size={20} className={isSelected ? 'text-blue-600' : 'text-gray-500'} />
-                                    </div>
-                                    <span className="text-xs font-bold">{format.label}</span>
-                                    <span className="text-[10px] opacity-70 mt-0.5">{format.ratio}</span>
-
-                                    {isSelected && (
-                                      <div className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full"></div>
-                                    )}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Media Upload */}
-                      <div className="bg-gray-50 rounded-xl p-4">
-                        <label className="block text-sm font-semibold text-gray-700 mb-3">
-                          Media Files *
-                          {formData.postType === 'reel' && formData.mediaFiles.length === 0 && <span className="text-red-500 ml-1">(Video required)</span>}
-                          {formData.postType === 'video' && formData.mediaFiles.length === 0 && <span className="text-red-500 ml-1">(Video required)</span>}
-                          {formData.postType === 'carousel' && <span className="text-red-500 ml-1">
-                            {formData.mediaFiles.length > 0 ? `(${formData.mediaFiles.length} items)` : '(2-10 images required)'}
-                          </span>}
-                        </label>
-
-                        {/* Upload Area */}
-                        <div
-                          className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-400 transition-colors cursor-pointer bg-white"
-                          onClick={() => fileInputRef.current?.click()}
-                        >
-                          <Upload className="mx-auto text-gray-400 mb-4" size={48} />
-                          <p className="text-gray-600 mb-2">Click to upload or drag and drop</p>
-                          <p className="text-sm text-gray-500">
-                            {formData.postType === 'reel' ? 'MP4, MOV videos up to 100MB' :
-                              formData.postType === 'video' ? 'MP4, MOV videos up to 4GB' :
-                                formData.postType === 'carousel' ? 'JPEG, PNG images (2-10 files)' :
-                                  'Images or videos'}
-                          </p>
-                        </div>
-
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          className="hidden"
-                          accept={(formData.postType === 'reel' || formData.postType === 'video') ? 'video/*' :
-                            formData.postType === 'carousel' ? 'image/*' : 'image/*,video/*'}
-                          multiple={formData.postType === 'carousel'}
-                          onChange={handleMediaSelect}
-                        />
-
-                        {/* Media Preview Grid */}
-                        {formData.mediaFiles.length > 0 && (
-                          <div className="mt-4 grid grid-cols-3 gap-3">
-                            {formData.mediaFiles.map((media, index) => (
-                              <div key={index} className="relative group">
-                                {media.file?.type?.startsWith('video/') ? (
-                                  <video
-                                    src={media.preview}
-                                    className={`w-full h-20 object-cover rounded-lg border ${media.validation && !media.validation.isValid ? 'border-red-500' :
-                                      media.validation && media.validation.warnings.length > 0 ? 'border-yellow-500' :
-                                        'border-gray-200'
-                                      }`}
-                                    controls={false}
-                                  />
-                                ) : (
-                                  <img
-                                    src={media.preview}
-                                    alt={`Preview ${index + 1}`}
-                                    className="w-full h-20 object-cover rounded-lg border border-gray-200"
-                                  />
-                                )}
-
-                                {/* Validation Status Overlay */}
-                                {media.validation && (
-                                  <div className="absolute top-1 right-1 z-10">
-                                    {!media.validation.isValid ? (
-                                      <div className="bg-red-500 text-white p-1 rounded-full shadow-md" title={media.validation.errors.join('\n')}>
-                                        <X size={12} />
-                                      </div>
-                                    ) : media.validation.warnings.length > 0 ? (
-                                      <div className="bg-yellow-500 text-white p-1 rounded-full shadow-md" title={media.validation.warnings.join('\n')}>
-                                        <AlertCircle size={12} />
-                                      </div>
-                                    ) : (
-                                      <div className="bg-green-500 text-white p-1 rounded-full shadow-md" title="Video Ready — meets Instagram standards ✔️">
-                                        <CheckCircle size={12} />
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-
-                                {/* Media overlay */}
-                                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all rounded-lg flex items-center justify-center">
-                                  <div className="opacity-0 group-hover:opacity-100 flex gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleOpenCropper(index);
-                                      }}
-                                      className="p-1 bg-white rounded-full hover:bg-gray-100"
-                                      title="Crop image"
-                                    >
-                                      <Crop size={14} />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleRemoveMedia(index);
-                                      }}
-                                      className="p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
-                                      title="Remove"
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
-                                  </div>
-                                </div>
-
-                                {/* File info */}
-                                <div className="absolute bottom-1 left-1 bg-black bg-opacity-75 text-white text-[10px] px-1.5 py-0.5 rounded max-w-[90%] truncate">
-                                  {media.file?.size ? `${(media.file.size / 1024 / 1024).toFixed(1)}MB` : 'URL'}
-                                </div>
-
-                                {/* Validation Message (if selected or error) */}
-                                {(media.validation && (!media.validation.isValid || media.validation.warnings.length > 0)) && (
-                                  <div className={`absolute -bottom-2 left-0 right-0 transform translate-y-full z-20 p-2 rounded text-xs shadow-lg ${!media.validation.isValid ? 'bg-red-100 text-red-800 border border-red-200' : 'bg-yellow-50 text-yellow-800 border border-yellow-200'
-                                    } hidden group-hover:block`}>
-                                    <ul className="list-disc list-inside">
-                                      {media.validation.errors.map((e, i) => <li key={`err-${i}`}>{e}</li>)}
-                                      {media.validation.warnings.map((w, i) => <li key={`warn-${i}`}>{w}</li>)}
-                                    </ul>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Validation Errors */}
-                        {validationErrors.length > 0 && (
-                          <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                            <div className="flex items-center gap-2">
-                              <AlertCircle className="text-red-500" size={16} />
-                              <span className="text-red-700 text-sm">{validationErrors[0]}</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Caption */}
-                      <div className="bg-gray-50 rounded-xl p-4">
-                        <label className="block text-sm font-semibold text-gray-700 mb-3">
-                          Caption
-                        </label>
-                        <textarea
-                          value={formData.caption}
-                          onChange={(e) => setFormData(prev => ({ ...prev, caption: e.target.value }))}
-                          rows={4}
-                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                          placeholder="Write a compelling caption for your post..."
-                          maxLength={2200}
-                        />
-                        <div className="flex justify-between items-center mt-2">
-                          <span className="text-sm text-gray-500">{formData.caption.length}/2200</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setAiGeneratorType('caption');
-                              setShowAIGenerator(true);
-                            }}
-                            disabled={loading}
-                            className="flex items-center gap-2 px-3 py-1 bg-purple-100 text-purple-600 rounded-lg hover:bg-purple-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                          >
-                            <Sparkles size={14} />
-                            AI Magic
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Scheduling */}
-                      <div className="bg-gray-50 rounded-xl p-4">
-                        <label className="block text-sm font-semibold text-gray-700 mb-3">
-                          Publishing Schedule
-                        </label>
-
-                        <div className="flex gap-4 mb-4">
-                          <label className="flex items-center">
-                            <input
-                              type="radio"
-                              value="immediate"
-                              checked={formData.scheduleType === 'immediate'}
-                              onChange={(e) => setFormData(prev => ({ ...prev, scheduleType: e.target.value }))}
-                              className="mr-2"
-                            />
-                            <span className="text-sm font-medium">Publish Now</span>
-                          </label>
-                          <label className="flex items-center">
-                            <input
-                              type="radio"
-                              value="schedule"
-                              checked={formData.scheduleType === 'schedule'}
-                              onChange={(e) => setFormData(prev => ({ ...prev, scheduleType: e.target.value }))}
-                              className="mr-2"
-                            />
-                            <span className="text-sm font-medium">Schedule Later</span>
-                          </label>
-                        </div>
-
-                        {formData.scheduleType === 'schedule' && (
-                          <div className="space-y-3">
-                            <input
-                              type="datetime-local"
-                              value={formData.scheduledTime}
-                              onChange={(e) => setFormData(prev => ({ ...prev, scheduledTime: e.target.value }))}
-                              min={new Date().toISOString().slice(0, 16)}
-                              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            />
-
-                            {/* Quick schedule options */}
-                            <div className="grid grid-cols-2 gap-2">
-                              {getSuggestedTimes().map((suggestion, index) => (
-                                <button
-                                  key={index}
-                                  type="button"
-                                  onClick={() => setFormData(prev => ({ ...prev, scheduledTime: suggestion.value }))}
-                                  className="p-3 text-left border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors"
-                                >
-                                  <div className="font-medium text-sm">{suggestion.label}</div>
-                                  <div className="text-xs text-gray-500">{suggestion.description}</div>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
+                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
                       </div>
                     </div>
-                  )}
-
-                  {currentStep === 'crop' && showCropper && (
-                    <div className="space-y-6">
-                      <div className="text-center">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">Crop Your Image</h3>
-                        <p className="text-gray-600">Adjust the crop area to fit your selected format</p>
-                      </div>
-
-                      <div className="flex justify-center">
-                        <canvas
-                          ref={canvasRef}
-                          className="border border-gray-200 rounded-lg max-w-full max-h-96"
-                        />
-                      </div>
-
-                      <div className="flex justify-center gap-4">
-                        <button
-                          type="button"
-                          onClick={() => setCurrentStep('compose')}
-                          className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Content Type
+                      </label>
+                      <div className="relative">
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                          {formData.postType === 'post' ? <Square size={18} /> :
+                            formData.postType === 'reel' ? <Smartphone size={18} /> :
+                              <LayoutGrid size={18} />}
+                        </div>
+                        <select
+                          value={formData.postType}
+                          onChange={(e) => setFormData(prev => ({ ...prev, postType: e.target.value }))}
+                          className="w-full pl-10 pr-10 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#6A4DFF]/20 focus:border-[#6A4DFF] appearance-none text-sm text-gray-900 font-medium transition-all hover:border-gray-300"
                         >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleApplyCrop}
-                          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                        >
-                          Apply Crop
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Right Panel - Preview */}
-                <div className="w-96 bg-white p-6 border-l border-gray-200 flex flex-col items-center justify-center relative">
-                  <div className="sticky top-6 z-10 w-full max-w-[280px]">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4 text-center">Preview</h3>
-
-                    {/* Phone Frame */}
-                    <div className="bg-white rounded-[2rem] border-[6px] border-gray-900 shadow-2xl overflow-hidden relative h-[520px] flex flex-col">
-                      {/* Notch/Status Bar */}
-                      <div className="bg-white px-5 py-2.5 flex justify-between items-center border-b border-gray-50 z-20">
-                        <span className="text-[10px] font-semibold text-gray-900">9:41</span>
-                        <div className="flex gap-1">
-                          <div className="w-3 h-2 bg-gray-900 rounded-[1px]"></div>
-                          <div className="w-0.5 h-2 bg-gray-900 rounded-[1px]"></div>
-                        </div>
-                      </div>
-
-                      {/* App Header */}
-                      <div className="px-3 py-2 flex items-center justify-between border-b border-gray-100">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-500 p-[1.5px]">
-                            <div className="w-full h-full rounded-full bg-white p-[1.5px]">
-                              <img
-                                src={`https://ui-avatars.com/api/?name=${clients.find(c => c._id === formData.clientId)?.name || 'User'}&background=random`}
-                                alt="Profile"
-                                className="w-full h-full rounded-full object-cover"
-                              />
-                            </div>
-                          </div>
-                          <div>
-                            <p className="text-[10px] font-bold text-gray-900 leading-tight">
-                              {clients.find(c => c._id === formData.clientId)?.name || 'username'}
-                            </p>
-                            <p className="text-[8px] text-gray-500 leading-tight">
-                              {formData.location || 'Original Audio'}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-gray-900">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" /></svg>
-                        </div>
-                      </div>
-
-                      {/* Content Scroll Area */}
-                      <div className="flex-1 overflow-y-auto bg-white [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
-                        {/* Media */}
-                        <div className="relative bg-gray-100 min-h-[250px] flex items-center justify-center">
-                          {formData.mediaFiles.length > 0 ? (
-                            formData.mediaFiles[0].file?.type?.startsWith('video/') ? (
-                              <video
-                                src={formData.mediaFiles[0].preview}
-                                className="w-full h-full object-cover max-h-[320px]"
-                                controls={false}
-                                autoPlay
-                                muted
-                                loop
-                              />
-                            ) : (
-                              <img
-                                src={formData.mediaFiles[0].preview}
-                                alt="Post preview"
-                                className="w-full h-full object-cover max-h-[320px]"
-                              />
-                            )
-                          ) : (
-                            <div className="text-gray-400 flex flex-col items-center">
-                              <ImageIcon size={24} className="mb-2 opacity-50" />
-                              <span className="text-[10px]">No media selected</span>
-                            </div>
-                          )}
-
-                          {/* Carousel Indicators */}
-                          {formData.mediaFiles.length > 1 && (
-                            <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-1.5 z-10">
-                              {formData.mediaFiles.map((_, i) => (
-                                <div key={i} className={`w-1.5 h-1.5 rounded-full ${i === 0 ? 'bg-blue-500' : 'bg-white/60'}`}></div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Action Bar */}
-                        <div className="px-3 py-2 flex justify-between items-center">
-                          <div className="flex gap-3">
-                            <svg className="w-5 h-5 text-gray-900" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
-                            <svg className="w-5 h-5 text-gray-900" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-                            <svg className="w-5 h-5 text-gray-900" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-                          </div>
-                          <svg className="w-5 h-5 text-gray-900" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
-                        </div>
-
-                        {/* Caption & Comments */}
-                        <div className="px-3 pb-4">
-                          <div className="text-[10px] font-bold mb-1">1,234 likes</div>
-                          <div className="text-[10px]">
-                            <span className="font-bold mr-2">{clients.find(c => c._id === formData.clientId)?.name || 'username'}</span>
-                            <span className="text-gray-900">{formData.caption || 'Write a caption...'}</span>
-                          </div>
-
-                          {/* Hashtags */}
-                          {formData.hashtags.length > 0 && (
-                            <div className="mt-1 text-[10px] text-blue-900">
-                              {formData.hashtags.map(t => `#${t}`).join(' ')}
-                            </div>
-                          )}
-
-                          <div className="text-[8px] text-gray-500 mt-2 uppercase">2 hours ago</div>
-                        </div>
-                      </div>
-
-                      {/* Bottom Nav Mock */}
-                      <div className="border-t border-gray-100 px-4 py-2 flex justify-between items-center bg-white">
-                        <svg className="w-5 h-5 text-gray-900" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
-                        <svg className="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                        <div className="w-5 h-5 rounded-md border-2 border-gray-900 flex items-center justify-center"><Plus size={12} /></div>
-                        <svg className="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
-                        <div className="w-5 h-5 rounded-full bg-gray-200"></div>
+                          {getAvailablePostTypes().map(type => (
+                            <option key={type} value={type}>
+                              {type === 'post' ? 'Feed Post' :
+                                type === 'story' ? 'Story' :
+                                  type === 'reel' ? 'Reel' : type}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
                       </div>
                     </div>
                   </div>
+
+                  {/* Media Assets */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Media Assets
+                    </label>
+                    <div
+                      className="border-2 border-dashed border-gray-200 rounded-xl p-10 text-center hover:border-[#6A4DFF] hover:bg-[#6A4DFF]/5 transition-all cursor-pointer bg-gray-50 group"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="w-12 h-12 rounded-full bg-white shadow-sm flex items-center justify-center border border-gray-100 group-hover:scale-110 transition-transform">
+                          <Upload className="text-[#6A4DFF]" size={20} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">Drag and drop or click to browse</p>
+                          <p className="text-xs text-gray-500 mt-1">Supports JPG, PNG, MP4</p>
+                        </div>
+                      </div>
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      className="hidden"
+                      accept="image/*,video/*"
+                      multiple
+                      onChange={handleMediaSelect}
+                    />
+
+                    {/* Thumbnails */}
+                    {formData.mediaFiles.length > 0 && (
+                      <div className="mt-4 flex gap-3 overflow-x-auto pb-2">
+                        {formData.mediaFiles.map((media, index) => (
+                          <div key={index} className="relative w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden border border-gray-200 group shadow-sm">
+                            <img src={media.preview} alt="" className="w-full h-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveMedia(index)}
+                              className="absolute top-1 right-1 p-1 bg-white rounded-full text-gray-700 shadow-md opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-500"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Caption */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Caption
+                    </label>
+                    <div className="relative">
+                      <textarea
+                        value={formData.caption}
+                        onChange={(e) => setFormData(prev => ({ ...prev, caption: e.target.value }))}
+                        rows={6}
+                        className="w-full p-4 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#6A4DFF]/20 focus:border-[#6A4DFF] resize-none text-sm leading-relaxed"
+                        placeholder="Write a compelling caption..."
+                        maxLength={2200}
+                      />
+                      <div className="flex justify-between items-center mt-2 px-1">
+                        <span className="text-xs text-gray-400 font-medium">{formData.caption.length}/2200</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAiGeneratorType('caption');
+                            setShowAIGenerator(true);
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#6A4DFF]/10 text-[#6A4DFF] rounded-lg text-xs font-bold hover:bg-[#6A4DFF]/20 transition-colors"
+                        >
+                          <Sparkles size={14} />
+                          Improve with AI
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Schedule Section (Moved to Left Column) */}
+                  <div className="bg-gray-50 p-6 rounded-xl border border-gray-100">
+                    <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Schedule</h3>
+                    <div className="space-y-4">
+                      <label className="flex items-center gap-3 cursor-pointer group">
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${formData.scheduleType === 'immediate' ? 'border-[#6A4DFF]' : 'border-gray-300 group-hover:border-[#6A4DFF]'}`}>
+                          {formData.scheduleType === 'immediate' && <div className="w-2.5 h-2.5 bg-[#6A4DFF] rounded-full" />}
+                        </div>
+                        <div>
+                          <span className="block text-sm font-semibold text-gray-900">Publish Now</span>
+                          <span className="block text-xs text-gray-500">Post immediately to feed</span>
+                        </div>
+                        <input
+                          type="radio"
+                          value="immediate"
+                          checked={formData.scheduleType === 'immediate'}
+                          onChange={(e) => setFormData(prev => ({ ...prev, scheduleType: e.target.value }))}
+                          className="hidden"
+                        />
+                      </label>
+
+                      <label className="flex items-center gap-3 cursor-pointer group">
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${formData.scheduleType === 'schedule' ? 'border-[#6A4DFF]' : 'border-gray-300 group-hover:border-[#6A4DFF]'}`}>
+                          {formData.scheduleType === 'schedule' && <div className="w-2.5 h-2.5 bg-[#6A4DFF] rounded-full" />}
+                        </div>
+                        <div>
+                          <span className="block text-sm font-semibold text-gray-900">Schedule for Later</span>
+                          <span className="block text-xs text-gray-500">Pick a date and time</span>
+                        </div>
+                        <input
+                          type="radio"
+                          value="schedule"
+                          checked={formData.scheduleType === 'schedule'}
+                          onChange={(e) => setFormData(prev => ({ ...prev, scheduleType: e.target.value }))}
+                          className="hidden"
+                        />
+                      </label>
+
+                      {formData.scheduleType === 'schedule' && (
+                        <div className="pt-2 pl-8 animate-in fade-in slide-in-from-top-2 duration-200">
+                          <input
+                            type="datetime-local"
+                            value={formData.scheduledTime}
+                            onChange={(e) => setFormData(prev => ({ ...prev, scheduledTime: e.target.value }))}
+                            className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#6A4DFF]/20 focus:border-[#6A4DFF]"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                 </div>
               </div>
 
-              {/* Modal Footer */}
-              {currentStep === 'compose' && (
-                <div className="bg-white px-6 py-4 border-t border-gray-200 rounded-b-2xl flex items-center justify-between relative z-20 flex-none">
+              {/* Right Column: Preview (40%) */}
+              <div className="w-[40%] bg-gray-50 flex items-center justify-center p-8 relative overflow-hidden">
+                <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:20px_20px] opacity-50"></div>
 
+                {/* Smartphone Frame - Resized to be smaller */}
+                <div className="bg-white rounded-[2rem] border-[8px] border-gray-900 shadow-2xl overflow-hidden relative w-[260px] h-[520px] flex flex-col ring-1 ring-gray-900/5 z-10 transform transition-transform hover:scale-[1.02]">
+                  {/* Notch */}
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-5 bg-gray-900 rounded-b-lg z-30"></div>
 
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={(e) => handleSubmit(e, true)}
-                      disabled={loading}
-                      className="flex items-center gap-2 px-4 py-2.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-colors font-medium"
-                    >
-                      <Save size={18} />
-                      Save Draft
-                    </button>
+                  {/* Status Bar */}
+                  <div className="bg-white px-5 py-2 flex justify-between items-center z-20 pt-3">
+                    <span className="text-[10px] font-semibold text-gray-900">9:41</span>
+                    <div className="flex gap-1">
+                      <div className="w-3 h-2 bg-gray-900 rounded-[1px]"></div>
+                      <div className="w-3 h-2 bg-gray-900 rounded-[1px]"></div>
+                    </div>
                   </div>
 
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={handleClose}
-                      className="px-6 py-2.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-colors font-medium"
-                      disabled={loading}
-                    >
-                      Cancel
-                    </button>
+                  {/* App Header */}
+                  <div className="px-4 py-2 flex items-center justify-between border-b border-gray-50 bg-white sticky top-0 z-10">
+                    <div className="text-sm font-bold tracking-tight">Instagram</div>
+                    <div className="flex gap-3 text-gray-900">
+                      <Plus size={18} strokeWidth={2.5} />
+                      <Heart size={18} strokeWidth={2.5} />
+                      <MessageCircle size={18} strokeWidth={2.5} />
+                    </div>
+                  </div>
 
-                    {editingPost && editingPost.status === 'scheduled' && (
-                      <button
-                        type="button"
-                        onClick={handlePublishNow}
-                        disabled={publishing}
-                        className="px-6 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-semibold shadow-sm hover:shadow-md disabled:opacity-50"
-                      >
-                        {publishing ? <Loader size={18} className="animate-spin" /> : 'Publish Now'}
-                      </button>
-                    )}
+                  {/* Content Scroll Area - Removed Scroll */}
+                  <div className="flex-1 overflow-hidden bg-white flex flex-col">
+                    {/* Post Header */}
+                    <div className="px-3 py-2 flex items-center justify-between flex-none">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-yellow-400 to-pink-600 p-[2px]">
+                          <div className="w-full h-full rounded-full border-2 border-white overflow-hidden">
+                            <img
+                              src={`https://ui-avatars.com/api/?name=${clients.find(c => c._id === formData.clientId)?.name || 'User'}&background=random`}
+                              alt="Profile"
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold text-gray-900 block">
+                            {clients.find(c => c._id === formData.clientId)?.name || 'Acme Corp'}
+                          </span>
+                          <span className="text-[10px] text-gray-500 block">Original Audio</span>
+                        </div>
+                      </div>
+                      <div className="text-gray-900 font-bold text-xs">•••</div>
+                    </div>
 
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="flex items-center gap-2 px-8 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all font-semibold shadow-md hover:shadow-lg disabled:opacity-50 transform hover:-translate-y-0.5"
-                    >
-                      {loading && <Loader size={18} className="animate-spin" />}
-                      {editingPost ? 'Update Post' : (
-                        formData.scheduleType === 'schedule' ? (
-                          <>
-                            <Calendar size={18} />
-                            Schedule Post
-                          </>
+                    {/* Media - Adjusted to fit */}
+                    <div className="relative bg-black flex-1 w-full flex items-center justify-center overflow-hidden">
+                      {formData.mediaFiles.length > 0 ? (
+                        (formData.mediaFiles[0].file?.type.startsWith('video/') || formData.mediaFiles[0].preview?.match(/\.(mp4|mov|webm)$/i)) ? (
+                          <video
+                            src={formData.mediaFiles[0].preview}
+                            className="w-full h-full object-cover"
+                            autoPlay
+                            muted
+                            loop
+                            playsInline
+                          />
                         ) : (
-                          <>
-                            <Send size={18} />
-                            Publish Now
-                          </>
+                          <img
+                            src={formData.mediaFiles[0].preview}
+                            alt="Post preview"
+                            className="w-full h-full object-cover"
+                          />
                         )
+                      ) : (
+                        <div className="flex flex-col items-center gap-2 text-gray-500">
+                          <ImageIcon size={40} strokeWidth={1.5} />
+                          <span className="text-xs font-medium">No media selected</span>
+                        </div>
                       )}
-                    </button>
+                    </div>
+
+                    {/* Action Bar */}
+                    <div className="px-3 py-2 flex justify-between items-center flex-none">
+                      <div className="flex gap-4 text-gray-900">
+                        <Heart size={20} strokeWidth={2} />
+                        <MessageCircle size={20} strokeWidth={2} />
+                        <Send size={20} strokeWidth={2} />
+                      </div>
+                      <Bookmark size={20} strokeWidth={2} className="text-gray-900" />
+                    </div>
+
+                    {/* Caption & Likes */}
+                    <div className="px-3 pb-4 space-y-1 flex-none">
+                      <p className="text-xs font-bold text-gray-900">1,178 likes</p>
+                      <div className="text-xs text-gray-900 leading-relaxed line-clamp-2">
+                        <span className="font-bold mr-1.5">{clients.find(c => c._id === formData.clientId)?.name || 'Acme Corp'}</span>
+                        {formData.caption || 'Write a compelling caption...'}
+                      </div>
+                      <p className="text-[10px] text-gray-400 uppercase mt-1 font-medium">View all 7 comments</p>
+                      <p className="text-[10px] text-gray-400 font-medium">2 HOURS AGO</p>
+                    </div>
                   </div>
+
+                  {/* Bottom Nav Removed */}
+
                 </div>
-              )}
-            </form>
-          </div>
-        </div>
-      </div>
-
-
-
-      {/* AI Generator Modal */}
-      {
-        showAIGenerator && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden relative">
-              <button
-                onClick={() => setShowAIGenerator(false)}
-                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
-              >
-                <X size={20} />
-              </button>
-              <div className="p-6">
-                <h3 className="text-lg font-bold text-slate-900 mb-4">
-                  {aiGeneratorType === 'caption' ? 'Generate Caption' : 'Generate Hashtags'}
-                </h3>
-                <AIGenerator
-                  type={aiGeneratorType}
-                  onSelect={(text) => {
-                    if (aiGeneratorType === 'caption') {
-                      setFormData(prev => ({ ...prev, caption: prev.caption ? prev.caption + '\n\n' + text : text }));
-                    } else {
-                      const tags = text.match(/#[\w]+/g) || [];
-                      const cleanTags = tags.map(t => t.slice(1));
-                      setFormData(prev => ({
-                        ...prev,
-                        hashtags: [...new Set([...prev.hashtags, ...cleanTags])]
-                      }));
-                    }
-                    setShowAIGenerator(false);
-                  }}
-                />
               </div>
             </div>
-          </div>
-        )
-      }
 
-      {/* Error Dialog */}
-      {errorDetails && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden relative animate-in fade-in zoom-in duration-200">
-            <div className="p-6">
-              <div className="flex items-start gap-4">
-                <div className="p-3 bg-red-100 text-red-600 rounded-full shrink-0">
-                  <AlertCircle size={32} />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">
-                    Upload Failed
-                  </h3>
-                  <div className="text-gray-600 whitespace-pre-wrap text-sm leading-relaxed max-h-[60vh] overflow-y-auto custom-scrollbar">
-                    {errorDetails}
-                  </div>
-                </div>
-              </div>
+            {/* 3. Bottom Sticky Action Bar */}
+            <div className="flex-none px-8 py-5 bg-white border-t border-[#E9E9E9] flex items-center justify-between z-20">
+              <button
+                type="button"
+                onClick={() => handleSubmit(null, true)}
+                className="px-5 py-2.5 text-gray-600 font-semibold hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors text-sm flex items-center gap-2"
+              >
+                <Save size={18} />
+                Save Draft
+              </button>
 
-              <div className="mt-6 flex justify-end gap-3">
+              <div className="flex items-center gap-3">
                 <button
-                  onClick={() => setErrorDetails(null)}
-                  className="px-5 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
+                  type="button"
+                  className="px-5 py-2.5 text-gray-700 font-semibold bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm shadow-sm"
                 >
-                  Close
+                  Preview Post
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-8 py-2.5 bg-[#6A4DFF] text-white font-semibold rounded-lg hover:bg-[#5839EE] transition-all text-sm shadow-lg shadow-[#6A4DFF]/30 disabled:opacity-70 disabled:shadow-none flex items-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <Loader size={16} className="animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Send size={16} />
+                      Publish Now
+                    </>
+                  )}
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* Toast Notifications */}
-      {
-        toast.show && (
-          <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 ${toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
-            }`}>
-            {toast.type === 'success' ? (
-              <CheckCircle size={20} />
-            ) : (
-              <AlertCircle size={20} />
-            )}
-            <span>{toast.message}</span>
-          </div>
-        )
-      }
+          </form>
+
+          {/* AI Generator Modal Overlay */}
+          {showAIGenerator && (
+            <AIGenerator
+              type={aiGeneratorType}
+              onClose={() => setShowAIGenerator(false)}
+              onGenerate={(content) => {
+                if (aiGeneratorType === 'caption') {
+                  setFormData(prev => ({ ...prev, caption: content }));
+                } else {
+                  handleInsertHashtagSuggestion(content);
+                }
+                setShowAIGenerator(false);
+              }}
+              initialContext={formData.caption}
+            />
+          )}
+
+          {/* Cropper Overlay */}
+          {showCropper && (
+            <div className="absolute inset-0 z-50 bg-white flex flex-col">
+              <div className="flex-none px-8 py-4 border-b border-gray-100 flex justify-between items-center">
+                <h3 className="text-lg font-bold text-gray-900">Crop Image</h3>
+                <button onClick={() => setShowCropper(false)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <X size={24} />
+                </button>
+              </div>
+              <div className="flex-1 bg-gray-50 flex items-center justify-center p-8 overflow-hidden">
+                <canvas ref={canvasRef} className="max-w-full max-h-full shadow-2xl rounded-lg" />
+              </div>
+              <div className="flex-none px-8 py-4 border-t border-gray-100 flex justify-end gap-4 bg-white">
+                <button
+                  onClick={() => setShowCropper(false)}
+                  className="px-6 py-2 text-gray-600 font-semibold hover:bg-gray-100 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleApplyCrop}
+                  className="px-6 py-2 bg-[#6A4DFF] text-white font-semibold rounded-lg hover:bg-[#5839EE] shadow-lg shadow-[#6A4DFF]/30"
+                >
+                  Apply Crop
+                </button>
+              </div>
+            </div>
+          )}
+
+        </div>
+      </div>
     </>
   );
 };

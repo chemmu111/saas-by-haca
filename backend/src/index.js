@@ -440,6 +440,14 @@ async function start() {
       // Continue even if cron fails
     }
 
+    // Start the report scheduler cron job
+    try {
+      const { initReportScheduler } = await import('./cron/reportCron.js');
+      initReportScheduler();
+    } catch (error) {
+      console.warn('⚠️ Failed to start report scheduler:', error.message);
+    }
+
     // Start the server on dynamic port (Render assigns this)
     const server = app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);

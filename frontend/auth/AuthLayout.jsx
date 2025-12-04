@@ -1,41 +1,32 @@
 import React from 'react';
-import logo from '../dashboard/src/assets/logo.png';
+import logoWhite from '../dashboard/src/assets/social_x_logo_white.svg';
+import logoBlack from '../dashboard/src/assets/social_x_logo_black.svg';
 
 const AuthLayout = ({ children }) => {
     return (
-        <div className="login-page">
-            <div className="login-container">
-                {/* Left Side - Black Background with Dashboard Preview */}
-                <div className="login-left">
-                    <div className="preview-image-container">
-                        <img
-                            src="https://harisand.co/static/media/NewLogo.fc59d5f2c088d6861458.png"
-                            alt="Social Media Dashboard Preview"
-                            style={{ display: 'block', width: '100%', height: 'auto', objectFit: 'contain', minHeight: '400px' }}
-                        />
-                    </div>
+        <div className="auth-container">
+            {/* Left Side - Branding */}
+            <div className="auth-left flex flex-col justify-center items-center text-center px-12 relative">
+                <div className="flex flex-col items-center text-center max-w-lg translate-x-8">
+                    <img
+                        src={logoWhite}
+                        alt="Social X"
+                        className="h-24 w-auto mb-6 object-contain"
+                    />
+                    <h1 className="mx-auto mb-4">
+                        Manage Your Social Presence
+                    </h1>
+                    <p className="mx-auto">
+                        The all-in-one platform to schedule, analyze, and grow your audience across all channels.
+                    </p>
                 </div>
+            </div>
 
-                {/* Right Side - White Background with Form */}
-                <div className="login-right">
-                    <div className="login-form-wrapper">
-                        {/* HarisandCo Logo */}
-                        <div className="logo-container">
-                            <img
-                                src={logo}
-                                alt="Haris&Co. Logo"
-                                onError={(e) => {
-                                    e.target.onerror = null;
-                                    e.target.src = 'https://harisand.co/static/media/NewLogo.fc59d5f2c088d6861458.png';
-                                }}
-                            />
-                        </div>
+            {/* Right Side - Form */}
+            <div className="auth-right">
+                <div className="auth-form-container">
 
-                        {/* Form Content */}
-                        <div className="login-card">
-                            {children}
-                        </div>
-                    </div>
+                    {children}
                 </div>
             </div>
         </div>

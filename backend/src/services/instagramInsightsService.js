@@ -125,6 +125,8 @@ async function fetchFollowerCountBasic(igUserId, pageAccessToken) {
  */
 async function fetchFollowerCount(igUserId, pageAccessToken) {
   try {
+    console.log(`   🔍 Fetching follower count for ${igUserId}...`);
+
     // 1. Try basic endpoint FIRST (Current real-time count)
     // This is more reliable for "Total Followers" display than insights metric
     const basicCount = await fetchFollowerCountBasic(igUserId, pageAccessToken);
@@ -139,18 +141,23 @@ async function fetchFollowerCount(igUserId, pageAccessToken) {
     const response = await fetch(url);
 
     if (!response.ok) {
-      console.error('❌ Error fetching follower_count from insights:', response.status);
+      const errorText = await response.text();
+      console.error('❌ Error fetching follower_count from insights:', response.status, errorText);
       return 0;
     }
 
     const data = await response.json();
+    console.log('   📊 Insights follower_count response:', JSON.stringify(data));
+
     if (data.data && data.data.length > 0) {
       const metric = data.data[0];
       if (metric.values && metric.values.length > 0) {
         const latest = metric.values[metric.values.length - 1];
+        console.log(`   ✅ Extracted follower count from insights: ${latest.value}`);
         return latest.value || 0;
       }
     }
+    console.warn('   ⚠️ No follower count found in insights data');
     return 0;
   } catch (error) {
     console.error('Error fetching follower_count:', error);
@@ -177,11 +184,13 @@ async function fetchProfileViews(igUserId, pageAccessToken) {
     }
 
     const data = await response.json();
+    console.log('   📊 Profile Views Response:', JSON.stringify(data));
     if (data.data && data.data.length > 0) {
       const metric = data.data[0];
       if (metric.values && metric.values.length > 0) {
         // Get the latest value (most recent day)
         const latest = metric.values[metric.values.length - 1];
+        console.log(`   ✅ Extracted profile_views: ${latest.value}`);
         return latest.value || 0;
       }
     }
@@ -270,16 +279,20 @@ export async function fetchAccountInsights(igUserId, pageAccessToken) {
 
     if (response.ok) {
       const data = await response.json();
+      console.log('   📊 Account Insights Response:', JSON.stringify(data));
       if (data.data && Array.isArray(data.data)) {
         data.data.forEach(metric => {
           if (metric.values && metric.values.length > 0) {
             // Get the latest value
-            additionalData[metric.name] = metric.values[metric.values.length - 1].value || 0;
+            const val = metric.values[metric.values.length - 1].value || 0;
+            additionalData[metric.name] = val;
+            console.log(`      - ${metric.name}: ${val}`);
           }
         });
       }
     } else {
-      console.warn('⚠️ Failed to fetch additional account metrics');
+      const errorText = await response.text();
+      console.warn('⚠️ Failed to fetch additional account metrics:', response.status, errorText);
     }
 
     // Fetch 28-day reach for "Total Reach" metric

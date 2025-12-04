@@ -13,7 +13,7 @@ import { refreshLongLivedToken } from '../services/instagramTokenService.js';
 const router = Router();
 
 function isValidEmail(email) {
-  return /.+@.+\..+/.test(email);
+  return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email);
 }
 
 function signToken(user) {
@@ -192,6 +192,96 @@ router.post('/login', async (req, res) => {
     res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
   } catch (err) {
     console.error('Login error', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/auth/login-otp-init - Initialize Login with OTP
+router.post('/login-otp-init', async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    if (!email || !isValidEmail(email)) return res.status(400).json({ error: 'Valid email is required' });
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      return res.status(400).json({ error: 'Account does not exist' });
+    }
+
+    // Generate 6-digit verification code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+
+    // Invalidate old unused codes for this purpose
+    await VerificationCode.updateMany(
+      { email: email.toLowerCase(), purpose: 'login', used: false },
+      { used: true }
+    );
+
+    // Save verification code
+    await VerificationCode.create({
+      email: user.email.toLowerCase(),
+      code: verificationCode,
+      expiresAt: expiresAt,
+      purpose: 'login',
+      userId: user._id
+    });
+
+    // Send email
+    try {
+      await sendOtpEmail(user.email, verificationCode, 'login');
+      res.json({ success: true, message: 'Verification code sent to your email.' });
+    } catch (emailError) {
+      console.error('Error sending login OTP:', emailError);
+      res.status(500).json({ error: 'Failed to send verification code. Please try again.' });
+    }
+  } catch (err) {
+    console.error('Login OTP Init error', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/auth/verify-login-otp - Verify Login OTP
+router.post('/verify-login-otp', async (req, res) => {
+  try {
+    const { email, code } = req.body || {};
+    if (!email || !isValidEmail(email)) return res.status(400).json({ error: 'Valid email is required' });
+    if (!code || code.length !== 6) return res.status(400).json({ error: 'Valid 6-digit code is required' });
+
+    // Find verification code
+    const verification = await VerificationCode.findOne({
+      email: email.toLowerCase(),
+      code: code,
+      purpose: 'login',
+      used: false,
+      expiresAt: { $gt: new Date() }
+    });
+
+    if (!verification) {
+      return res.status(401).json({ error: 'Invalid or expired verification code' });
+    }
+
+    // Get user
+    const user = await User.findById(verification.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Mark code as used
+    verification.used = true;
+    await verification.save();
+
+    // Ensure role exists
+    if (!user.role) {
+      user.role = 'social media manager';
+      await user.save();
+    }
+
+    // Generate token and return user
+    const token = signToken(user);
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+  } catch (err) {
+    console.error('Verify Login OTP error', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

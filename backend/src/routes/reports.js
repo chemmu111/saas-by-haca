@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import Post from '../models/Post.js';
 import Client from '../models/Client.js';
 import User from '../models/User.js';
+import ReportSchedule from '../models/ReportSchedule.js';
 import requireAuth from '../middleware/requireAuth.js';
 import { sendMonthlyReportEmail, sendReportToClient } from '../services/emailService.js';
 import { generateReport, generateReportWithTemplate, generatePDFFromTemplate, generatePDFFromHTML, generateTextReport, sendToGoogleDoc } from '../services/reportService.js';
@@ -93,30 +94,192 @@ router.get('/', async (req, res) => {
 router.post('/schedule', async (req, res) => {
   try {
     const userId = req.user.sub;
-    const { enabled, dayOfMonth = 1, email } = req.body;
+    const {
+      clientIds, // Array of client IDs
+      interval = 'monthly',
+      dayOfMonth = 1,
+      dayOfWeek = 1, // 0-6 for weekly
+      time = '09:00',
+      emailRecipients,
+      templateId,
+      format = 'pdf',
+      enabled = true
+    } = req.body;
 
-    // Get user
+    // Validate user
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
 
-    // Save report schedule settings (you might want to add this to User model)
-    // For now, we'll just validate and return success
-    const reportEmail = email || user.email;
+    // If clientIds is provided, create/update schedules for each client
+    // If not provided, maybe it's a global schedule? For now assume per-client or all-clients logic
+    // The UI sends "Monthly Schedule" which might imply a single setting for the selected client(s)
+
+    // For this implementation, we'll handle single or multiple clients
+    const clientsToSchedule = clientIds || [];
+
+    const results = [];
+
+    for (const clientId of clientsToSchedule) {
+      // Calculate next run
+      const now = new Date();
+      let nextRun = new Date();
+      const [hour, minute] = time.split(':').map(Number);
+      nextRun.setHours(hour, minute, 0, 0);
+
+      if (interval === 'monthly') {
+        // Set to specific day of current month
+        nextRun.setDate(dayOfMonth);
+        // If passed, move to next month
+        if (nextRun <= now) {
+          nextRun.setMonth(nextRun.getMonth() + 1);
+        }
+      } else if (interval === 'weekly') {
+        // Set to specific day of week
+        const currentDay = nextRun.getDay();
+        const distance = (dayOfWeek + 7 - currentDay) % 7;
+        nextRun.setDate(nextRun.getDate() + distance);
+        // If passed (today but earlier time), move to next week
+        if (nextRun <= now) {
+          nextRun.setDate(nextRun.getDate() + 7);
+        }
+      }
+
+      // Update or create schedule
+      const schedule = await ReportSchedule.findOneAndUpdate(
+        { client: clientId, createdBy: userId },
+        {
+          interval,
+          templateId,
+          format,
+          emailRecipients: emailRecipients || [user.email],
+          nextRun,
+          isActive: enabled
+        },
+        { upsert: true, new: true }
+      );
+      results.push(schedule);
+    }
 
     res.json({
       success: true,
-      message: 'Report schedule updated',
-      data: {
-        enabled,
-        dayOfMonth,
-        email: reportEmail
-      }
+      message: `Report schedule updated for ${results.length} client(s)`,
+      data: results
     });
   } catch (error) {
     console.error('Error scheduling reports:', error);
     res.status(500).json({ success: false, error: 'Failed to schedule reports' });
+  }
+});
+
+// POST /api/reports/export - Export report (PDF/PNG/etc)
+router.post('/export', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const { clients: clientIds, dateRange, templateId, format = 'pdf', sendToClient } = req.body;
+    const { startDate, endDate } = dateRange || {};
+
+    // Get clients
+    const clients = await Client.find({
+      createdBy: userId,
+      _id: { $in: clientIds }
+    });
+
+    if (clients.length === 0) {
+      return res.status(400).json({ success: false, error: 'No clients found' });
+    }
+
+    // Get posts
+    const query = {
+      createdBy: userId,
+      client: { $in: clientIds }
+    };
+
+    if (startDate && endDate) {
+      query.createdAt = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
+    }
+
+    const posts = await Post.find(query).populate('client', 'name email platform');
+
+    // Generate report
+    // Use generateReportWithTemplate or generatePDFFromTemplate
+    // If templateId is provided, use it. Otherwise use default.
+
+    let result;
+    let buffer;
+    let filename;
+    let contentType;
+
+    if (format === 'pdf') {
+      if (templateId && templateId.endsWith('.pdf')) {
+        buffer = await generatePDFFromTemplate(userId, posts, clients, {
+          startDate,
+          endDate,
+          templateName: templateId
+        });
+      } else {
+        // HTML to PDF
+        const reportWithHtml = await generateReportWithTemplate(userId, posts, clients, {
+          startDate,
+          endDate,
+          templateName: templateId,
+          format: 'html'
+        });
+        buffer = await generatePDFFromHTML(reportWithHtml.html);
+      }
+      contentType = 'application/pdf';
+      filename = `report-${startDate || 'all'}-${endDate || 'all'}.pdf`;
+    } else if (format === 'json') {
+      result = await generateReport(userId, posts, clients, { startDate, endDate });
+      contentType = 'application/json';
+      filename = `report-${startDate || 'all'}-${endDate || 'all'}.json`;
+    } else {
+      // Default to JSON for now if unknown format
+      result = await generateReport(userId, posts, clients, { startDate, endDate });
+      contentType = 'application/json';
+      filename = `report.json`;
+    }
+
+    // If sendToClient is true, email it
+    if (sendToClient) {
+      // Send to each client
+      // This logic might need to be per-client if we want individual reports
+      // For now, if multiple clients are selected, we might be sending one aggregate report?
+      // Or we should loop. The requirement says "Multi-client export is possible".
+      // Usually "Send to Client" implies individual reports.
+      // But "Export" implies one file. 
+      // Let's assume "Export" returns the file (aggregate or first client), 
+      // and "Send to Client" triggers the email loop.
+
+      // If sending to client, we should probably loop and generate individual reports
+      // But if we are just returning a download, it's the aggregate.
+
+      // If the user clicked "Send to Client", we trigger the email loop and return success message.
+      // If they clicked "Export", we return the file.
+
+      // Re-using the logic from /send-to-clients but adapted
+      // For now, let's just return the generated file for the "Export" case.
+      // The frontend has a separate "Send to Client" button which calls /send-to-clients.
+      // So this /export route is primarily for the "Export Report" button (Download).
+    }
+
+    if (buffer) {
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(buffer);
+    } else {
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.json(result);
+    }
+
+  } catch (error) {
+    console.error('Error exporting report:', error);
+    res.status(500).json({ success: false, error: 'Failed to export report: ' + error.message });
   }
 });
 
@@ -334,9 +497,25 @@ router.post('/send-to-clients', async (req, res) => {
             startDate,
             endDate
           });
+
+          // If format is PDF but no template name, generate from default HTML
+          if (format === 'pdf') {
+            const reportWithHtml = await generateReportWithTemplate(userId, clientPosts, [client], {
+              startDate,
+              endDate,
+              format: 'html'
+            });
+            pdfBuffer = await generatePDFFromHTML(reportWithHtml.html);
+            console.log('Generated PDF Buffer:', {
+              isBuffer: Buffer.isBuffer(pdfBuffer),
+              length: pdfBuffer ? pdfBuffer.length : 0,
+              type: typeof pdfBuffer
+            });
+          }
         }
 
         // Send email to client with PDF attachment if available
+        console.log('Sending email to client...', { email: client.email, hasPdf: !!pdfBuffer });
         await sendReportToClient(client.email, client.name, report, templateName, format, pdfBuffer);
 
         results.push({

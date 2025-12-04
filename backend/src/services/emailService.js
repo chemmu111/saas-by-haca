@@ -218,11 +218,17 @@ export async function sendReportToClient(email, clientName, report, templateName
     // Generate PDF attachment
     let attachments = [];
     if (format === 'pdf' && pdfBuffer) {
-      attachments.push({
-        filename: `Social-Media-Report-${reportDate.replace(/\s/g, '-')}.pdf`,
-        content: pdfBuffer,
-        contentType: 'application/pdf'
-      });
+      const buffer = Buffer.isBuffer(pdfBuffer) ? pdfBuffer : Buffer.from(pdfBuffer);
+
+      if (buffer.length > 0) {
+        attachments.push({
+          filename: `Social-Media-Report-${reportDate.replace(/\s/g, '-')}.pdf`,
+          content: buffer,
+          contentType: 'application/pdf'
+        });
+      } else {
+        console.warn('PDF buffer is empty, skipping attachment');
+      }
     }
 
     const mailOptions = {

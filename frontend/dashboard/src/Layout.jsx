@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Menu, X, LogOut, LayoutDashboard, Users, FileText, TrendingUp, FileCheck, Calendar, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
-import logoWhite from './assets/white_logo.png';
+import logoWhite from './assets/social_x_logo_white.svg';
 
 const Layout = ({ children }) => {
   const [userName, setUserName] = useState('User');
@@ -126,12 +126,8 @@ const Layout = ({ children }) => {
         <div className="p-4 border-b border-gray-700/50 flex items-center justify-center bg-black/20">
           <img
             src={logoWhite}
-            alt="HarisandCo"
+            alt="Social X"
             className={`h-10 w-auto object-contain transition-all duration-300 ${isSidebarExpanded ? 'opacity-100' : 'opacity-0 lg:opacity-0 lg:w-0'}`}
-            onError={(e) => {
-              e.target.onerror = null;
-              e.target.src = 'https://harisand.co/static/media/NewLogo.fc59d5f2c088d6861458.png';
-            }}
           />
         </div>
         <nav className="flex-1 p-4 space-y-2">
@@ -163,6 +159,26 @@ const Layout = ({ children }) => {
             );
           })}
         </nav>
+
+        {/* User & Logout Section - Bottom of Sidebar */}
+        <div className="p-4 border-t border-gray-700/50 bg-black/20 mt-auto">
+          <div className={`flex items-center ${isSidebarExpanded ? 'justify-between' : 'justify-center'} gap-2`}>
+            {isSidebarExpanded && (
+              <div className="flex flex-col overflow-hidden">
+                <span className="text-sm font-medium text-white truncate">{userName}</span>
+                <span className="text-xs text-gray-400">Social Manager</span>
+              </div>
+            )}
+
+            <button
+              onClick={handleLogout}
+              className={`text-gray-400 hover:text-red-400 transition-colors p-2 rounded-lg hover:bg-white/5 ${!isSidebarExpanded ? 'w-full flex justify-center' : ''}`}
+              title="Sign Out"
+            >
+              <LogOut size={20} />
+            </button>
+          </div>
+        </div>
       </aside>
 
       {/* Main Content */}
@@ -176,16 +192,9 @@ const Layout = ({ children }) => {
             {mobileSidebarOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
           <div className="flex-1 lg:flex-none"></div>
+          <div className="flex-1 lg:flex-none"></div>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">{userName}</span>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-red-600 hover:bg-red-50 transition-colors border border-red-200"
-              title="Logout"
-            >
-              <LogOut size={18} />
-              <span className="hidden sm:inline text-sm">Sign Out</span>
-            </button>
+            {/* User info moved to sidebar */}
           </div>
         </header>
 
