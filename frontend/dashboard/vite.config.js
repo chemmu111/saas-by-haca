@@ -49,6 +49,18 @@ export default defineConfig({
       '.ngrok-free.dev',
       '.ngrok.io',
     ],
+    proxy: {
+      '/api': {
+        target: 'https://haca-social-x-backend.onrender.com',
+        changeOrigin: true,
+        secure: true,
+      },
+      '/uploads': {
+        target: 'https://haca-social-x-backend.onrender.com',
+        changeOrigin: true,
+        secure: true,
+      },
+    },
   },
   publicDir: 'public',
 })
