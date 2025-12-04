@@ -23,11 +23,8 @@ const Signup = () => {
 
     const getBackendUrl = () => {
         if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
-        if (window.location.port === '3000') {
-            const savedPort = localStorage.getItem('backend_port');
-            return savedPort ? `http://localhost:${savedPort}` : ''; // Use relative path to use Vite proxy
-        }
-        return ''; // Fallback to relative path
+        // Use relative paths to let Vite proxy handle API forwarding (works for ngrok and localhost)
+        return '';
     };
 
     useEffect(() => {

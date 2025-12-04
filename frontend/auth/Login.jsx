@@ -35,14 +35,14 @@ const Login = () => {
         if (import.meta.env.VITE_API_URL) {
             return import.meta.env.VITE_API_URL;
         }
-        // Development mode
-        if (window.location.port === '3000') {
-            // If proxy is set up in vite.config.js, we can use relative path
-            // But if we want to be explicit or if proxy is missing:
-            const savedPort = localStorage.getItem('backend_port');
-            return savedPort ? `http://localhost:${savedPort}` : ''; // Use relative path to use Vite proxy
+
+        // If accessed via ngrok, use relative path (Vite proxy will forward)
+        if (window.location.hostname.includes('ngrok')) {
+            return '';
         }
-        // Fallback to relative path to use proxy/same-origin
+
+        // Development mode on localhost with Vite proxy
+        // Use relative paths to let Vite proxy handle the forwarding
         return '';
     };
 
