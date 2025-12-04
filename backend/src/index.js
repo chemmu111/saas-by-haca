@@ -1,4 +1,7 @@
-// Server entry point - Restart trigger
+// Server entry point - Render compatible
+import dotenv from 'dotenv';
+dotenv.config(); // Load environment variables FIRST
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
