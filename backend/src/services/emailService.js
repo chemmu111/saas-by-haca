@@ -1,11 +1,14 @@
 import nodemailer from 'nodemailer';
 
-// Gmail configuration
+// Gmail configuration - Use environment variables for production
+const EMAIL_USER = process.env.EMAIL_USER || 'tech.haca@gmail.com';
+const EMAIL_PASS = process.env.EMAIL_APP_PASSWORD || 'qhhb idgx qkmd mlil';
+
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: 'tech.haca@gmail.com',
-    pass: 'qhhb idgx qkmd mlil' // Gmail App Password
+    user: EMAIL_USER,
+    pass: EMAIL_PASS
   }
 });
 
