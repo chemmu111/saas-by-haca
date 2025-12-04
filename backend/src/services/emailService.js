@@ -33,15 +33,20 @@ async function sendEmail({ to, subject, html, attachments = [] }) {
     // Try Resend first if available (for production)
     if (EMAIL_PROVIDER === 'resend' && resend) {
       console.log('📧 Sending email via Resend...');
-      const result = await resend.emails.send({
+      const { data, error } = await resend.emails.send({
         from: FROM_EMAIL,
         to: to,
         subject: subject,
         html: html,
-        // Note: Resend handles attachments differently, skip for now
       });
-      console.log('✅ Email sent via Resend:', result.data?.id);
-      return { success: true, messageId: result.data?.id, provider: 'resend' };
+
+      if (error) {
+        console.error('❌ Resend error:', error);
+        throw new Error(error.message || 'Resend email failed');
+      }
+
+      console.log('✅ Email sent via Resend:', data?.id);
+      return { success: true, messageId: data?.id, provider: 'resend' };
     }
 
     // Fallback to Gmail (for local development)
