@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ArrowUpDown, ArrowUp, ArrowDown, ExternalLink, Download } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, ExternalLink, Download, Image, Video, Film } from 'lucide-react';
 import { formatNumber, getPostEngagement } from '../../utils/analyticsUtils';
 
 const PostsPerformanceTable = ({ posts }) => {
@@ -84,12 +84,57 @@ const PostsPerformanceTable = ({ posts }) => {
             <ArrowDown size={14} className="text-blue-600" />;
     };
 
+    // Get thumbnail URL - prioritize cover photo for videos
+    const getThumbnailUrl = (post) => {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const mediaType = post.media_type || post.postType || '';
+        const isVideo = ['REELS', 'reel', 'VIDEO', 'video'].includes(mediaType.toUpperCase ? mediaType : String(mediaType).toUpperCase());
+
+        // For videos/reels, prefer cover_url or thumbnail_url
+        if (isVideo) {
+            const coverUrl = post.cover_url || post.coverUrl;
+            if (coverUrl) {
+                return coverUrl.startsWith('http') ? coverUrl : `${API_URL}${coverUrl}`;
+            }
+        }
+
+        // For images and fallback, use thumbnail_url or media_url
+        const thumbUrl = post.thumbnail_url || post.media_url;
+        if (thumbUrl) {
+            return thumbUrl.startsWith('http') ? thumbUrl : `${API_URL}${thumbUrl}`;
+        }
+
+        return null;
+    };
+
+    // Get media type icon
+    const getMediaIcon = (post) => {
+        const type = (post.media_type || post.postType || '').toUpperCase();
+        if (type === 'REELS' || type === 'REEL') {
+            return <Film size={14} className="text-purple-500" />;
+        } else if (type === 'VIDEO') {
+            return <Video size={14} className="text-blue-500" />;
+        } else {
+            return <Image size={14} className="text-green-500" />;
+        }
+    };
+
+    // Get media type badge color
+    const getMediaTypeBadge = (type) => {
+        const t = (type || '').toUpperCase();
+        if (t === 'REELS' || t === 'REEL') return 'bg-purple-100 text-purple-700';
+        if (t === 'VIDEO') return 'bg-blue-100 text-blue-700';
+        if (t === 'CAROUSEL_ALBUM' || t === 'CAROUSEL') return 'bg-orange-100 text-orange-700';
+        return 'bg-green-100 text-green-700';
+    };
+
     // Export to CSV
     const exportToCSV = () => {
-        const headers = ['Date', 'Type', 'Caption', 'Likes', 'Comments', 'Shares', 'Saves', 'Views', 'Reach', 'Total Engagement'];
-        const rows = sortedPosts.map(post => {
+        const headers = ['#', 'Date', 'Type', 'Caption', 'Likes', 'Comments', 'Shares', 'Saves', 'Views', 'Reach', 'Total Engagement'];
+        const rows = sortedPosts.map((post, idx) => {
             const engagement = getPostEngagement(post);
             return [
+                idx + 1,
                 new Date(post.timestamp || post.createdAt).toLocaleDateString(),
                 post.media_type || post.postType || 'N/A',
                 (post.caption || '').replace(/,/g, ';').substring(0, 100),
@@ -164,6 +209,7 @@ const PostsPerformanceTable = ({ posts }) => {
                 <table className="w-full">
                     <thead>
                         <tr className="border-b border-slate-200">
+                            <th className="text-left py-3 px-2 text-xs font-semibold text-slate-600 w-10">#</th>
                             <th className="text-left py-3 px-2 text-xs font-semibold text-slate-600">Post</th>
                             <th
                                 className="text-left py-3 px-2 text-xs font-semibold text-slate-600 cursor-pointer hover:text-blue-600"
@@ -211,32 +257,49 @@ const PostsPerformanceTable = ({ posts }) => {
                     <tbody>
                         {paginatedPosts.map((post, index) => {
                             const engagement = getPostEngagement(post);
-                            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-                            const thumbnailUrl = post.thumbnail_url?.startsWith('http')
-                                ? post.thumbnail_url
-                                : post.thumbnail_url
-                                    ? `${API_URL}${post.thumbnail_url}`
-                                    : null;
+                            const thumbnailUrl = getThumbnailUrl(post);
+                            const postNumber = (currentPage - 1) * postsPerPage + index + 1;
+                            const mediaType = post.media_type || post.postType || 'IMAGE';
 
                             return (
                                 <tr key={post.id || index} className="border-b border-slate-100 hover:bg-slate-50">
+                                    {/* Post Number */}
+                                    <td className="py-3 px-2">
+                                        <span className="text-sm font-medium text-slate-500">{postNumber}</span>
+                                    </td>
+                                    {/* Post Info with Thumbnail */}
                                     <td className="py-3 px-2">
                                         <div className="flex items-center gap-3">
-                                            {thumbnailUrl && (
-                                                <img
-                                                    src={thumbnailUrl}
-                                                    alt="Post thumbnail"
-                                                    className="w-12 h-12 rounded-lg object-cover"
-                                                    onError={(e) => e.target.style.display = 'none'}
-                                                />
-                                            )}
+                                            {/* Thumbnail */}
+                                            <div className="w-12 h-12 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0 relative">
+                                                {thumbnailUrl ? (
+                                                    <img
+                                                        src={thumbnailUrl}
+                                                        alt="Post"
+                                                        className="w-full h-full object-cover"
+                                                        onError={(e) => {
+                                                            e.target.style.display = 'none';
+                                                            e.target.nextSibling.style.display = 'flex';
+                                                        }}
+                                                    />
+                                                ) : null}
+                                                <div
+                                                    className="absolute inset-0 flex items-center justify-center bg-slate-100"
+                                                    style={{ display: thumbnailUrl ? 'none' : 'flex' }}
+                                                >
+                                                    {getMediaIcon(post)}
+                                                </div>
+                                            </div>
+                                            {/* Caption & Type */}
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-sm font-medium text-slate-900 truncate max-w-[200px]">
-                                                    {post.caption?.substring(0, 50) || 'No caption'}
+                                                    {post.caption?.substring(0, 40) || 'No caption'}
+                                                    {post.caption?.length > 40 ? '...' : ''}
                                                 </p>
-                                                <p className="text-xs text-slate-500">
-                                                    {post.media_type || post.postType || 'N/A'}
-                                                </p>
+                                                <span className={`inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded text-xs font-medium ${getMediaTypeBadge(mediaType)}`}>
+                                                    {getMediaIcon(post)}
+                                                    {mediaType.replace('_', ' ')}
+                                                </span>
                                             </div>
                                         </div>
                                     </td>

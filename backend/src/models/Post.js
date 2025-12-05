@@ -71,7 +71,24 @@ const postSchema = new mongoose.Schema(
       interactions: { type: Number, default: 0 }, // Total interactions
       watchTime: { type: Number, default: 0 }, // Avg watch time for reels
       impressions: { type: Number, default: 0 }, // Deprecated but kept for history
-      lastUpdated: { type: Date } // When engagement data was last fetched
+      lastUpdated: { type: Date }, // When engagement data was last fetched
+
+      // Detailed Metrics (New)
+      profileVisits: { type: Number, default: 0 },
+      websiteClicks: { type: Number, default: 0 },
+      engagementRate: { type: Number, default: 0 }, // Calculated rate
+
+      // Video Specific
+      videoViewsBreakdown: {
+        total: { type: Number, default: 0 },
+        organic: { type: Number, default: 0 },
+        paid: { type: Number, default: 0 },
+        autoplay: { type: Number, default: 0 },
+        clickToPlay: { type: Number, default: 0 }
+      },
+
+      // Raw API Data (for fallback/debugging)
+      metricsRaw: { type: mongoose.Schema.Types.Mixed }
     }
   },
   { timestamps: true }

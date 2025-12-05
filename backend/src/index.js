@@ -444,6 +444,37 @@ async function start() {
       // Continue even if cron fails
     }
 
+    // Start the view snapshot cron job (for real-time video views tracking)
+    try {
+      const { initViewSnapshotCron, manualViewSnapshot } = await import('./cron/viewSnapshotCron.js');
+      initViewSnapshotCron();
+      // Take initial snapshot on startup
+      console.log('📊 Taking initial view snapshot...');
+      manualViewSnapshot().then(results => {
+        console.log('📊 Initial view snapshot complete:', results.length, 'clients processed');
+      }).catch(err => {
+        console.warn('⚠️ Initial view snapshot failed:', err.message);
+      });
+    } catch (error) {
+      console.warn('⚠️ Failed to start view snapshot cron:', error.message);
+      // Continue even if cron fails
+    }
+
+    // Start the click snapshot cron job (5-minute interval)
+    try {
+      const { initClickSnapshotCron, manualClickSnapshot } = await import('./cron/clickSnapshotCron.js');
+      initClickSnapshotCron();
+      // Take initial snapshot on startup
+      console.log('📊 Taking initial click snapshot...');
+      manualClickSnapshot().then(() => {
+        console.log('📊 Initial click snapshot complete');
+      }).catch(err => {
+        console.warn('⚠️ Initial click snapshot failed:', err.message);
+      });
+    } catch (error) {
+      console.warn('⚠️ Failed to start click snapshot cron:', error.message);
+    }
+
     // Start the report scheduler cron job
     try {
       const { initReportScheduler } = await import('./cron/reportCron.js');

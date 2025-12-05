@@ -13,6 +13,9 @@ import {
   getCacheInfo
 } from '../services/analyticsResponseHandler.js';
 import { calculateGrowth } from '../services/followerSnapshotService.js';
+import { getAggregatedViewSnapshots } from '../services/viewSnapshotService.js';
+
+import { generateReportData } from '../services/reportGeneratorService.js';
 
 const router = express.Router();
 
@@ -23,7 +26,18 @@ router.use(requireAuth);
 router.get('/', async (req, res) => {
   try {
     const userId = req.user.sub;
-    const { startDate, endDate, refresh } = req.query;
+    const { startDate, endDate, refresh, mode, clientId } = req.query;
+
+    // Enterprise Report Mode
+    if (mode === 'report' && clientId) {
+      try {
+        const reportData = await generateReportData(clientId, startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), endDate || new Date());
+        return res.json({ success: true, data: reportData });
+      } catch (err) {
+        console.error('Error generating enterprise report:', err);
+        return res.status(500).json({ success: false, error: 'Failed to generate report' });
+      }
+    }
 
     // Build date filter
     const dateFilter = {};
@@ -286,7 +300,8 @@ router.get('/', async (req, res) => {
             const formattedPosts = data.allPosts.map(post => ({
               id: post.id,
               media_type: post.media_type,
-              thumbnail_url: post.thumbnail_url,
+              media_url: post.media_url || null,
+              thumbnail_url: post.thumbnail_url || post.media_url || null,
               caption: post.caption || '',
               permalink: post.permalink,
               timestamp: post.timestamp,
@@ -319,6 +334,34 @@ router.get('/', async (req, res) => {
           // Extract account data
           totalFollowers += data.account?.follower_count || 0;
           totalAccountReach += data.account?.reach_28d || data.account?.reach || 0;
+
+          // Extract profile activity metrics from account data
+          if (data.account) {
+            profileActivity.profile_views += data.account.profile_views || 0;
+            profileActivity.website_clicks += data.account.website_clicks || 0;
+            profileActivity.email_contacts += data.account.email_contacts || 0;
+            profileActivity.phone_call_clicks += data.account.phone_call_clicks || 0;
+            profileActivity.text_message_clicks += data.account.text_message_clicks || 0;
+            profileActivity.get_directions_clicks += data.account.get_directions_clicks || 0;
+          }
+
+          // Check for latest ClickSnapshot (5-minute tracker data)
+          // This helps if API data is stale or if we have better data in DB
+          try {
+            const { getLatestClickSnapshot } = await import('../services/clickSnapshotService.js');
+            const snapshot = await getLatestClickSnapshot(client._id);
+            if (snapshot) {
+              console.log(`   📸 Found ClickSnapshot for ${client.name}:`, snapshot.website_clicks);
+              // Use snapshot data if it's higher (cumulative logic)
+              if (snapshot.website_clicks > profileActivity.website_clicks) profileActivity.website_clicks = snapshot.website_clicks;
+              if (snapshot.email_contacts > profileActivity.email_contacts) profileActivity.email_contacts = snapshot.email_contacts;
+              if (snapshot.phone_call_clicks > profileActivity.phone_call_clicks) profileActivity.phone_call_clicks = snapshot.phone_call_clicks;
+              if (snapshot.text_message_clicks > profileActivity.text_message_clicks) profileActivity.text_message_clicks = snapshot.text_message_clicks;
+              if (snapshot.get_directions_clicks > profileActivity.get_directions_clicks) profileActivity.get_directions_clicks = snapshot.get_directions_clicks;
+            }
+          } catch (err) {
+            console.warn('   ⚠️ Failed to check ClickSnapshot:', err.message);
+          }
 
           // Extract media metrics - ONLY FROM INSTAGRAM API
           if (data.media) {
@@ -587,6 +630,8 @@ router.get('/', async (req, res) => {
       followersTrend: followersTrendData, // ONLY from Instagram API - NO DATABASE FALLBACK
       followerMetrics,
       impressionsTrend: accountTrend.map(d => ({ date: d.date, impressions: d.impressions || 0, reach: d.reach || 0 })),
+      // View trend data from snapshots (for real-time view tracking)
+      viewsTrend: await getAggregatedViewSnapshots(clientIds, 30),
       profileActivity: profileActivity,
       // Top performing post
       topPost: topPost ? {

@@ -25,6 +25,8 @@
  */
 
 import Client from '../models/Client.js';
+import DailyAnalytics from '../models/DailyAnalytics.js';
+import Post from '../models/Post.js';
 import { ensureValidToken } from './instagramTokenService.js';
 
 // Simple in-memory cache (5 minutes TTL)
@@ -268,10 +270,9 @@ export async function fetchAccountInsights(igUserId, pageAccessToken) {
     const profileViews = await fetchProfileViews(igUserId, pageAccessToken);
 
     // Fetch additional account metrics (day period)
-    // metric=impressions,reach,website_clicks,profile_views,email_contacts,phone_call_clicks,text_message_clicks,get_directions_clicks
-    // Note: profile_views is already fetched separately but can be included here for consistency if needed.
-    // We will fetch a batch of daily metrics.
-    const dailyMetrics = 'impressions,reach,website_clicks,email_contacts,phone_call_clicks,text_message_clicks,get_directions_clicks';
+    // Fetch additional account metrics (day period)
+    // metric=impressions,reach,profile_views
+    const dailyMetrics = 'impressions,reach';
     const url = `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=${dailyMetrics}&period=day&access_token=${pageAccessToken}`;
 
     const response = await fetch(url);
@@ -279,7 +280,7 @@ export async function fetchAccountInsights(igUserId, pageAccessToken) {
 
     if (response.ok) {
       const data = await response.json();
-      console.log('   📊 Account Insights Response:', JSON.stringify(data));
+      console.log('   📊 Account Insights Response (Daily):', JSON.stringify(data));
       if (data.data && Array.isArray(data.data)) {
         data.data.forEach(metric => {
           if (metric.values && metric.values.length > 0) {
@@ -292,7 +293,40 @@ export async function fetchAccountInsights(igUserId, pageAccessToken) {
       }
     } else {
       const errorText = await response.text();
-      console.warn('⚠️ Failed to fetch additional account metrics:', response.status, errorText);
+      console.warn('⚠️ Failed to fetch daily account metrics:', response.status, errorText);
+    }
+
+    // Fetch 28-day metrics for contact actions (website_clicks, email_contacts, etc.)
+    // This gives a better "Total" view than just yesterday's clicks
+    const contactMetrics = 'website_clicks,email_contacts,phone_call_clicks,text_message_clicks,get_directions_clicks';
+    const contactUrl = `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=${contactMetrics}&period=days_28&access_token=${pageAccessToken}`;
+
+    console.log(`   📡 Fetching 28-day contact metrics...`);
+    const contactRes = await fetch(contactUrl);
+    const contactData = {};
+
+    if (contactRes.ok) {
+      const data = await contactRes.json();
+      console.log('   ✅ 28-day contact metrics response:', JSON.stringify(data));
+      if (data.data && Array.isArray(data.data)) {
+        data.data.forEach(metric => {
+          if (metric.values && metric.values.length > 0) {
+            // Find the latest NON-ZERO value (iterate backwards)
+            const values = metric.values;
+            let latestValue = 0;
+            for (let i = values.length - 1; i >= 0; i--) {
+              if (values[i].value > 0) {
+                latestValue = values[i].value;
+                break;
+              }
+            }
+            contactData[metric.name] = latestValue;
+            console.log(`      - ${metric.name} (28d): ${latestValue}`);
+          }
+        });
+      }
+    } else {
+      console.warn('   ⚠️ Failed to fetch 28-day contact metrics:', contactRes.status);
     }
 
     // Fetch 28-day reach for "Total Reach" metric
@@ -303,18 +337,7 @@ export async function fetchAccountInsights(igUserId, pageAccessToken) {
       const reachRes = await fetch(reachUrl);
       const reachDebug = await reachRes.json(); // Read body once
 
-      // Log to file for debugging
-      try {
-        const fs = await import('fs');
-        fs.writeFileSync('reach_debug.json', JSON.stringify({
-          status: reachRes.status,
-          url: reachUrl.replace(pageAccessToken, 'REDACTED'),
-          data: reachDebug
-        }, null, 2));
-      } catch (e) { console.error('Failed to write debug log', e); }
-
       if (reachRes.ok) {
-        console.log('   ✅ 28-day reach response:', JSON.stringify(reachDebug));
         if (reachDebug.data && reachDebug.data.length > 0 && reachDebug.data[0].values && reachDebug.data[0].values.length > 0) {
           // Find the latest NON-ZERO value (iterate backwards)
           const values = reachDebug.data[0].values;
@@ -327,11 +350,7 @@ export async function fetchAccountInsights(igUserId, pageAccessToken) {
           }
           reach28d = latestValue;
           console.log(`   ✅ Extracted 28-day reach: ${reach28d}`);
-        } else {
-          console.warn('   ⚠️ 28-day reach data structure unexpected or empty');
         }
-      } else {
-        console.error('   ❌ Failed to fetch 28-day reach. Status:', reachRes.status, reachDebug);
       }
     } catch (err) {
       console.warn('Failed to fetch 28-day reach:', err.message);
@@ -343,11 +362,11 @@ export async function fetchAccountInsights(igUserId, pageAccessToken) {
       reach: additionalData.reach || 0, // Daily reach (yesterday)
       reach_28d: reach28d || additionalData.reach || 0, // 28-day reach (fallback to daily)
       impressions: additionalData.impressions || 0,
-      website_clicks: additionalData.website_clicks || 0,
-      email_contacts: additionalData.email_contacts || 0,
-      phone_call_clicks: additionalData.phone_call_clicks || 0,
-      text_message_clicks: additionalData.text_message_clicks || 0,
-      get_directions_clicks: additionalData.get_directions_clicks || 0
+      website_clicks: contactData.website_clicks || additionalData.website_clicks || 0,
+      email_contacts: contactData.email_contacts || additionalData.email_contacts || 0,
+      phone_call_clicks: contactData.phone_call_clicks || additionalData.phone_call_clicks || 0,
+      text_message_clicks: contactData.text_message_clicks || additionalData.text_message_clicks || 0,
+      get_directions_clicks: contactData.get_directions_clicks || additionalData.get_directions_clicks || 0
     };
 
     setCache(cacheKey, result);
@@ -650,7 +669,7 @@ export async function fetchInstagramMedia(igUserId, pageAccessToken, limit = 25)
 
     // Added video_play_count and media_product_type to fields
     // media_product_type is CRITICAL for detecting Reels (will be "REELS" for reels, "FEED" for regular videos)
-    const fields = 'id,media_type,media_product_type,thumbnail_url,caption,permalink,timestamp,like_count,comments_count,video_play_count';
+    const fields = 'id,media_type,media_product_type,media_url,thumbnail_url,caption,permalink,timestamp,like_count,comments_count,video_play_count';
     const url = `https://graph.facebook.com/v22.0/${igUserId}/media?fields=${fields}&limit=${limit}&access_token=${pageAccessToken}`;
 
     const response = await fetch(url);
@@ -745,7 +764,8 @@ export async function fetchInstagramMedia(igUserId, pageAccessToken, limit = 25)
         return {
           id: item.id,
           media_type: item.media_type,
-          thumbnail_url: item.thumbnail_url || null,
+          media_url: item.media_url || null,
+          thumbnail_url: item.thumbnail_url || item.media_url || null,
           caption: item.caption || '',
           permalink: item.permalink || '',
           timestamp: item.timestamp || '',
@@ -832,6 +852,59 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
       accountTrend: accountTrend ? `✅ (${accountTrend.length} days)` : '❌',
       media: media ? `✅ (${media.length} posts)` : '❌'
     });
+
+    // MERGE WITH DB HISTORY (DailyAnalytics)
+    // This ensures that even if API doesn't return history, we build it up over time.
+    if (client?._id) {
+      try {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        const dbHistory = await DailyAnalytics.find({
+          client: client._id,
+          platform: 'instagram',
+          date: { $gte: thirtyDaysAgo }
+        }).sort({ date: 1 });
+
+        if (dbHistory.length > 0) {
+          console.log(`   📚 Found ${dbHistory.length} DailyAnalytics records to merge`);
+
+          // Create a map of existing trend dates
+          const trendMap = new Map();
+          if (accountTrend) {
+            accountTrend.forEach(day => trendMap.set(day.date, day));
+          } else {
+            accountTrend = [];
+          }
+
+          dbHistory.forEach(record => {
+            const dateStr = record.date.toISOString().split('T')[0];
+            if (trendMap.has(dateStr)) {
+              // Update existing record if it has 0s and DB has values
+              const existing = trendMap.get(dateStr);
+              if (!existing.follower_count && record.followers) existing.follower_count = record.followers;
+              if (!existing.reach && record.reach) existing.reach = record.reach;
+              if (!existing.impressions && record.impressions) existing.impressions = record.impressions;
+            } else {
+              // Add new record from DB
+              const newEntry = {
+                date: dateStr,
+                follower_count: record.followers || 0,
+                reach: record.reach || 0,
+                impressions: record.impressions || 0
+              };
+              accountTrend.push(newEntry);
+              trendMap.set(dateStr, newEntry);
+            }
+          });
+
+          // Re-sort accountTrend by date
+          accountTrend.sort((a, b) => new Date(a.date) - new Date(b.date));
+        }
+      } catch (err) {
+        console.error('   ⚠️ Failed to merge DailyAnalytics history:', err.message);
+      }
+    }
 
     if (!accountInsights) {
       return createErrorResponse('Failed to fetch account insights', 'fetchInstagramAnalytics');
@@ -964,6 +1037,114 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
     // console.log(`      Total Views: ${totalViews}`);
     // console.log(`      Media Items Processed: ${media.length}`);
 
+    // 3. Save Daily Analytics Snapshot
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const dailyData = {
+        client: client?._id, // We need client ID here. If not passed, we can't save.
+        date: today,
+        platform: 'instagram',
+        followers: accountInsights.follower_count,
+        impressions: accountInsights.impressions,
+        reach: accountInsights.reach,
+        profileViews: accountInsights.profile_views,
+        websiteClicks: accountInsights.website_clicks,
+        emailContacts: accountInsights.email_contacts,
+        phoneCallClicks: accountInsights.phone_call_clicks,
+        textMessageClicks: accountInsights.text_message_clicks,
+        getDirectionsClicks: accountInsights.get_directions_clicks,
+        // Messaging (placeholder for now as API requires specific permissions)
+        messaging: {
+          sent: 0,
+          received: 0,
+          newConversations: 0
+        },
+        engagement: {
+          total: 0, // Will sum up from posts
+          likes: 0,
+          comments: 0,
+          shares: 0,
+          saves: 0
+        },
+        postsPublished: 0
+      };
+
+      // Calculate aggregated engagement from recent posts (approximate for "today" if we filtered by date, but here we sum up recent activity)
+      // Better approach: Sum up engagement from posts published TODAY.
+      const postsToday = media.filter(m => {
+        const postDate = new Date(m.timestamp);
+        return postDate >= today;
+      });
+
+      dailyData.postsPublished = postsToday.length;
+
+      // Sum up engagement from ALL fetched media (as a proxy for "daily engagement" activity, though technically this is lifetime engagement of recent posts)
+      // For a true "daily engagement" we'd need daily insights per media, which isn't easily available in bulk.
+      // We'll store the TOTAL engagement of the account's recent posts as a snapshot.
+      let totalLikes = 0;
+      let totalComments = 0;
+      let totalShares = 0;
+      let totalSaves = 0;
+
+      media.forEach(m => {
+        totalLikes += m.like_count || 0;
+        totalComments += m.comments_count || 0;
+        totalShares += m.insights?.shares || 0;
+        totalSaves += m.insights?.saved || 0;
+
+        // Update Post in DB if it exists
+        if (client?._id) {
+          Post.findOne({ instagramPostId: m.id }).then(post => {
+            if (post) {
+              post.engagement = {
+                likes: m.like_count || 0,
+                comments: m.comments_count || 0,
+                shares: m.insights?.shares || 0,
+                saves: m.insights?.saved || 0,
+                views: m.views || 0,
+                reach: m.reach || 0,
+                interactions: m.totalInteractions || 0,
+                watchTime: m.watchTimeTotal || 0,
+                lastUpdated: new Date(),
+                profileVisits: m.profileActivity || 0, // If available
+                websiteClicks: 0, // Not available per post usually
+                engagementRate: m.reach > 0 ? ((m.totalInteractions / m.reach) * 100) : 0,
+                videoViewsBreakdown: {
+                  total: m.views || 0,
+                  organic: m.views || 0, // Assumption
+                  paid: 0,
+                  autoplay: 0,
+                  clickToPlay: 0
+                },
+                metricsRaw: m.insights
+              };
+              post.save().catch(err => console.error('Failed to update post metrics:', err.message));
+            }
+          });
+        }
+      });
+
+      dailyData.engagement.likes = totalLikes;
+      dailyData.engagement.comments = totalComments;
+      dailyData.engagement.shares = totalShares;
+      dailyData.engagement.saves = totalSaves;
+      dailyData.engagement.total = totalLikes + totalComments + totalShares + totalSaves;
+
+      if (client?._id) {
+        await DailyAnalytics.findOneAndUpdate(
+          { client: client._id, platform: 'instagram', date: today },
+          dailyData,
+          { upsert: true, new: true }
+        );
+        console.log('   ✅ Saved DailyAnalytics snapshot');
+      }
+
+    } catch (error) {
+      console.error('   ⚠️ Failed to save DailyAnalytics:', error.message);
+    }
+
     const result = {
       account: {
         follower_count: accountInsights.follower_count || 0,
@@ -1048,7 +1229,7 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
             watchTimeTotal: item.insights?.watchTimeTotal || 0,
             engagement: finalEngagement
           }
-        }
+        };
       }),
       allPosts: media.map(item => {
         // Detect if this is a Reel using watch time metrics (since media_product_type is undefined)
@@ -1095,7 +1276,7 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
             watchTimeTotal: item.insights?.watchTimeTotal || 0,
             engagement: finalEngagement
           }
-        }
+        };
       }),
       followerGrowth
     };
@@ -1315,3 +1496,50 @@ export function runInstagramInsightsTests() {
     throw error;
   }
 }
+
+/**
+ * Fetch contact metrics (website clicks, etc) for snapshot service
+ * @param {String} igUserId 
+ * @param {String} pageAccessToken 
+ * @returns {Object} Contact metrics
+ */
+export const fetchContactMetrics = async (igUserId, pageAccessToken) => {
+  try {
+    // Fetch 28-day metrics for better visibility
+    const metrics = 'website_clicks,email_contacts,phone_call_clicks,text_message_clicks,get_directions_clicks';
+    const url = `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=${metrics}&period=days_28&access_token=${pageAccessToken}`;
+
+    const response = await fetch(url);
+    const result = {
+      website_clicks: 0,
+      email_contacts: 0,
+      phone_call_clicks: 0,
+      text_message_clicks: 0,
+      get_directions_clicks: 0
+    };
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.data && Array.isArray(data.data)) {
+        data.data.forEach(metric => {
+          if (metric.values && metric.values.length > 0) {
+            // Find the latest NON-ZERO value
+            const values = metric.values;
+            let latestValue = 0;
+            for (let i = values.length - 1; i >= 0; i--) {
+              if (values[i].value > 0) {
+                latestValue = values[i].value;
+                break;
+              }
+            }
+            result[metric.name] = latestValue;
+          }
+        });
+      }
+    }
+    return result;
+  } catch (error) {
+    console.error('Error fetching contact metrics:', error);
+    return null;
+  }
+};

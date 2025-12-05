@@ -3,7 +3,8 @@ import { Play, TrendingUp } from 'lucide-react';
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { formatNumber } from '../../utils/analyticsUtils';
 
-const VideoViewsChart = ({ posts }) => {
+// Component now accepts viewsTrend for real-time snapshot data
+const VideoViewsChart = ({ posts, viewsTrend }) => {
     const [viewMode, setViewMode] = useState('daily'); // 'daily' or 'cumulative'
 
     if (!posts || posts.length === 0) {
@@ -35,9 +36,11 @@ const VideoViewsChart = ({ posts }) => {
         );
     }
 
-    // Group by date and separate Reels vs Videos
+    // ALWAYS start with historical post creation date data for context
+    // Then MERGE with snapshot data for days where snapshots exist
     const dailyData = {};
 
+    // Step 1: Build historical data from post creation dates
     videoPosts.forEach(post => {
         const date = new Date(post.timestamp || post.createdAt).toISOString().split('T')[0];
         const type = post.media_type || post.postType;
@@ -45,7 +48,7 @@ const VideoViewsChart = ({ posts }) => {
         const views = post.metrics?.views || 0;
 
         if (!dailyData[date]) {
-            dailyData[date] = { date, reelViews: 0, videoViews: 0, totalViews: 0 };
+            dailyData[date] = { date, reelViews: 0, videoViews: 0, totalViews: 0, fromSnapshot: false };
         }
 
         if (isReel) {
@@ -56,10 +59,56 @@ const VideoViewsChart = ({ posts }) => {
         dailyData[date].totalViews += views;
     });
 
+    // Step 2: Overlay snapshot data for days where we have real snapshots
+    // This gives accurate totals for recent days
+    if (viewsTrend && Array.isArray(viewsTrend) && viewsTrend.length > 0) {
+        viewsTrend.forEach(snapshot => {
+            const date = snapshot.date;
+            // Override with snapshot data (more accurate for today/recent days)
+            dailyData[date] = {
+                date: date,
+                reelViews: snapshot.reelViews || 0,
+                videoViews: snapshot.videoViews || 0,
+                totalViews: snapshot.totalViews || 0,
+                viewsGained: snapshot.viewsGained || 0,
+                fromSnapshot: true
+            };
+        });
+    }
+
     // Sort by date
     let chartData = Object.values(dailyData).sort((a, b) => new Date(a.date) - new Date(b.date));
 
-    // Format dates
+    // Extend chart data to include today's date if not present
+    if (chartData.length > 0) {
+        const today = new Date().toISOString().split('T')[0];
+        const lastDate = chartData[chartData.length - 1].date;
+
+        if (lastDate < today) {
+            // Fill gaps with 0 for in-between days
+            const currentDate = new Date(lastDate);
+            currentDate.setDate(currentDate.getDate() + 1);
+
+            while (currentDate.toISOString().split('T')[0] <= today) {
+                const dateStr = currentDate.toISOString().split('T')[0];
+                // Only add if not already exists
+                if (!dailyData[dateStr]) {
+                    chartData.push({
+                        date: dateStr,
+                        reelViews: 0,
+                        videoViews: 0,
+                        totalViews: 0,
+                        fromSnapshot: false
+                    });
+                }
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+            // Re-sort after adding dates
+            chartData = chartData.sort((a, b) => new Date(a.date) - new Date(b.date));
+        }
+    }
+
+    // Format dates for display
     chartData = chartData.map(item => ({
         ...item,
         dateFormatted: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -137,11 +186,7 @@ const VideoViewsChart = ({ posts }) => {
             </div>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-3 gap-4 mb-6">
-                <div className="bg-gradient-to-br from-red-50 to-pink-50 rounded-lg p-4 border border-red-200">
-                    <p className="text-xs text-slate-600 mb-1">Total Views</p>
-                    <p className="text-2xl font-bold text-slate-900">{formatNumber(totalViews)}</p>
-                </div>
+            <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-4 border border-purple-200">
                     <p className="text-xs text-slate-600 mb-1">Reel Views</p>
                     <p className="text-2xl font-bold text-purple-900">{formatNumber(totalReelViews)}</p>
@@ -153,8 +198,8 @@ const VideoViewsChart = ({ posts }) => {
             </div>
 
             {/* Chart */}
-            <div className="h-[300px] w-full" style={{ minHeight: '300px' }}>
-                <ResponsiveContainer width="100%" height="100%">
+            <div className="h-[300px] w-full" style={{ minHeight: '300px', minWidth: '200px' }}>
+                <ResponsiveContainer width="100%" height="100%" minWidth={200} minHeight={300}>
                     {viewMode === 'daily' ? (
                         <LineChart data={chartData}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
@@ -192,15 +237,6 @@ const VideoViewsChart = ({ posts }) => {
                                 dataKey="videoViews"
                                 name="Video Views"
                                 stroke="#3B82F6"
-                                strokeWidth={2}
-                                dot={{ r: 4 }}
-                                activeDot={{ r: 6 }}
-                            />
-                            <Line
-                                type="monotone"
-                                dataKey="totalViews"
-                                name="Total Views"
-                                stroke="#10B981"
                                 strokeWidth={2}
                                 dot={{ r: 4 }}
                                 activeDot={{ r: 6 }}

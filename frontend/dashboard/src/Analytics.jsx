@@ -13,7 +13,6 @@ import ContentBreakdown from './components/analytics/ContentBreakdown';
 import TopContent from './components/analytics/TopContent';
 
 import ProfileActivity from './components/analytics/ProfileActivity';
-import PostingHeatmap from './components/analytics/PostingHeatmap';
 
 // Import new enhanced components
 import ProfileGrowthCard from './components/analytics/ProfileGrowthCard';
@@ -58,14 +57,14 @@ const TokenExpiredModal = ({ show, onClose, onReconnect }) => {
   );
 };
 
-const Analytics = () => {
+const Analytics = ({ embedded = false, clientId = null }) => {
   // const { user } = useOutletContext(); // Removed to fix crash - context not available here
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [analytics, setAnalytics] = useState(null);
   const [clients, setClients] = useState([]);
-  const [clientFilter, setClientFilter] = useState('all');
+  const [clientFilter, setClientFilter] = useState(clientId || 'all');
   const [dateRange, setDateRange] = useState('last30');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
@@ -80,6 +79,13 @@ const Analytics = () => {
   const dashboardRef = useRef(null);
   const autoRefreshTimerRef = useRef(null);
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+  // Update client filter if prop changes
+  useEffect(() => {
+    if (clientId) {
+      setClientFilter(clientId);
+    }
+  }, [clientId]);
 
   // Helper to build URL with auth
   const buildUrl = (path) => {
@@ -105,6 +111,38 @@ const Analytics = () => {
     fetchClients();
   }, []);
 
+  // Helper to calculate date range
+  const getDateRangeParams = () => {
+    const now = new Date();
+    let startDate = null;
+    let endDate = now.toISOString();
+
+    switch (dateRange) {
+      case 'today':
+        startDate = new Date(now.setHours(0, 0, 0, 0)).toISOString();
+        endDate = new Date().toISOString();
+        break;
+      case 'last7':
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+        break;
+      case 'last30':
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        break;
+      case 'last90':
+        startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString();
+        break;
+      case 'custom':
+        if (customStartDate) startDate = new Date(customStartDate).toISOString();
+        if (customEndDate) endDate = new Date(customEndDate).toISOString();
+        break;
+      default:
+        // No date filter
+        startDate = null;
+        endDate = null;
+    }
+    return { startDate, endDate };
+  };
+
   // Fetch Analytics
   const fetchAnalytics = async (forceRefresh = false) => {
     try {
@@ -116,6 +154,11 @@ const Analytics = () => {
       const fetchUrl = new URL(url);
       if (forceRefresh) fetchUrl.searchParams.append('refresh', 'true');
       if (clientFilter !== 'all') fetchUrl.searchParams.append('clientId', clientFilter);
+
+      // Add date range parameters
+      const { startDate, endDate } = getDateRangeParams();
+      if (startDate) fetchUrl.searchParams.append('startDate', startDate);
+      if (endDate) fetchUrl.searchParams.append('endDate', endDate);
 
       const response = await fetch(fetchUrl.toString(), { headers });
 
@@ -148,11 +191,11 @@ const Analytics = () => {
     }
   };
 
-  // Initial Fetch & Filter Change
+  // Initial Fetch & Filter Change (including date range)
   useEffect(() => {
     fetchAnalytics();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientFilter]);
+  }, [clientFilter, dateRange, customStartDate, customEndDate]);
 
   // Timer for refresh button
   useEffect(() => {
@@ -238,31 +281,97 @@ const Analytics = () => {
     // Filter detailed posts based on date range
     let filteredPosts = analytics.detailedPosts || [];
     const now = new Date();
-    const past = new Date();
+    let startDate = null;
+    let endDate = null;
 
-    if (dateRange === 'last7') past.setDate(now.getDate() - 7);
-    if (dateRange === 'last30') past.setDate(now.getDate() - 30);
-    if (dateRange === 'custom' && customStartDate) {
-      past.setTime(new Date(customStartDate).getTime());
+    console.log('📅 Date filter triggered:', { dateRange, totalPosts: filteredPosts.length });
+
+    // Calculate start date based on date range selection
+    switch (dateRange) {
+      case 'today':
+        startDate = new Date(now);
+        startDate.setHours(0, 0, 0, 0); // Start of today
+        endDate = new Date(now); // End is now
+        break;
+      case 'last7':
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case 'last30':
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      case 'last90':
+        startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        break;
+      case 'custom':
+        if (customStartDate) startDate = new Date(customStartDate);
+        if (customEndDate) {
+          endDate = new Date(customEndDate);
+          endDate.setHours(23, 59, 59, 999); // End of the selected day
+        }
+        break;
+      default:
+        // 'all' or unrecognized - no filtering
+        break;
     }
 
-    if (dateRange !== 'all') {
-      filteredPosts = filteredPosts.filter(post => new Date(post.timestamp) >= past);
+    console.log('📅 Date range calculated:', { startDate, endDate });
+
+    // Apply date filtering
+    const originalCount = filteredPosts.length;
+    if (startDate) {
+      filteredPosts = filteredPosts.filter(post => {
+        const postDate = new Date(post.timestamp);
+        return postDate >= startDate;
+      });
     }
 
-    if (dateRange === 'custom' && customEndDate) {
-      const end = new Date(customEndDate);
-      end.setHours(23, 59, 59);
-      filteredPosts = filteredPosts.filter(post => new Date(post.timestamp) <= end);
+    if (endDate) {
+      filteredPosts = filteredPosts.filter(post => {
+        const postDate = new Date(post.timestamp);
+        return postDate <= endDate;
+      });
     }
 
-    // Recalculate aggregates based on filtered posts if needed
-    // For now, we use the backend aggregates which are mostly 30-day based or total
-    // Ideally, backend should accept date range params for all metrics
+    console.log('📅 Posts filtered:', { original: originalCount, filtered: filteredPosts.length });
+
+    // Also filter viewsTrend if present
+    let filteredViewsTrend = analytics.viewsTrend || [];
+    if (startDate && filteredViewsTrend.length > 0) {
+      filteredViewsTrend = filteredViewsTrend.filter(day => {
+        const dayDate = new Date(day.date);
+        const inRange = dayDate >= startDate;
+        return endDate ? inRange && dayDate <= endDate : inRange;
+      });
+    }
+
+    // Recalculate aggregate stats based on filtered posts
+    const recalculatedStats = {
+      totalViews: 0,
+      totalLikes: 0,
+      totalComments: 0,
+      totalShares: 0,
+      totalSaves: 0,
+      totalEngagements: 0
+    };
+
+    filteredPosts.forEach(post => {
+      const metrics = post.metrics || {};
+      recalculatedStats.totalViews += metrics.views || 0;
+      recalculatedStats.totalLikes += metrics.likes || 0;
+      recalculatedStats.totalComments += metrics.comments || 0;
+      recalculatedStats.totalShares += metrics.shares || 0;
+      recalculatedStats.totalSaves += metrics.saved || 0;
+      recalculatedStats.totalEngagements += metrics.engagement || (metrics.likes + metrics.comments + (metrics.saved || 0) + (metrics.shares || 0)) || 0;
+    });
+
+    console.log('📅 Recalculated stats:', recalculatedStats);
 
     return {
       ...analytics,
-      detailedPosts: filteredPosts
+      // Override with recalculated stats when filtering
+      ...(startDate ? recalculatedStats : {}),
+      detailedPosts: filteredPosts,
+      viewsTrend: filteredViewsTrend
     };
   }, [analytics, dateRange, customStartDate, customEndDate]);
 
@@ -297,94 +406,103 @@ const Analytics = () => {
     );
   }
 
+  const Content = () => (
+    <div className="max-w-[1600px] mx-auto" ref={dashboardRef}>
+      <AnalyticsHeader
+        version="v3.0"
+        lastUpdated={lastUpdated}
+        clientFilter={clientFilter}
+        setClientFilter={setClientFilter}
+        clientOptions={clients}
+        dateRange={dateRange}
+        setDateRange={setDateRange}
+        customStartDate={customStartDate}
+        setCustomStartDate={setCustomStartDate}
+        customEndDate={customEndDate}
+        setCustomEndDate={setCustomEndDate}
+        refreshing={refreshing}
+        timeLeft={timeLeft}
+        handleRefresh={handleRefresh}
+        handleExportPDF={handleExportPDF}
+        exportingPDF={exportingPDF}
+        tokenStatus={tokenStatus}
+        autoRefreshEnabled={autoRefreshEnabled}
+        setAutoRefreshEnabled={setAutoRefreshEnabled}
+        hideClientSelector={embedded} // New prop to hide selector
+      />
 
+      {/* Overview Cards */}
+      <OverviewCards analytics={filteredAnalytics} />
 
-  // Main render
-  return (
-    <Layout>
-      <div className="max-w-[1600px] mx-auto" ref={dashboardRef}>
-        <AnalyticsHeader
-          version="v3.0"
-          lastUpdated={lastUpdated}
-          clientFilter={clientFilter}
-          setClientFilter={setClientFilter}
-          clientOptions={clients}
-          dateRange={dateRange}
-          setDateRange={setDateRange}
-          refreshing={refreshing}
-          timeLeft={timeLeft}
-          handleRefresh={handleRefresh}
-          handleExportPDF={handleExportPDF}
-          exportingPDF={exportingPDF}
-          tokenStatus={tokenStatus}
-          autoRefreshEnabled={autoRefreshEnabled}
-          setAutoRefreshEnabled={setAutoRefreshEnabled}
-        />
+      {/* Profile Growth & Audience Metrics */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        <ProfileGrowthCard analytics={filteredAnalytics} />
+        <AudienceMetricsCard analytics={filteredAnalytics} />
+      </div>
 
-        {/* Overview Cards */}
-        <OverviewCards analytics={filteredAnalytics} />
+      {/* Engagement Breakdown */}
+      <div className="mb-8">
+        <EngagementBreakdownCard analytics={filteredAnalytics} />
+      </div>
 
-        {/* Profile Growth & Audience Metrics */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          <ProfileGrowthCard analytics={filteredAnalytics} />
-          <AudienceMetricsCard analytics={filteredAnalytics} />
-        </div>
+      {/* Charts Section - Enhanced */}
+      <ChartsSection analytics={filteredAnalytics} />
 
-        {/* Engagement Breakdown */}
-        <div className="mb-8">
-          <EngagementBreakdownCard analytics={filteredAnalytics} />
-        </div>
-
-        {/* Charts Section - Enhanced */}
-        <ChartsSection analytics={filteredAnalytics} />
-
-        {/* Video Views Chart */}
-        <div className="mb-8">
-          <VideoViewsChart posts={filteredAnalytics?.detailedPosts} />
-        </div>
-
-        {/* Platform Comparison & Content Type Performance */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          <PlatformComparisonCard
-            analytics={filteredAnalytics}
-            posts={filteredAnalytics?.detailedPosts}
-          />
-          <ContentTypeEngagementCard posts={filteredAnalytics?.detailedPosts} />
-        </div>
-
-        {/* Content Breakdown & Top Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-          <ContentBreakdown analytics={filteredAnalytics} />
-          <div className="lg:col-span-2">
-            <TopContent posts={filteredAnalytics?.detailedPosts} />
-          </div>
-        </div>
-
-        {/* Best Posting Times */}
-        <div className="mb-8">
-          <BestPostingTimeCard posts={filteredAnalytics?.detailedPosts} />
-        </div>
-
-        {/* Posts Performance Table */}
-        <div className="mb-8">
-          <PostsPerformanceTable posts={filteredAnalytics?.detailedPosts} />
-        </div>
-
-        {/* Profile Activity */}
-        <div className="mb-8">
-          <ProfileActivity analytics={filteredAnalytics} />
-        </div>
-
-        <div className="mb-8">
-          <PostingHeatmap analytics={filteredAnalytics} />
-        </div>
-
-        <TokenExpiredModal
-          show={showTokenExpiredModal}
-          onClose={() => setShowTokenExpiredModal(false)}
-          onReconnect={handleReconnect}
+      {/* Video Views Chart */}
+      <div className="mb-8">
+        <VideoViewsChart
+          posts={filteredAnalytics?.detailedPosts}
+          viewsTrend={filteredAnalytics?.viewsTrend}
         />
       </div>
+
+      {/* Platform Comparison & Content Type Performance */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        <PlatformComparisonCard
+          analytics={filteredAnalytics}
+          posts={filteredAnalytics?.detailedPosts}
+        />
+        <ContentTypeEngagementCard posts={filteredAnalytics?.detailedPosts} />
+      </div>
+
+      {/* Content Breakdown & Top Content */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+        <ContentBreakdown analytics={filteredAnalytics} />
+        <div className="lg:col-span-2">
+          <TopContent posts={filteredAnalytics?.detailedPosts} />
+        </div>
+      </div>
+
+      {/* Best Posting Times */}
+      <div className="mb-8">
+        <BestPostingTimeCard posts={filteredAnalytics?.detailedPosts} />
+      </div>
+
+      {/* Posts Performance Table */}
+      <div className="mb-8">
+        <PostsPerformanceTable posts={filteredAnalytics?.detailedPosts} />
+      </div>
+
+      {/* Profile Activity */}
+      <div className="mb-8">
+        <ProfileActivity analytics={filteredAnalytics} />
+      </div>
+
+      <TokenExpiredModal
+        show={showTokenExpiredModal}
+        onClose={() => setShowTokenExpiredModal(false)}
+        onReconnect={handleReconnect}
+      />
+    </div>
+  );
+
+  if (embedded) {
+    return <Content />;
+  }
+
+  return (
+    <Layout>
+      <Content />
     </Layout>
   );
 };

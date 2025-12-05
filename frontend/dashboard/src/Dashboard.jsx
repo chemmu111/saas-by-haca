@@ -410,40 +410,6 @@ const Dashboard = () => {
                   )}
                 </div>
               </div>
-
-              {/* Quick Actions Card */}
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-                <h3 className="font-bold text-slate-900 mb-4">Quick Actions</h3>
-                <div className="space-y-3">
-                  <button
-                    onClick={() => navigate('/dashboard/posts')}
-                    className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50 transition-colors text-left group"
-                  >
-                    <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
-                      <FileText size={18} className="text-blue-600" />
-                    </div>
-                    <span className="text-sm font-medium text-slate-700">Create New Post</span>
-                  </button>
-                  <button
-                    onClick={() => navigate('/dashboard/clients')}
-                    className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50 transition-colors text-left group"
-                  >
-                    <div className="p-2 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors">
-                      <Users size={18} className="text-green-600" />
-                    </div>
-                    <span className="text-sm font-medium text-slate-700">Add New Client</span>
-                  </button>
-                  <button
-                    onClick={() => navigate('/dashboard/analytics')}
-                    className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50 transition-colors text-left group"
-                  >
-                    <div className="p-2 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
-                      <BarChart2 size={18} className="text-purple-600" />
-                    </div>
-                    <span className="text-sm font-medium text-slate-700">View Analytics</span>
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
         </div>

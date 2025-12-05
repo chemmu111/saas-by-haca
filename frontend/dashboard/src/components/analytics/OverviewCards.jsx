@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, Eye, Activity, Heart, ArrowUp, ArrowDown, TrendingUp } from 'lucide-react';
+import { Users, Eye, Activity, Heart, ArrowUp, ArrowDown, Link as LinkIcon } from 'lucide-react';
 
 const OverviewCard = ({ title, value, subValue, icon: Icon, color, trend, trendValue }) => (
     <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
@@ -33,20 +33,15 @@ const OverviewCards = ({ analytics }) => {
         return num;
     };
 
-    // Helper to calculate trend (mock logic for now as we need historical data comparison)
-    // In a real scenario, we would compare current period vs previous period
-    const getTrend = (current, key) => {
-        // Placeholder logic: if current > 0, show positive trend for demo
-        // Ideally, backend should return 'growth' or 'previousPeriod' data
-        return { direction: 'up', value: '+5.2%' }; // Mock trend
-    };
+    // Get link clicks from profile activity
+    const linkClicks = analytics.profileActivity?.website_clicks || 0;
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
             <OverviewCard
                 title="Total Reach"
                 value={formatNumber(analytics.totalReach)}
-                subValue="Unique accounts reached (28 days)"
+                subValue="Unique accounts reached"
                 icon={Users}
                 color="bg-blue-500"
             />
@@ -70,6 +65,13 @@ const OverviewCards = ({ analytics }) => {
                 subValue="Likes, comments, shares"
                 icon={Heart}
                 color="bg-rose-500"
+            />
+            <OverviewCard
+                title="Link Clicks"
+                value={formatNumber(linkClicks)}
+                subValue="Bio link taps"
+                icon={LinkIcon}
+                color="bg-indigo-500"
             />
         </div>
     );

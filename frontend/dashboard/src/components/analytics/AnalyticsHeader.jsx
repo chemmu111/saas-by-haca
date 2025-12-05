@@ -9,6 +9,10 @@ const AnalyticsHeader = ({
     clientOptions,
     dateRange,
     setDateRange,
+    customStartDate,
+    setCustomStartDate,
+    customEndDate,
+    setCustomEndDate,
     refreshing,
     timeLeft,
     handleRefresh,
@@ -16,7 +20,8 @@ const AnalyticsHeader = ({
     exportingPDF,
     tokenStatus,
     autoRefreshEnabled,
-    setAutoRefreshEnabled
+    setAutoRefreshEnabled,
+    hideClientSelector = false
 }) => {
     return (
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between mb-8">
@@ -38,22 +43,24 @@ const AnalyticsHeader = ({
 
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-end">
                 {/* Client Filter */}
-                <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-sm">
-                    <label htmlFor="clientFilterTop" className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Client</label>
-                    <select
-                        id="clientFilterTop"
-                        value={clientFilter}
-                        onChange={(e) => setClientFilter(e.target.value)}
-                        className="text-sm font-medium text-slate-700 focus:outline-none bg-transparent border-none cursor-pointer"
-                    >
-                        <option value="all">All Clients</option>
-                        {clientOptions.map((option, index) => (
-                            <option key={option.id || index} value={option.id}>
-                                {option.name}
-                            </option>
-                        ))}
-                    </select>
-                </div>
+                {!hideClientSelector && (
+                    <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-sm">
+                        <label htmlFor="clientFilterTop" className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Client</label>
+                        <select
+                            id="clientFilterTop"
+                            value={clientFilter}
+                            onChange={(e) => setClientFilter(e.target.value)}
+                            className="text-sm font-medium text-slate-700 focus:outline-none bg-transparent border-none cursor-pointer"
+                        >
+                            <option value="all">All Clients</option>
+                            {clientOptions.map((option, index) => (
+                                <option key={option.id || index} value={option.id}>
+                                    {option.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                )}
 
                 {/* Date Range */}
                 <div className="relative">
@@ -65,10 +72,32 @@ const AnalyticsHeader = ({
                         <option value="today">Today</option>
                         <option value="last7">Last 7 days</option>
                         <option value="last30">Last 30 days</option>
+                        <option value="last90">Last 90 days</option>
                         <option value="custom">Custom Range</option>
                     </select>
                     <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                 </div>
+
+                {/* Custom Date Inputs - Only show when Custom Range is selected */}
+                {dateRange === 'custom' && (
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="date"
+                            value={customStartDate}
+                            onChange={(e) => setCustomStartDate(e.target.value)}
+                            className="px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-slate-700 text-sm font-medium shadow-sm"
+                            placeholder="Start Date"
+                        />
+                        <span className="text-slate-400">to</span>
+                        <input
+                            type="date"
+                            value={customEndDate}
+                            onChange={(e) => setCustomEndDate(e.target.value)}
+                            className="px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-slate-700 text-sm font-medium shadow-sm"
+                            placeholder="End Date"
+                        />
+                    </div>
+                )}
 
                 <div className="flex items-center gap-2">
                     {/* Token Warning */}
@@ -116,7 +145,7 @@ const AnalyticsHeader = ({
                     </button>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 

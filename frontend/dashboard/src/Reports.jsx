@@ -145,7 +145,8 @@ const Reports = () => {
       const params = new URLSearchParams({
         clientId: clientId,
         startDate: startDate,
-        endDate: endDate
+        endDate: endDate,
+        mode: 'report'
       });
 
       // Re-use the analytics API

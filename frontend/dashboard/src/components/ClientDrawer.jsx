@@ -17,7 +17,9 @@ import {
     Calendar,
     Edit2,
     Save,
-    RefreshCw
+    RefreshCw,
+    Circle,
+    CheckCircle2
 } from 'lucide-react';
 
 const ClientDrawer = ({ client, isOpen, onClose, onUpdate }) => {
@@ -26,6 +28,8 @@ const ClientDrawer = ({ client, isOpen, onClose, onUpdate }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [editForm, setEditForm] = useState({});
+    const [newTask, setNewTask] = useState('');
+    const [tasks, setTasks] = useState([]);
 
     useEffect(() => {
         if (client) {
@@ -43,10 +47,8 @@ const ClientDrawer = ({ client, isOpen, onClose, onUpdate }) => {
 
     const tabs = [
         { id: 'overview', label: 'Overview', icon: User },
-        { id: 'insights', label: 'Insights', icon: BarChart2 },
         { id: 'notes', label: 'Notes', icon: FileText },
         { id: 'tasks', label: 'Tasks', icon: CheckSquare },
-        { id: 'team', label: 'Team', icon: Users },
     ];
 
     const handleAddNote = async (e) => {
@@ -197,8 +199,8 @@ const ClientDrawer = ({ client, isOpen, onClose, onUpdate }) => {
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
                             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === tab.id
-                                    ? 'border-blue-600 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                ? 'border-blue-600 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                 }`}
                         >
                             <tab.icon size={16} />
@@ -333,49 +335,156 @@ const ClientDrawer = ({ client, isOpen, onClose, onUpdate }) => {
                     )}
 
                     {activeTab === 'notes' && (
-                        <div className="space-y-4">
-                            <form onSubmit={handleAddNote} className="relative">
-                                <textarea
-                                    value={noteContent}
-                                    onChange={(e) => setNoteContent(e.target.value)}
-                                    placeholder="Add a note about this client..."
-                                    className="w-full p-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none h-32"
-                                />
-                                <button
-                                    type="submit"
-                                    disabled={!noteContent.trim()}
-                                    className="absolute bottom-3 right-3 px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                >
-                                    Add Note
-                                </button>
-                            </form>
+                        <div className="space-y-6">
+                            {/* Add Note Form */}
+                            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-5 border border-blue-100">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <FileText size={18} className="text-blue-600" />
+                                    <h3 className="font-semibold text-gray-800">Add New Note</h3>
+                                </div>
+                                <form onSubmit={handleAddNote}>
+                                    <textarea
+                                        value={noteContent}
+                                        onChange={(e) => setNoteContent(e.target.value)}
+                                        placeholder="Write something about this client..."
+                                        className="w-full p-4 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none h-24 text-sm"
+                                    />
+                                    <div className="flex justify-end mt-3">
+                                        <button
+                                            type="submit"
+                                            disabled={!noteContent.trim()}
+                                            className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-sm font-medium hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg flex items-center gap-2"
+                                        >
+                                            <Plus size={16} />
+                                            Add Note
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
 
-                            <div className="space-y-4">
+                            {/* Notes List */}
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-sm font-medium text-gray-500">
+                                        {client.notes?.length || 0} Notes
+                                    </h3>
+                                </div>
+
                                 {client.notes && client.notes.length > 0 ? (
                                     client.notes.map((note, i) => (
-                                        <div key={i} className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-                                            <p className="text-gray-700 text-sm whitespace-pre-wrap">{note.content}</p>
-                                            <div className="mt-2 flex items-center justify-between text-xs text-gray-400">
-                                                <span>{new Date(note.createdAt).toLocaleString()}</span>
-                                                <span>by User</span>
+                                        <div
+                                            key={i}
+                                            className="group p-4 bg-gradient-to-br from-amber-50 to-yellow-50 rounded-xl border border-amber-100 hover:shadow-md transition-all"
+                                        >
+                                            <p className="text-gray-700 text-sm whitespace-pre-wrap leading-relaxed">{note.content}</p>
+                                            <div className="mt-3 pt-3 border-t border-amber-100 flex items-center justify-between">
+                                                <div className="flex items-center gap-2 text-xs text-gray-400">
+                                                    <Calendar size={12} />
+                                                    <span>{new Date(note.createdAt).toLocaleDateString('en-US', {
+                                                        month: 'short',
+                                                        day: 'numeric',
+                                                        year: 'numeric',
+                                                        hour: '2-digit',
+                                                        minute: '2-digit'
+                                                    })}</span>
+                                                </div>
+                                                <button className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all">
+                                                    <Trash2 size={14} />
+                                                </button>
                                             </div>
                                         </div>
                                     ))
                                 ) : (
-                                    <div className="text-center py-8 text-gray-500">
-                                        <FileText className="mx-auto mb-2 opacity-20" size={48} />
-                                        <p>No notes yet</p>
+                                    <div className="text-center py-12 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
+                                        <FileText className="mx-auto mb-3 text-gray-300" size={48} />
+                                        <p className="text-gray-500 font-medium">No notes yet</p>
+                                        <p className="text-sm text-gray-400 mt-1">Add your first note above</p>
                                     </div>
                                 )}
                             </div>
                         </div>
                     )}
 
-                    {/* Other tabs placeholders */}
-                    {['insights', 'tasks', 'team'].includes(activeTab) && (
-                        <div className="text-center py-12 text-gray-500">
-                            <Activity className="mx-auto mb-3 opacity-20" size={48} />
-                            <p>This section is coming soon</p>
+                    {/* Tasks - Todo List */}
+                    {activeTab === 'tasks' && (
+                        <div className="space-y-4">
+                            {/* Add new task */}
+                            <form onSubmit={(e) => {
+                                e.preventDefault();
+                                if (!newTask.trim()) return;
+                                const task = {
+                                    id: Date.now(),
+                                    text: newTask.trim(),
+                                    completed: false,
+                                    createdAt: new Date().toISOString()
+                                };
+                                setTasks([task, ...tasks]);
+                                setNewTask('');
+                            }} className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={newTask}
+                                    onChange={(e) => setNewTask(e.target.value)}
+                                    placeholder="Add a new task..."
+                                    className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={!newTask.trim()}
+                                    className="px-4 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                                >
+                                    <Plus size={18} />
+                                    Add
+                                </button>
+                            </form>
+
+                            {/* Task list */}
+                            <div className="space-y-2">
+                                {tasks.length > 0 ? (
+                                    tasks.map((task) => (
+                                        <div
+                                            key={task.id}
+                                            className={`flex items-center gap-3 p-4 rounded-xl border transition-all ${task.completed ? 'bg-gray-50 border-gray-100' : 'bg-white border-gray-200 hover:border-blue-200'}`}
+                                        >
+                                            <button
+                                                onClick={() => {
+                                                    setTasks(tasks.map(t =>
+                                                        t.id === task.id ? { ...t, completed: !t.completed } : t
+                                                    ));
+                                                }}
+                                                className={`flex-shrink-0 transition-colors ${task.completed ? 'text-green-500' : 'text-gray-300 hover:text-blue-500'}`}
+                                            >
+                                                {task.completed ? <CheckCircle2 size={24} /> : <Circle size={24} />}
+                                            </button>
+                                            <span className={`flex-1 text-sm ${task.completed ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+                                                {task.text}
+                                            </span>
+                                            <button
+                                                onClick={() => {
+                                                    setTasks(tasks.filter(t => t.id !== task.id));
+                                                }}
+                                                className="text-gray-300 hover:text-red-500 transition-colors"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="text-center py-12 text-gray-500">
+                                        <CheckSquare className="mx-auto mb-3 opacity-20" size={48} />
+                                        <p>No tasks yet</p>
+                                        <p className="text-sm text-gray-400 mt-1">Add your first task above</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Task summary */}
+                            {tasks.length > 0 && (
+                                <div className="pt-4 border-t border-gray-100 flex justify-between text-sm text-gray-500">
+                                    <span>{tasks.filter(t => !t.completed).length} remaining</span>
+                                    <span>{tasks.filter(t => t.completed).length} completed</span>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

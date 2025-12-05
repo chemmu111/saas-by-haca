@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { X, Instagram, Facebook, Upload } from 'lucide-react';
 
 const AddClientModal = ({ isOpen, onClose, onAdd, connectingOAuth, error }) => {
@@ -7,14 +7,16 @@ const AddClientModal = ({ isOpen, onClose, onAdd, connectingOAuth, error }) => {
         email: '',
         phone: '',
         website: '',
-        platform: 'manual',
+        platform: 'instagram',
         socialMediaLink: '',
         brandColors: {
             primary: '#000000',
             secondary: '#ffffff'
         },
-        tags: ''
+        logo: null
     });
+    const [logoPreview, setLogoPreview] = useState(null);
+    const logoInputRef = useRef(null);
 
     if (!isOpen) return null;
 
@@ -36,14 +38,21 @@ const AddClientModal = ({ isOpen, onClose, onAdd, connectingOAuth, error }) => {
         }));
     };
 
+    const handleLogoChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setFormData(prev => ({ ...prev, logo: file }));
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setLogoPreview(reader.result);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
     const handleSubmit = (e) => {
         e.preventDefault();
-        // Process tags
-        const processedData = {
-            ...formData,
-            tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag)
-        };
-        onAdd(processedData);
+        onAdd(formData);
     };
 
     return (
@@ -84,18 +93,19 @@ const AddClientModal = ({ isOpen, onClose, onAdd, connectingOAuth, error }) => {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Phone *</label>
                             <input
                                 type="tel"
                                 name="phone"
                                 value={formData.phone}
                                 onChange={handleInputChange}
+                                required
                                 className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                                 placeholder="+1 (555) 000-0000"
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Website</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Website <span className="text-gray-400 font-normal">(Optional)</span></label>
                             <input
                                 type="url"
                                 name="website"
@@ -112,10 +122,26 @@ const AddClientModal = ({ isOpen, onClose, onAdd, connectingOAuth, error }) => {
                         <h3 className="text-sm font-medium text-gray-900 mb-4">Brand Identity</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Logo</label>
-                                <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center hover:border-blue-500 transition-colors cursor-pointer bg-gray-50">
-                                    <Upload className="mx-auto text-gray-400 mb-2" size={24} />
-                                    <p className="text-sm text-gray-500">Click to upload logo</p>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Logo <span className="text-gray-400 font-normal">(Optional)</span></label>
+                                <input
+                                    type="file"
+                                    ref={logoInputRef}
+                                    onChange={handleLogoChange}
+                                    accept="image/*"
+                                    className="hidden"
+                                />
+                                <div
+                                    onClick={() => logoInputRef.current?.click()}
+                                    className="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center hover:border-blue-500 transition-colors cursor-pointer bg-gray-50"
+                                >
+                                    {logoPreview ? (
+                                        <img src={logoPreview} alt="Logo preview" className="mx-auto h-16 w-16 object-contain rounded" />
+                                    ) : (
+                                        <>
+                                            <Upload className="mx-auto text-gray-400 mb-2" size={24} />
+                                            <p className="text-sm text-gray-500">Click to upload logo</p>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                             <div className="space-y-4">
@@ -157,38 +183,22 @@ const AddClientModal = ({ isOpen, onClose, onAdd, connectingOAuth, error }) => {
                         </div>
                     </div>
 
-                    {/* Tags */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Tags</label>
-                        <input
-                            type="text"
-                            name="tags"
-                            value={formData.tags}
-                            onChange={handleInputChange}
-                            className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                            placeholder="e.g. Retail, VIP, Q3 Campaign (comma separated)"
-                        />
-                    </div>
+
 
                     {/* Platform Selection */}
                     <div className="border-t border-gray-100 pt-6">
                         <label className="block text-sm font-medium text-gray-700 mb-4">Connection Method</label>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <label className={`relative flex flex-col items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${formData.platform === 'manual' ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                                <input type="radio" name="platform" value="manual" checked={formData.platform === 'manual'} onChange={handleInputChange} className="absolute opacity-0" />
-                                <span className="font-semibold text-gray-900">Manual Entry</span>
-                                <span className="text-xs text-gray-500 mt-1">No API connection</span>
-                            </label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <label className={`relative flex flex-col items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${formData.platform === 'instagram' ? 'border-pink-500 bg-pink-50' : 'border-gray-200 hover:border-gray-300'}`}>
                                 <input type="radio" name="platform" value="instagram" checked={formData.platform === 'instagram'} onChange={handleInputChange} className="absolute opacity-0" />
                                 <Instagram className={formData.platform === 'instagram' ? 'text-pink-600' : 'text-gray-400'} size={24} />
                                 <span className="font-semibold text-gray-900 mt-2">Instagram</span>
                             </label>
-                            <label className={`relative flex flex-col items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${formData.platform === 'facebook' ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                                <input type="radio" name="platform" value="facebook" checked={formData.platform === 'facebook'} onChange={handleInputChange} className="absolute opacity-0" />
-                                <Facebook className={formData.platform === 'facebook' ? 'text-blue-600' : 'text-gray-400'} size={24} />
-                                <span className="font-semibold text-gray-900 mt-2">Facebook</span>
-                            </label>
+                            <div className="relative flex flex-col items-center p-4 border-2 rounded-xl border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed">
+                                <span className="absolute top-2 right-2 text-[10px] font-bold text-white bg-blue-500 px-2 py-0.5 rounded-full">Coming Soon</span>
+                                <Facebook className="text-gray-400" size={24} />
+                                <span className="font-semibold text-gray-500 mt-2">Facebook</span>
+                            </div>
                         </div>
                     </div>
 

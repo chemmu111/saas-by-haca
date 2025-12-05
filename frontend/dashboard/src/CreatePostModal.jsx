@@ -52,7 +52,8 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
     hashtagInput: '',
     musicUrl: '',
     location: '',
-    coverImage: null
+    coverImage: null,
+    coverPreview: null
   });
 
   // UI state
@@ -68,6 +69,7 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
   // File input refs
   const fileInputRef = useRef(null);
   const musicInputRef = useRef(null);
+  const coverInputRef = useRef(null);
 
   // Custom hooks
   const { mediaInfo, validationErrors, validateForPostType } = useMediaDetector(
@@ -143,14 +145,14 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
     }
 
     if (platform === 'instagram') {
-      return ['post', 'story', 'reel', 'carousel', 'video']; // Instagram supports all types
+      return ['post', 'story', 'reel', 'carousel']; // Instagram supports these types (video merged into reels)
     }
 
     if (platform === 'both') {
       return ['post']; // When posting to both, only regular posts work
     }
 
-    return ['post', 'story', 'reel']; // Default: all types
+    return ['post', 'story', 'reel']; // Default types
   };
 
   const fetchClients = async () => {
@@ -297,6 +299,30 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
     if (selectedMediaIndex >= index && selectedMediaIndex > 0) {
       setSelectedMediaIndex(selectedMediaIndex - 1);
     }
+  };
+
+  // Handle cover image selection
+  const handleCoverSelect = (e) => {
+    const file = e.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+      setFormData(prev => ({
+        ...prev,
+        coverImage: file,
+        coverPreview: URL.createObjectURL(file)
+      }));
+    }
+  };
+
+  // Remove cover image
+  const handleRemoveCover = () => {
+    if (formData.coverPreview) {
+      URL.revokeObjectURL(formData.coverPreview);
+    }
+    setFormData(prev => ({
+      ...prev,
+      coverImage: null,
+      coverPreview: null
+    }));
   };
 
   // Handle hashtag management
@@ -516,7 +542,22 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
         body: JSON.stringify(postData)
       });
 
-      const result = await response.json();
+      // Read the response body as text first
+      const responseText = await response.text();
+
+      // Try to parse as JSON
+      let result;
+      try {
+        result = responseText ? JSON.parse(responseText) : { success: false, error: 'Empty response from server' };
+      } catch (e) {
+        // If it's not valid JSON, create an error result
+        result = { success: false, error: responseText || `Server error: ${response.status}` };
+      }
+
+      // Handle non-OK responses
+      if (!response.ok) {
+        throw new Error(result.error || `Server error: ${response.status}`);
+      }
 
       if (postData.publishImmediately && !editingPost) {
         setPublishProgress({ step: 'processing', message: 'Processing media on Instagram...' });
@@ -774,6 +815,11 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
       }
     });
 
+    // Clean up cover preview URL
+    if (formData.coverPreview && formData.coverPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(formData.coverPreview);
+    }
+
     setFormData({
       clientId: '',
       platform: 'instagram',
@@ -786,7 +832,9 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
       mediaFiles: [],
       hashtagInput: '',
       musicUrl: '',
-      location: ''
+      location: '',
+      coverImage: null,
+      coverPreview: null
     });
 
     setCurrentStep('compose');
@@ -955,7 +1003,8 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
                             <option key={type} value={type}>
                               {type === 'post' ? 'Feed Post' :
                                 type === 'story' ? 'Story' :
-                                  type === 'reel' ? 'Reel' : type}
+                                  type === 'reel' ? 'Reel' :
+                                    type === 'carousel' ? 'Carousel' : type}
                             </option>
                           ))}
                         </select>
@@ -1010,6 +1059,60 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
                       </div>
                     )}
                   </div>
+
+                  {/* Cover Photo Selection - Only for video/reel */}
+                  {(formData.postType === 'reel' || formData.postType === 'video' ||
+                    formData.mediaFiles.some(m => m.file?.type?.startsWith('video/'))) && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Cover Photo <span className="text-gray-400 font-normal">(Optional)</span>
+                        </label>
+                        <p className="text-xs text-gray-500 mb-3">Select a custom thumbnail for your video</p>
+                        {formData.coverPreview ? (
+                          <div className="flex items-center gap-4">
+                            <div className="relative w-32 h-32 rounded-xl overflow-hidden border-2 border-[#6A4DFF] shadow-md">
+                              <img src={formData.coverPreview} alt="Cover" className="w-full h-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={handleRemoveCover}
+                                className="absolute top-2 right-2 p-1.5 bg-white rounded-full text-gray-700 shadow-md hover:text-red-500 transition-colors"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => coverInputRef.current?.click()}
+                              className="px-4 py-2 text-sm font-medium text-[#6A4DFF] bg-[#6A4DFF]/10 rounded-lg hover:bg-[#6A4DFF]/20 transition-colors"
+                            >
+                              Change Cover
+                            </button>
+                          </div>
+                        ) : (
+                          <div
+                            className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:border-[#6A4DFF] hover:bg-[#6A4DFF]/5 transition-all cursor-pointer bg-gray-50 group"
+                            onClick={() => coverInputRef.current?.click()}
+                          >
+                            <div className="flex flex-col items-center gap-2">
+                              <div className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center border border-gray-100 group-hover:scale-110 transition-transform">
+                                <ImageIcon className="text-[#6A4DFF]" size={18} />
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">Add Cover Photo</p>
+                                <p className="text-xs text-gray-500 mt-0.5">JPG or PNG recommended</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        <input
+                          ref={coverInputRef}
+                          type="file"
+                          className="hidden"
+                          accept=".jpg,.jpeg,.png,.gif,.webp,image/jpeg,image/png,image/gif,image/webp"
+                          onChange={handleCoverSelect}
+                        />
+                      </div>
+                    )}
 
                   {/* Caption */}
                   <div>
@@ -1291,6 +1394,28 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
 
         </div>
       </div>
+
+      {/* AI Generator Modal */}
+      {showAIGenerator && (
+        <AIGenerator
+          type={aiGeneratorType}
+          existingCaption={formData.caption}
+          onSelect={(text) => {
+            if (aiGeneratorType === 'caption') {
+              setFormData(prev => ({ ...prev, caption: text }));
+            } else {
+              // For hashtags, append to existing hashtags
+              const newHashtags = text.match(/#[a-zA-Z0-9_]+/g) || [];
+              const cleanHashtags = newHashtags.map(h => h.replace('#', ''));
+              setFormData(prev => ({
+                ...prev,
+                hashtags: [...new Set([...prev.hashtags, ...cleanHashtags])]
+              }));
+            }
+          }}
+          onClose={() => setShowAIGenerator(false)}
+        />
+      )}
     </>
   );
 };

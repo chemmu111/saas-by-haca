@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import Layout from './Layout.jsx';
 import TokenCountdown from './components/TokenCountdown.jsx';
+import Analytics from './Analytics';
 
 // Helper function to get backend URL
 const getBackendUrl = () => {
@@ -290,10 +291,24 @@ const ClientDashboard = () => {
                         </div>
                     )}
 
-                    {activeTab !== 'overview' && (
+                    {activeTab === 'analytics' && (
+                        <div className="mt-6">
+                            <Analytics embedded={true} clientId={client._id} />
+                        </div>
+                    )}
+
+                    {activeTab === 'content' && (
                         <div className="text-center py-20 bg-white rounded-xl border border-gray-200">
                             <Settings className="mx-auto mb-4 text-gray-300" size={64} />
-                            <h3 className="text-xl font-medium text-gray-900">Coming Soon</h3>
+                            <h3 className="text-xl font-medium text-gray-900">Content Management</h3>
+                            <p className="text-gray-500 mt-2">This section is under development.</p>
+                        </div>
+                    )}
+
+                    {activeTab === 'settings' && (
+                        <div className="text-center py-20 bg-white rounded-xl border border-gray-200">
+                            <Settings className="mx-auto mb-4 text-gray-300" size={64} />
+                            <h3 className="text-xl font-medium text-gray-900">Client Settings</h3>
                             <p className="text-gray-500 mt-2">This section is under development.</p>
                         </div>
                     )}

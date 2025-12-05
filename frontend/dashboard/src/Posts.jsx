@@ -36,57 +36,56 @@ const Posts = () => {
     try {
       const backendUrl = getBackendUrl();
 
+      // Already a full URL
       if (url.startsWith('http://') || url.startsWith('https://')) {
         const urlObj = new URL(url);
 
-        // Fix: If the URL points to production but we are local/ngrok, rewrite it to use our backend
-        // This fixes CORS issues when the DB has production URLs but we want to serve files locally
-        if (urlObj.hostname.includes('onrender.com')) {
+        // If URL points to production/ngrok but we're running locally, rewrite to use current backend
+        if (urlObj.hostname.includes('onrender.com') || urlObj.hostname.includes('ngrok')) {
           return `${backendUrl}${urlObj.pathname}`;
         }
 
-        if (urlObj.hostname.includes('ngrok')) {
+        // If it's a localhost URL with different port, normalize to our backend
+        if (urlObj.hostname === 'localhost' && urlObj.port && urlObj.port !== '5000' && urlObj.port !== '3000') {
           return `${backendUrl}${urlObj.pathname}`;
         }
-        if (urlObj.hostname === 'localhost' && urlObj.port !== '5000' && urlObj.port !== '3000') {
-          return `${backendUrl}${urlObj.pathname}`;
-        }
-        if (urlObj.hostname === 'localhost' && urlObj.port === '5000') {
-          return url;
-        }
+
         return url;
       }
 
-      if (url.startsWith('/uploads/') || url.startsWith('/api/images/')) {
-        const normalizedPath = url.startsWith('/api/images/')
-          ? url.replace('/api/images/', '/uploads/')
-          : url;
-        return `${backendUrl}${normalizedPath}`;
+      // Handle relative paths
+      if (url.startsWith('/uploads/')) {
+        return `${backendUrl}${url}`;
       }
 
-      if (!url.includes('/') && !url.includes('http')) {
-        return `${backendUrl}/uploads/${url}`;
+      if (url.startsWith('/api/images/')) {
+        return `${backendUrl}${url.replace('/api/images/', '/uploads/')}`;
       }
 
+      // Handle uploads without leading slash
       if (url.startsWith('uploads/')) {
         return `${backendUrl}/${url}`;
       }
 
+      // Handle any path starting with /
       if (url.startsWith('/')) {
         return `${backendUrl}${url}`;
       }
 
-      return url;
+      // Plain filename - assume it's in uploads
+      if (!url.includes('/') && !url.includes('http')) {
+        return `${backendUrl}/uploads/${url}`;
+      }
+
+      // Default: prepend backend URL
+      return `${backendUrl}/${url}`;
     } catch (error) {
       console.warn('Error normalizing media URL:', url, error);
       const backendUrl = getBackendUrl();
       if (url.startsWith('/')) {
         return `${backendUrl}${url}`;
       }
-      if (!url.includes('http')) {
-        return `${backendUrl}/uploads/${url}`;
-      }
-      return url;
+      return `${backendUrl}/uploads/${url}`;
     }
   };
 
@@ -446,11 +445,21 @@ const Posts = () => {
                 ? post.mediaUrls[0]
                 : null;
 
-              const normalizedMediaUrl = firstMediaUrl ? normalizeMediaUrl(firstMediaUrl) : null;
-
-              const hasVideoExtension = normalizedMediaUrl && /\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(normalizedMediaUrl);
-              const isReel = post.postType === 'reel';
+              const hasVideoExtension = firstMediaUrl && /\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(firstMediaUrl);
+              const isReel = post.postType === 'reel' || post.postType === 'video';
               const isVideo = hasVideoExtension || isReel;
+
+              // For video/reel posts, prefer cover photo, then thumbnail, then first frame
+              let displayMediaUrl = firstMediaUrl;
+              if (isVideo) {
+                if (post.coverUrl) {
+                  displayMediaUrl = post.coverUrl;
+                } else if (post.thumbnailUrl) {
+                  displayMediaUrl = post.thumbnailUrl;
+                }
+              }
+
+              const normalizedMediaUrl = displayMediaUrl ? normalizeMediaUrl(displayMediaUrl) : null;
 
               return (
                 <div
@@ -463,43 +472,52 @@ const Posts = () => {
                       <>
                         {isVideo ? (
                           <>
-                            {failedMediaUrls.has(normalizedMediaUrl) ? (
-                              post.thumbnailUrl ? (
+                            {/* For videos: if we have a cover/thumbnail image, show it as image, not video */}
+                            {(post.coverUrl || post.thumbnailUrl) ? (
+                              failedMediaUrls.has(normalizedMediaUrl) ? (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-purple-50 to-pink-50">
+                                  <div className="p-4 bg-white/80 rounded-2xl shadow-sm">
+                                    <Video size={32} className="text-purple-500" />
+                                  </div>
+                                  <p className="text-xs text-gray-500 mt-2 font-medium">Video</p>
+                                </div>
+                              ) : (
                                 <img
-                                  src={normalizeMediaUrl(post.thumbnailUrl)}
-                                  alt="Post thumbnail"
+                                  src={normalizedMediaUrl}
+                                  alt="Video cover"
                                   className="w-full h-full object-cover"
                                   loading="lazy"
-                                  crossOrigin="anonymous"
+                                  referrerPolicy="no-referrer"
+                                  onError={(e) => {
+                                    setFailedMediaUrls(prev => new Set(prev).add(normalizedMediaUrl));
+                                    e.target.style.display = 'none';
+                                  }}
                                 />
-                              ) : (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-100 text-gray-400">
-                                  <Video size={48} className="mb-2" />
-                                  <p className="text-xs text-center px-2">Video not available</p>
-                                </div>
                               )
                             ) : (
-                              <video
-                                src={retryingMediaUrls.has(normalizedMediaUrl) ? firstMediaUrl : normalizedMediaUrl}
-                                poster={post.thumbnailUrl ? normalizeMediaUrl(post.thumbnailUrl) : undefined}
-                                className="w-full h-full object-cover"
-                                muted
-                                playsInline
-                                preload="metadata"
-                                crossOrigin="anonymous"
-                                onError={(e) => {
-                                  // Try original URL if normalized failed and they are different
-                                  if (firstMediaUrl && firstMediaUrl !== normalizedMediaUrl && !retryingMediaUrls.has(normalizedMediaUrl)) {
-                                    setRetryingMediaUrls(prev => new Set(prev).add(normalizedMediaUrl));
-                                    return;
-                                  }
-                                  
-                                  // Silently handle missing media - placeholders will show
-                                  setFailedMediaUrls(prev => new Set(prev).add(normalizedMediaUrl));
-                                  e.target.style.display = 'none';
-                                }}
-                              />
+                              /* No cover/thumbnail - show video element */
+                              failedMediaUrls.has(normalizedMediaUrl) ? (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-purple-50 to-pink-50">
+                                  <div className="p-4 bg-white/80 rounded-2xl shadow-sm">
+                                    <Video size={32} className="text-purple-500" />
+                                  </div>
+                                  <p className="text-xs text-gray-500 mt-2 font-medium">Video</p>
+                                </div>
+                              ) : (
+                                <video
+                                  src={normalizeMediaUrl(firstMediaUrl)}
+                                  className="w-full h-full object-cover"
+                                  muted
+                                  playsInline
+                                  preload="metadata"
+                                  onError={(e) => {
+                                    setFailedMediaUrls(prev => new Set(prev).add(normalizedMediaUrl));
+                                    e.target.style.display = 'none';
+                                  }}
+                                />
+                              )
                             )}
+                            {/* Video play icon overlay */}
                             {!failedMediaUrls.has(normalizedMediaUrl) && (
                               <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20">
                                 <div className="bg-white bg-opacity-90 rounded-full p-3 shadow-lg">
@@ -510,25 +528,21 @@ const Posts = () => {
                           </>
                         ) : (
                           failedMediaUrls.has(normalizedMediaUrl) ? (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-100 text-gray-400">
-                              <ImageIcon size={48} className="mb-2" />
-                              <p className="text-xs text-center px-2">Image not available</p>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50 text-gray-400">
+                              <div className="p-4 bg-white/80 rounded-2xl shadow-sm">
+                                <ImageIcon size={32} className="text-blue-400" />
+                              </div>
+                              <p className="text-xs text-gray-500 mt-2 font-medium">Image</p>
                             </div>
                           ) : (
                             <img
-                              src={retryingMediaUrls.has(normalizedMediaUrl) ? firstMediaUrl : normalizedMediaUrl}
+                              src={normalizedMediaUrl}
                               alt="Post media"
                               className="w-full h-full object-cover"
                               loading="lazy"
-                              crossOrigin="anonymous"
+                              referrerPolicy="no-referrer"
                               onError={(e) => {
-                                // Try original URL if normalized failed and they are different
-                                if (firstMediaUrl && firstMediaUrl !== normalizedMediaUrl && !retryingMediaUrls.has(normalizedMediaUrl)) {
-                                  setRetryingMediaUrls(prev => new Set(prev).add(normalizedMediaUrl));
-                                  return;
-                                }
-
-                                // Silently handle missing media - placeholders will show
+                                // Mark as failed
                                 setFailedMediaUrls(prev => new Set(prev).add(normalizedMediaUrl));
                                 e.target.style.display = 'none';
                               }}
@@ -537,12 +551,15 @@ const Posts = () => {
                         )}
                       </>
                     ) : (
-                      <div className="absolute inset-0 flex items-center justify-center text-gray-400">
-                        {post.postType === 'reel' ? (
-                          <Video size={48} />
-                        ) : (
-                          <ImageIcon size={48} />
-                        )}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-purple-50 to-pink-50">
+                        <div className="p-4 bg-white/80 rounded-2xl shadow-sm">
+                          {post.postType === 'reel' ? (
+                            <Video size={32} className="text-purple-500" />
+                          ) : (
+                            <ImageIcon size={32} className="text-pink-400" />
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2 font-medium capitalize">{post.postType || 'Post'}</p>
                       </div>
                     )}
 
