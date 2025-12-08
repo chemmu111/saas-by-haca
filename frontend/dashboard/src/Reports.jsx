@@ -9,6 +9,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   AreaChart, Area, PieChart, Pie, Cell, Legend
 } from 'recharts';
+import PageTitle from './components/PageTitle';
 
 import Layout from './Layout.jsx';
 import LiveReportPreview from './components/reports/LiveReportPreview.jsx';
@@ -1029,11 +1030,11 @@ const Reports = () => {
     setEndDate(end.toISOString().split('T')[0]);
     setStartDate(start.toISOString().split('T')[0]);
   };
-
   // --- Render ---
 
   return (
     <Layout>
+      <PageTitle title="Reports & Insights" />
       <div className="min-h-screen bg-slate-950 text-slate-50 p-4 lg:p-6">
         <div className="max-w-7xl mx-auto">
 
@@ -1041,7 +1042,7 @@ const Reports = () => {
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-white mb-2">Reports & Analytics</h1>
             <p className="text-slate-400">Generate professional reports and view live performance insights.</p>
-          </div>
+          </div >
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
@@ -1080,62 +1081,101 @@ const Reports = () => {
                     onClick={() => setSelectedClients(selectedClients.length === clients.length ? [] : clients.map(c => c._id))}
                     className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/50 cursor-pointer transition-colors"
                   >
-                    <div className={`w - 5 h - 5 rounded border flex items - center justify - center ${selectedClients.length === clients.length && clients.length > 0 ? 'bg-purple-500 border-purple-500' : 'border-slate-600'
-                      } `}>
+                    <div className={`w-5 h-5 rounded border flex items-center justify-center ${selectedClients.length === clients.length && clients.length > 0 ? 'bg-purple-500 border-purple-500' : 'border-slate-600'
+                      }`}>
                       {selectedClients.length === clients.length && clients.length > 0 && <Check size={12} className="text-white" />}
                     </div>
                     <span className="text-sm font-medium text-slate-300">Select All Clients</span>
                   </div>
 
-                  {filteredClients.map(client => (
-                    <div
-                      key={client._id}
-                      onClick={() => toggleClient(client._id)}
-                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/50 cursor-pointer transition-colors group"
-                    >
-                      <div className={`w - 5 h - 5 rounded border flex items - center justify - center transition - colors ${selectedClients.includes(client._id) ? 'bg-purple-500 border-purple-500' : 'border-slate-600 group-hover:border-slate-500'
-                        } `}>
-                        {selectedClients.includes(client._id) && <Check size={12} className="text-white" />}
-                      </div>
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300">
-                          {client.name.substring(0, 2).toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-200 truncate">{client.name}</p>
-                          <p className="text-xs text-slate-500 truncate">{client.email || 'No email'}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+<<<<<<< HEAD
+  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+
+    {/* LEFT COLUMN: Report Builder (40%) */}
+    <div className="lg:col-span-5 space-y-6">
+
+      {/* 1. Template Selection - REMOVED */}
+
+      {/* 2. Client Selection */}
+      <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-lg">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-purple-500/10 rounded-lg text-purple-400">
+              <Users size={20} />
+            </div>
+            <h3 className="text-lg font-semibold text-white">Select Clients</h3>
+          </div>
+          <span className="text-xs font-medium px-2 py-1 bg-slate-800 rounded-md text-slate-400">
+            {selectedClients.length} selected
+          </span>
+        </div>
+
+        <div className="relative mb-3">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+          <input
+            type="text"
+            placeholder="Search clients..."
+            value={clientSearch}
+            onChange={(e) => setClientSearch(e.target.value)}
+            className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+          />
+        </div>
+
+        <div className="max-h-[240px] overflow-y-auto pr-1 space-y-1 custom-scrollbar">
+          <div
+            onClick={() => setSelectedClients(selectedClients.length === clients.length ? [] : clients.map(c => c._id))}
+            className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/50 cursor-pointer transition-colors"
+          >
+            <div className={`w - 5 h - 5 rounded border flex items - center justify - center ${selectedClients.length === clients.length && clients.length > 0 ? 'bg-purple-500 border-purple-500' : 'border-slate-600'
+              } `}>
+              {selectedClients.length === clients.length && clients.length > 0 && <Check size={12} className="text-white" />}
+            </div>
+            <span className="text-sm font-medium text-slate-300">Select All Clients</span>
+          </div>
+
+          {filteredClients.map(client => (
+            <div
+              key={client._id}
+              onClick={() => toggleClient(client._id)}
+              className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/50 cursor-pointer transition-colors group"
+            >
+              <div className={`w - 5 h - 5 rounded border flex items - center justify - center transition - colors ${selectedClients.includes(client._id) ? 'bg-purple-500 border-purple-500' : 'border-slate-600 group-hover:border-slate-500'
+                } `}>
+                {selectedClients.includes(client._id) && <Check size={12} className="text-white" />}
+              </div>
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300">
+                  {client.name.substring(0, 2).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-200 truncate">{client.name}</p>
+                  <p className="text-xs text-slate-500 truncate">{client.email || 'No email'}</p>
                 </div>
               </div>
-
-              {/* 3. Period & Actions */}
-              <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-lg">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400">
-                    <Calendar size={20} />
-                  </div>
-                  <h3 className="text-lg font-semibold text-white">Report Period</h3>
-                </div>
-
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
-                  {[
-                    { label: '7 Days', days: 7 },
-                    { label: '30 Days', days: 30 },
-                    { label: '90 Days', days: 90 },
-                    { label: 'YTD', days: 365 } // Simplified YTD
-                  ].map(opt => (
-                    <button
-                      key={opt.label}
-                      onClick={() => setQuickDateRange(opt.days)}
-                      className="px-3 py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition-colors"
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
+            </div>
+          ))}
+        </div>
+=======
+          {filteredClients.map(client => (
+          <div
+            key={client._id}
+            onClick={() => toggleClient(client._id)}
+            className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/50 cursor-pointer transition-colors group"
+          >
+            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${selectedClients.includes(client._id) ? 'bg-purple-500 border-purple-500' : 'border-slate-600 group-hover:border-slate-500'
+              }`}>
+              {selectedClients.includes(client._id) && <Check size={12} className="text-white" />}
+>>>>>>> f15cad277d2bb9c989fc1b6e175447880767cc01
+            </div>
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300">
+                {client.name.substring(0, 2).toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-slate-200 truncate">{client.name}</p>
+                <p className="text-xs text-slate-500 truncate">{client.email || 'No email'}</p>
+              </div>
+<<<<<<< HEAD
 
                 <div className="grid grid-cols-2 gap-4 mb-6">
                   <div>
@@ -1177,275 +1217,274 @@ const Reports = () => {
                   </button>
                 </div>
 
-                {/* Download Options (Always visible for demo, but logically after generation) */}
-                <div className="mt-4 pt-4 border-t border-slate-800 flex justify-center gap-4 flex-wrap">
-                  <button onClick={generateSummary} className="text-xs bg-green-500/20 text-green-400 hover:bg-green-500/30 hover:text-green-300 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors font-medium">
-                    <FileBarChart2 size={14} /> Get Summary
-                  </button>
-                  <button onClick={printReportWithWhiteBackground} className="text-xs bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 hover:text-blue-300 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors font-medium">
-                    <Download size={14} /> PDF
-                  </button>
-                  <button onClick={() => downloadReport('json')} className="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition-colors">
-                    <Download size={12} /> JSON
-                  </button>
-                  <button onClick={() => downloadReport('txt')} className="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition-colors">
-                    <Download size={12} /> Text
-                  </button>
-                </div>
-              </div>
+  {/* Download Options (Always visible for demo, but logically after generation) */ }
+  <div className="mt-4 pt-4 border-t border-slate-800 flex justify-center gap-4 flex-wrap">
+    <button onClick={generateSummary} className="text-xs bg-green-500/20 text-green-400 hover:bg-green-500/30 hover:text-green-300 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors font-medium">
+      <FileBarChart2 size={14} /> Get Summary
+    </button>
+    <button onClick={printReportWithWhiteBackground} className="text-xs bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 hover:text-blue-300 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors font-medium">
+      <Download size={14} /> PDF
+    </button>
+    <button onClick={() => downloadReport('json')} className="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition-colors">
+      <Download size={12} /> JSON
+    </button>
+    <button onClick={() => downloadReport('txt')} className="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition-colors">
+      <Download size={12} /> Text
+    </button>
+  </div>
+              </div >
 
-              {/* 4. Schedule (Collapsible) */}
-              <div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
-                <button
-                  onClick={() => setShowSchedule(!showSchedule)}
-                  className="w-full flex items-center justify-between p-4 hover:bg-slate-800/50 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-orange-500/10 rounded-lg text-orange-400">
-                      <Calendar size={20} />
-                    </div>
-                    <h3 className="text-base font-semibold text-white">Monthly Schedule</h3>
-                  </div>
-                  {showSchedule ? <ChevronUp size={18} className="text-slate-500" /> : <ChevronDown size={18} className="text-slate-500" />}
-                </button>
-
-                {showSchedule && (
-                  <div className="p-6 pt-0 border-t border-slate-800/50 mt-2">
-
-                    {/* Client Selection Area */}
-                    <div className="mb-6 mt-4">
-                      <label className="block text-xs text-slate-400 mb-2 font-medium">Scheduling for Clients:</label>
-
-                      {/* Selected Clients Tags */}
-                      {selectedClients.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mb-3">
-                          {selectedClients.map(clientId => {
-                            const client = clients.find(c => c._id === clientId);
-                            return client ? (
-                              <div key={clientId} className="flex items-center gap-1.5 bg-blue-500/10 border border-blue-500/20 text-blue-300 px-2.5 py-1 rounded-md text-xs font-medium">
-                                <span>{client.name}</span>
-                                <button
-                                  onClick={() => setSelectedClients(selectedClients.filter(id => id !== clientId))}
-                                  className="text-blue-400 hover:text-blue-200"
-                                >
-                                  <X size={12} />
-                                </button>
-                              </div>
-                            ) : null;
-                          })}
-                        </div>
-                      )}
-
-                      {/* Add Client Dropdown */}
-                      <select
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:ring-2 focus:ring-blue-500/50 outline-none"
-                        onChange={(e) => {
-                          if (e.target.value && !selectedClients.includes(e.target.value)) {
-                            setSelectedClients([...selectedClients, e.target.value]);
-                          }
-                        }}
-                        value=""
-                      >
-                        <option value="">{selectedClients.length === 0 ? '-- Select Client to Schedule --' : '+ Add another client'}</option>
-                        {clients
-                          .filter(c => !selectedClients.includes(c._id))
-                          .map(client => (
-                            <option key={client._id} value={client._id}>{client.name}</option>
-                          ))}
-                      </select>
-                    </div>
-
-                    <div className="flex items-center gap-3 mb-4 mt-4">
-                      <input
-                        type="checkbox"
-                        checked={reportSchedule.enabled}
-                        onChange={(e) => setReportSchedule({ ...reportSchedule, enabled: e.target.checked })}
-                        className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-offset-slate-900"
-                      />
-                      <label className="text-sm text-slate-300">Enable automatic monthly reports</label>
-                    </div>
-
-                    {reportSchedule.enabled && (
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs text-slate-500 mb-1">Day of Month</label>
-                          <select
-                            value={reportSchedule.dayOfMonth}
-                            onChange={(e) => setReportSchedule({ ...reportSchedule, dayOfMonth: parseInt(e.target.value) })}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200"
-                          >
-                            {[...Array(31)].map((_, i) => (
-                              <option key={i + 1} value={i + 1}>{i + 1}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-xs text-slate-500 mb-1">Time</label>
-                          <input
-                            type="time"
-                            value={reportSchedule.time}
-                            onChange={(e) => setReportSchedule({ ...reportSchedule, time: e.target.value })}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200"
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {reportSchedule.enabled && (
-                      <div className="mt-4 space-y-4 border-t border-slate-800 pt-4">
-                        {/* Send to Client Checkbox */}
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="checkbox"
-                            checked={reportSchedule.sendToClient}
-                            onChange={(e) => setReportSchedule({ ...reportSchedule, sendToClient: e.target.checked })}
-                            className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-offset-slate-900"
-                          />
-                          <label className="text-sm text-slate-300">Send copy to Client Email</label>
-                        </div>
-
-                        {/* Additional Recipients */}
-                        <div>
-                          <label className="block text-xs text-slate-500 mb-2">Additional Email Recipients</label>
-                          <div className="flex gap-2 mb-2">
-                            <input
-                              type="email"
-                              placeholder="Enter email address"
-                              value={newRecipient}
-                              onChange={(e) => setNewRecipient(e.target.value)}
-                              className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault();
-                                  if (newRecipient && newRecipient.includes('@')) {
-                                    setReportSchedule({
-                                      ...reportSchedule,
-                                      emailRecipients: [...reportSchedule.emailRecipients, newRecipient]
-                                    });
-                                    setNewRecipient('');
-                                  }
-                                }
-                              }}
-                            />
-                            <button
-                              onClick={() => {
-                                if (newRecipient && newRecipient.includes('@')) {
-                                  setReportSchedule({
-                                    ...reportSchedule,
-                                    emailRecipients: [...reportSchedule.emailRecipients, newRecipient]
-                                  });
-                                  setNewRecipient('');
-                                }
-                              }}
-                              className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
-                            >
-                              Add
-                            </button>
-                          </div>
-
-                          {/* Recipients List */}
-                          {reportSchedule.emailRecipients.length > 0 && (
-                            <div className="flex flex-wrap gap-2">
-                              {reportSchedule.emailRecipients.map((email, index) => (
-                                <div key={index} className="flex items-center gap-1 bg-slate-800/50 border border-slate-700 rounded-md px-2 py-1 text-xs text-slate-300">
-                                  <span>{email}</span>
-                                  <button
-                                    onClick={() => {
-                                      const newRecipients = [...reportSchedule.emailRecipients];
-                                      newRecipients.splice(index, 1);
-                                      setReportSchedule({ ...reportSchedule, emailRecipients: newRecipients });
-                                    }}
-                                    className="text-slate-500 hover:text-rose-400"
-                                  >
-                                    <X size={12} />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    <button
-                      onClick={saveSchedule}
-                      disabled={selectedClients.length === 0}
-                      className={`w-full mt-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedClients.length === 0
-                        ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                        : 'bg-slate-800 hover:bg-slate-700 text-white'
-                        }`}
-                    >
-                      {selectedClients.length === 0 ? 'Select a Client to Schedule' : 'Save Schedule'}
-                    </button>
-
-                    {/* Display saved schedules */}
-                    {savedSchedules.length > 0 && (
-                      <div className="mt-6 pt-4 border-t border-slate-800">
-                        <h4 className="text-sm font-medium text-slate-300 mb-3">Active Schedules</h4>
-                        <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                          {savedSchedules.map(schedule => (
-                            <div key={schedule._id} className="flex items-center justify-between bg-slate-950 p-3 rounded-lg border border-slate-800">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-slate-200 truncate">
-                                  {schedule.client?.name || 'Unknown Client'}
-                                </p>
-                                <p className="text-xs text-slate-500">
-                                  Next: {new Date(schedule.nextRun).toLocaleDateString()} at {new Date(schedule.nextRun).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </p>
-                              </div>
-                              <div className="flex items-center">
-                                <button
-                                  onClick={() => runSchedule(schedule._id)}
-                                  className="p-1.5 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded transition-colors mr-1"
-                                  title="Run now"
-                                >
-                                  <Play size={14} />
-                                </button>
-                                <button
-                                  onClick={() => deleteSchedule(schedule._id)}
-                                  className="p-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded transition-colors"
-                                  title="Delete schedule"
-                                >
-                                  <X size={14} />
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-              </div>
-                )}
-            </div>
-
-          </div>
-
-          {/* RIGHT COLUMN: Live Preview (60%) */}
-          <div className="lg:col-span-7">
-            <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 min-h-[600px] backdrop-blur-sm">
-              {previewLoading ? (
-                <div className="h-full flex flex-col items-center justify-center text-slate-500 py-20">
-                  <Loader2 size={40} className="animate-spin text-blue-500 mb-4" />
-                  <p>Generating preview...</p>
-                </div>
-              ) : previewError ? (
-                <div className="h-full flex flex-col items-center justify-center text-rose-500 py-20">
-                  <p>Error loading preview: {previewError}</p>
-                </div>
-              ) : (
-                <LiveReportPreview
-                  analytics={previewData}
-                  client={clients.find(c => c._id === selectedClients[0])}
-                  dateRange={{ startDate, endDate }}
-                />
-              )}
-            </div>
-          </div>
-
+  {/* 4. Schedule (Collapsible) */ }
+  < div className = "bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden shadow-lg" >
+    <button
+      onClick={() => setShowSchedule(!showSchedule)}
+      className="w-full flex items-center justify-between p-4 hover:bg-slate-800/50 transition-colors"
+    >
+      <div className="flex items-center gap-3">
+        <div className="p-2 bg-orange-500/10 rounded-lg text-orange-400">
+          <Calendar size={20} />
         </div>
+        <h3 className="text-base font-semibold text-white">Monthly Schedule</h3>
       </div>
+      {showSchedule ? <ChevronUp size={18} className="text-slate-500" /> : <ChevronDown size={18} className="text-slate-500" />}
+    </button>
+
+{
+  showSchedule && (
+    <div className="p-6 pt-0 border-t border-slate-800/50 mt-2">
+
+      {/* Client Selection Area */}
+      <div className="mb-6 mt-4">
+        <label className="block text-xs text-slate-400 mb-2 font-medium">Scheduling for Clients:</label>
+
+        {/* Selected Clients Tags */}
+        {selectedClients.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {selectedClients.map(clientId => {
+              const client = clients.find(c => c._id === clientId);
+              return client ? (
+                <div key={clientId} className="flex items-center gap-1.5 bg-blue-500/10 border border-blue-500/20 text-blue-300 px-2.5 py-1 rounded-md text-xs font-medium">
+                  <span>{client.name}</span>
+                  <button
+                    onClick={() => setSelectedClients(selectedClients.filter(id => id !== clientId))}
+                    className="text-blue-400 hover:text-blue-200"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ) : null;
+            })}
+          </div>
+        )}
+
+        {/* Add Client Dropdown */}
+        <select
+          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:ring-2 focus:ring-blue-500/50 outline-none"
+          onChange={(e) => {
+            if (e.target.value && !selectedClients.includes(e.target.value)) {
+              setSelectedClients([...selectedClients, e.target.value]);
+            }
+          }}
+          value=""
+        >
+          <option value="">{selectedClients.length === 0 ? '-- Select Client to Schedule --' : '+ Add another client'}</option>
+          {clients
+            .filter(c => !selectedClients.includes(c._id))
+            .map(client => (
+              <option key={client._id} value={client._id}>{client.name}</option>
+            ))}
+        </select>
+      </div>
+
+      <div className="flex items-center gap-3 mb-4 mt-4">
+        <input
+          type="checkbox"
+          checked={reportSchedule.enabled}
+          onChange={(e) => setReportSchedule({ ...reportSchedule, enabled: e.target.checked })}
+          className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-offset-slate-900"
+        />
+        <label className="text-sm text-slate-300">Enable automatic monthly reports</label>
+      </div>
+
+      {reportSchedule.enabled && (
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Day of Month</label>
+            <select
+              value={reportSchedule.dayOfMonth}
+              onChange={(e) => setReportSchedule({ ...reportSchedule, dayOfMonth: parseInt(e.target.value) })}
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200"
+            >
+              {[...Array(31)].map((_, i) => (
+                <option key={i + 1} value={i + 1}>{i + 1}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Time</label>
+            <input
+              type="time"
+              value={reportSchedule.time}
+              onChange={(e) => setReportSchedule({ ...reportSchedule, time: e.target.value })}
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200"
+            />
+          </div>
+        </div>
+      )}
+
+      {reportSchedule.enabled && (
+        <div className="mt-4 space-y-4 border-t border-slate-800 pt-4">
+          {/* Send to Client Checkbox */}
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              checked={reportSchedule.sendToClient}
+              onChange={(e) => setReportSchedule({ ...reportSchedule, sendToClient: e.target.checked })}
+              className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-offset-slate-900"
+            />
+            <label className="text-sm text-slate-300">Send copy to Client Email</label>
+          </div>
+
+          {/* Additional Recipients */}
+          <div>
+            <label className="block text-xs text-slate-500 mb-2">Additional Email Recipients</label>
+            <div className="flex gap-2 mb-2">
+              <input
+                type="email"
+                placeholder="Enter email address"
+                value={newRecipient}
+                onChange={(e) => setNewRecipient(e.target.value)}
+                className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (newRecipient && newRecipient.includes('@')) {
+                      setReportSchedule({
+                        ...reportSchedule,
+                        emailRecipients: [...reportSchedule.emailRecipients, newRecipient]
+                      });
+                      setNewRecipient('');
+                    }
+                  }
+                }}
+              />
+              <button
+                onClick={() => {
+                  if (newRecipient && newRecipient.includes('@')) {
+                    setReportSchedule({
+                      ...reportSchedule,
+                      emailRecipients: [...reportSchedule.emailRecipients, newRecipient]
+                    });
+                    setNewRecipient('');
+                  }
+                }}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+              >
+                Add
+              </button>
+            </div>
+
+            {/* Recipients List */}
+            {reportSchedule.emailRecipients.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {reportSchedule.emailRecipients.map((email, index) => (
+                  <div key={index} className="flex items-center gap-1 bg-slate-800/50 border border-slate-700 rounded-md px-2 py-1 text-xs text-slate-300">
+                    <span>{email}</span>
+                    <button
+                      onClick={() => {
+                        const newRecipients = [...reportSchedule.emailRecipients];
+                        newRecipients.splice(index, 1);
+                        setReportSchedule({ ...reportSchedule, emailRecipients: newRecipients });
+                      }}
+                      className="text-slate-500 hover:text-rose-400"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      <button
+        onClick={saveSchedule}
+        disabled={selectedClients.length === 0}
+        className={`w-full mt-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedClients.length === 0
+          ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+          : 'bg-slate-800 hover:bg-slate-700 text-white'
+          }`}
+      >
+        {selectedClients.length === 0 ? 'Select a Client to Schedule' : 'Save Schedule'}
+      </button>
+
+      {/* Display saved schedules */}
+      {savedSchedules.length > 0 && (
+        <div className="mt-6 pt-4 border-t border-slate-800">
+          <h4 className="text-sm font-medium text-slate-300 mb-3">Active Schedules</h4>
+          <div className="space-y-2 max-h-[200px] overflow-y-auto">
+            {savedSchedules.map(schedule => (
+              <div key={schedule._id} className="flex items-center justify-between bg-slate-950 p-3 rounded-lg border border-slate-800">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-200 truncate">
+                    {schedule.client?.name || 'Unknown Client'}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Next: {new Date(schedule.nextRun).toLocaleDateString()} at {new Date(schedule.nextRun).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
+                <div className="flex items-center">
+                  <button
+                    onClick={() => runSchedule(schedule._id)}
+                    className="p-1.5 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded transition-colors mr-1"
+                    title="Run now"
+                  >
+                    <Play size={14} />
+                  </button>
+                  <button
+                    onClick={() => deleteSchedule(schedule._id)}
+                    className="p-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded transition-colors"
+                    title="Delete schedule"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+
     </div>
 
-      {/* Summary Modal */ }
+          {/* RIGHT COLUMN: Live Preview (60%) */ }
+  <div className="lg:col-span-7">
+    <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 min-h-[600px] backdrop-blur-sm">
+      {previewLoading ? (
+        <div className="h-full flex flex-col items-center justify-center text-slate-500 py-20">
+          <Loader2 size={40} className="animate-spin text-blue-500 mb-4" />
+          <p>Generating preview...</p>
+        </div>
+      ) : previewError ? (
+        <div className="h-full flex flex-col items-center justify-center text-rose-500 py-20">
+          <p>Error loading preview: {previewError}</p>
+        </div>
+      ) : (
+        <LiveReportPreview
+          analytics={previewData}
+          client={clients.find(c => c._id === selectedClients[0])}
+          dateRange={{ startDate, endDate }}
+        />
+      )}
+    </div>
+  </div>
+
+        </div >
+      </div >
+    </div >
+
+    {/* Summary Modal */ }
   {
     showSummary && summaryData && (
       <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -1649,6 +1688,7 @@ const Reports = () => {
       </div>
     )
   }
+
     </Layout >
   );
 };

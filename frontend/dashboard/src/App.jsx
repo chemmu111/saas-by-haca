@@ -10,6 +10,7 @@ import Analytics from './Analytics.jsx';
 import Reports from './Reports.jsx';
 import Settings from './Settings.jsx';
 import AdminTokenMonitor from './AdminTokenMonitor.jsx';
+import NotFound from './NotFound.jsx';
 
 // Helper function to get backend URL
 const getBackendUrl = () => {
@@ -34,26 +35,39 @@ const getBackendUrl = () => {
 import Login from '../../auth/Login.jsx';
 import Signup from '../../auth/Signup.jsx';
 
+// Helper to check if token is expired
+const isTokenExpired = (token) => {
+  if (!token) return true;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.exp * 1000 < Date.now();
+  } catch (e) {
+    return true;
+  }
+};
+
 // Component to handle authentication check
 const AuthGuard = ({ children }) => {
   const location = useLocation();
-
-  useEffect(() => {
-    const token = localStorage.getItem('auth_token');
-    const publicPaths = ['/login', '/signup'];
-
-    // If no token and trying to access dashboard routes, redirect to login
-    if (!token && !publicPaths.includes(location.pathname)) {
-      // Redirect to internal login route instead of external html
-      // window.location.href = '/login'; // This would cause full reload, better to use navigate if possible, but here we are inside useEffect
-    }
-  }, [location]);
-
   const token = localStorage.getItem('auth_token');
   const publicPaths = ['/login', '/signup'];
 
+  useEffect(() => {
+    if (token && isTokenExpired(token)) {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('user_info');
+      // Force reload to clear state and redirect
+      window.location.href = '/login';
+    }
+  }, [token, location]);
+
   if (!token && !publicPaths.includes(location.pathname)) {
     return <Navigate to="/login" replace />;
+  }
+
+  // If we have a token but it's expired (and useEffect hasn't fired yet), don't render children
+  if (token && isTokenExpired(token)) {
+    return null; // or loading spinner
   }
 
   // If authenticated and trying to access login/signup, redirect to dashboard
@@ -90,8 +104,8 @@ const App = () => {
             <Route path="/dashboard/admin/tokens" element={<AdminTokenMonitor />} />
             <Route path="/clients" element={<Clients />} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            {/* Catch-all route - redirect unmatched routes to dashboard */}
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            {/* Catch-all route - show custom 404 page */}
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthGuard>
       </BrowserRouter>

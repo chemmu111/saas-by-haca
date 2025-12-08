@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import PageTitle from './components/PageTitle';
 import {
   X, Upload, Image as ImageIcon, Video, Hash, Calendar, Clock, Send,
   AlertCircle, CheckCircle, Loader, Sparkles, Crop, RotateCw,
@@ -850,6 +851,7 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
 
   return (
     <>
+      <PageTitle title={editingPost ? "Edit Post" : "Create Post"} />
       {/* Modal Backdrop */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm font-sans">
         <div

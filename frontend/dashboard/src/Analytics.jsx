@@ -4,6 +4,7 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { Loader2, AlertCircle } from 'lucide-react';
 import Layout from './Layout';
+import PageTitle from './components/PageTitle';
 
 // Import existing modular components
 import AnalyticsHeader from './components/analytics/AnalyticsHeader';
@@ -344,32 +345,80 @@ const Analytics = ({ embedded = false, clientId = null }) => {
       });
     }
 
-    // Recalculate aggregate stats based on filtered posts
-    const recalculatedStats = {
-      totalViews: 0,
-      totalLikes: 0,
-      totalComments: 0,
-      totalShares: 0,
-      totalSaves: 0,
-      totalEngagements: 0
+    // Calculate totals from filtered posts
+    let totalViews = 0;
+    let totalReach = 0;
+    let totalInteractions = 0;
+    let totalLikes = 0;
+    let totalComments = 0;
+    let totalSaves = 0;
+    let totalShares = 0;
+    let totalEngagements = 0;
+    let totalWatchTime = 0;
+    let watchTimeCount = 0;
+
+    const postsByType = {
+      IMAGE: 0,
+      VIDEO: 0,
+      REELS: 0,
+      CAROUSEL_ALBUM: 0
     };
 
     filteredPosts.forEach(post => {
       const metrics = post.metrics || {};
-      recalculatedStats.totalViews += metrics.views || 0;
-      recalculatedStats.totalLikes += metrics.likes || 0;
-      recalculatedStats.totalComments += metrics.comments || 0;
-      recalculatedStats.totalShares += metrics.shares || 0;
-      recalculatedStats.totalSaves += metrics.saved || 0;
-      recalculatedStats.totalEngagements += metrics.engagement || (metrics.likes + metrics.comments + (metrics.saved || 0) + (metrics.shares || 0)) || 0;
+
+      totalViews += metrics.views || 0;
+      totalReach += metrics.reach || 0;
+      totalInteractions += metrics.engagement || 0;
+      totalLikes += metrics.likes || 0;
+      totalComments += metrics.comments || 0;
+      totalSaves += metrics.saved || 0;
+      totalShares += metrics.shares || 0;
+      totalEngagements += metrics.engagement || 0;
+
+      if (metrics.watchTimeTotal) {
+        totalWatchTime += metrics.watchTimeTotal;
+        watchTimeCount++;
+      }
+
+      // Count by type
+      const type = post.media_type;
+      if (postsByType.hasOwnProperty(type)) {
+        postsByType[type]++;
+      }
     });
 
-    console.log('📅 Recalculated stats:', recalculatedStats);
+    const avgWatchTime = watchTimeCount > 0 ? totalWatchTime / watchTimeCount : 0;
+
+    // Calculate engagement rate
+    const engagementRate = totalReach > 0
+      ? ((totalEngagements / totalReach) * 100).toFixed(2)
+      : analytics.engagementRate || 0;
+
+    console.log('📊 Computed Analytics from filtered posts:');
+    console.log('   Total Posts:', filteredPosts.length);
+    console.log('   Total Views:', totalViews);
+    console.log('   Total Reach:', totalReach);
+    console.log('   Total Interactions:', totalInteractions);
 
     return {
       ...analytics,
-      // Override with recalculated stats when filtering
-      ...(startDate ? recalculatedStats : {}),
+      totalPosts: filteredPosts.length,
+      totalViews,
+      totalReach,
+      totalInteractions,
+      totalLikes,
+      totalComments,
+      totalSaves,
+      totalShares,
+      totalEngagements,
+      avgWatchTime,
+      reelWatchTimeTotal: totalWatchTime,
+      engagementRate,
+      postsByType: {
+        ...analytics.postsByType,
+        ...postsByType
+      },
       detailedPosts: filteredPosts,
       viewsTrend: filteredViewsTrend
     };
@@ -502,6 +551,7 @@ const Analytics = ({ embedded = false, clientId = null }) => {
 
   return (
     <Layout>
+      <PageTitle title="Analytics Dashboard" />
       <Content />
     </Layout>
   );

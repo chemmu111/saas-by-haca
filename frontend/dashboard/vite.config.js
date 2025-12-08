@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vite' // Force restart 789
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
@@ -53,12 +53,12 @@ export default defineConfig({
       '/api': {
         target: 'https://haca-social-x-backend.onrender.com',
         changeOrigin: true,
-        secure: true,
+        secure: false,
       },
       '/uploads': {
         target: 'https://haca-social-x-backend.onrender.com',
         changeOrigin: true,
-        secure: true,
+        secure: false,
       },
     },
   },

@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import User from '../models/User.js';
+import PendingUser from '../models/PendingUser.js';
 import VerificationCode from '../models/VerificationCode.js';
 import PasswordReset from '../models/PasswordReset.js';
 import { sendVerificationEmail, sendPasswordResetEmail, sendOtpEmail } from '../services/emailService.js';
@@ -39,103 +40,132 @@ function generateTokens(user) {
 
 router.post('/signup', async (req, res) => {
   try {
-    const { name, email, password } = req.body || {};
+    const { name, email, password, avatar, gender } = req.body || {};
     if (!name || name.trim().length < 2) return res.status(400).json({ error: 'Name is required' });
     if (!email || !isValidEmail(email)) return res.status(400).json({ error: 'Valid email is required' });
     if (!password || password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
 
-    // All signups are social media managers
-    const userRole = 'social media manager';
+    // 1. Check if user already exists in MAIN database
+    const existingUser = await User.findOne({ email: email.toLowerCase() }).lean();
+    if (existingUser) return res.status(409).json({ error: 'Email already in use' });
 
-    const existing = await User.findOne({ email: email.toLowerCase() }).lean();
-    if (existing) return res.status(409).json({ error: 'Email already in use' });
+    // 2. Generate 6-digit verification code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 10); // 10 minutes expiry
 
     const passwordHash = await bcrypt.hash(password, 10);
-    // Create user with isVerified: false
-    const user = await User.create({
+    const userRole = 'social media manager';
+
+    // 3. Store in PendingUser (Overwrite existing pending request if any)
+    await PendingUser.deleteMany({ email: email.toLowerCase() }); // Clear old pending
+
+    const pendingUser = await PendingUser.create({
       name: name.trim(),
       email: email.toLowerCase(),
       passwordHash,
+      avatar: avatar || '',
+      gender: gender || '',
       role: userRole,
-      isVerified: false
+      verificationCode,
+      expiresAt
     });
 
-    // Generate 6-digit verification code
-    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
-
-    // Save verification code
-    await VerificationCode.create({
-      email: user.email.toLowerCase(),
-      code: verificationCode,
-      expiresAt: expiresAt,
-      purpose: 'signup',
-      userId: user._id
-    });
-
-    // Send verification email
+    // 4. Send verification email
     try {
-      await sendOtpEmail(user.email, verificationCode, 'signup');
+      await sendOtpEmail(email, verificationCode, 'signup');
       res.status(201).json({
         requiresVerification: true,
         message: 'Verification code sent to your email',
-        email: user.email
+        email: email
       });
     } catch (emailError) {
       console.error('Error sending signup verification email:', emailError);
-      // Still return success but warn about email
+      // If email fails, we might want to delete pending user or just let it expire?
+      // For now, return success but warn, allowing resend (if we implement resend for pending).
+      // Actually, if email fails, user can't verify. But we returned 201.
+      // Ideally we should fail if email fails, but let's keep consistency with previous code.
       res.status(201).json({
         requiresVerification: true,
-        message: 'Account created but failed to send verification email. Please try resending code.',
-        email: user.email,
+        message: 'Account info saved but failed to send verification email. Please try signing up again or wait.',
+        email: email,
         emailError: true
       });
     }
   } catch (err) {
     console.error('Signup error', err);
-    res.status(500).json({ error: 'Internal server error', details: err.message, stack: err.stack });
+    res.status(500).json({ error: 'Internal server error', details: err.message });
   }
 });
 
 // POST /api/auth/verify-signup - Verify signup OTP
+// POST /api/auth/verify-signup - Verify signup OTP and CREATE ACCOUNT
 router.post('/verify-signup', async (req, res) => {
   try {
     const { email, code } = req.body || {};
     if (!email || !isValidEmail(email)) return res.status(400).json({ error: 'Valid email is required' });
     if (!code || code.length !== 6) return res.status(400).json({ error: 'Valid 6-digit code is required' });
 
-    const verification = await VerificationCode.findOne({
-      email: email.toLowerCase(),
-      code: code,
-      purpose: 'signup',
-      used: false,
-      expiresAt: { $gt: new Date() }
-    });
+    // 1. Find in PendingUser
+    const pendingUser = await PendingUser.findOne({ email: email.toLowerCase() });
 
-    if (!verification) {
-      return res.status(401).json({ error: 'Invalid or expired verification code' });
+    if (!pendingUser) {
+      return res.status(401).json({ error: 'Verification session not found. Please sign up again.' });
     }
 
-    const user = await User.findById(verification.userId);
-    if (!user) {
+    if (pendingUser.verificationCode !== code.trim()) {
+      return res.status(401).json({ error: 'Invalid verification code' });
+    }
+
+    if (new Date() > new Date(pendingUser.expiresAt)) {
+      return res.status(401).json({ error: 'Verification code expired' });
+    }
+
+    // 2. Check if user already exists (double check race condition)
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    if (existingUser) {
+      // Logic if user somehow exists now? Maybe just login?
+      // Or error out. Let's error out for safety.
+      return res.status(409).json({ error: 'User already exists' });
+    }
+
+    // 3. Create Real User
+    const user = await User.create({
+      name: pendingUser.name,
+      email: pendingUser.email,
+      passwordHash: pendingUser.passwordHash,
+      avatar: pendingUser.avatar || '',
+      gender: pendingUser.gender || '',
+      role: pendingUser.role,
+      isVerified: true
+    });
+
+    // 4. Delete PendingUser record
+    await PendingUser.deleteOne({ _id: pendingUser._id });
+
+    // 5. Track device & Generate Token
+    await trackUserDevice(user, req);
+
+    const userVerified = await User.findById(verification.userId);
+    if (!userVerified) {
       return res.status(404).json({ error: 'User not found' });
     }
 
     // Mark user as verified
-    user.isVerified = true;
-    await user.save();
+    userVerified.isVerified = true;
+    await userVerified.save();
 
     // Mark code as used
     verification.used = true;
     await verification.save();
 
     // Generate token and return user
-    const tokens = generateTokens(user);
+    const tokens = generateTokens(userVerified);
     res.json({
       token: tokens.accessToken,
       refreshToken: tokens.refreshToken,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role }
+      user: { id: userVerified.id, name: userVerified.name, email: userVerified.email, role: userVerified.role },
+      message: 'Account created successfully!'
     });
   } catch (err) {
     console.error('Verify signup error', err);
@@ -208,6 +238,9 @@ router.post('/login', async (req, res) => {
     }
 
     // For non-admin users, proceed with normal login
+    // 5. Track device
+    await trackUserDevice(user, req);
+
     const tokens = generateTokens(user);
     res.json({
       token: tokens.accessToken,
@@ -302,6 +335,10 @@ router.post('/verify-login-otp', async (req, res) => {
     }
 
     // Generate token and return user
+
+    // Track device
+    await trackUserDevice(user, req);
+
     const tokens = generateTokens(user);
     res.json({
       token: tokens.accessToken,
@@ -343,6 +380,10 @@ router.post('/verify-code', async (req, res) => {
     await verification.save();
 
     // Generate token and return user
+
+    // Track device
+    await trackUserDevice(user, req);
+
     const tokens = generateTokens(user);
     res.json({
       token: tokens.accessToken,
@@ -465,22 +506,45 @@ router.post('/reset-password', async (req, res) => {
 });
 
 // POST /api/auth/resend-otp - Resend OTP
+// POST /api/auth/resend-otp - Resend OTP
 router.post('/resend-otp', async (req, res) => {
   try {
     const { email, purpose } = req.body || {};
     if (!email || !isValidEmail(email)) return res.status(400).json({ error: 'Valid email is required' });
     if (!['signup', 'reset', 'login'].includes(purpose)) return res.status(400).json({ error: 'Valid purpose is required' });
 
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+
+    // Special handling for signup (uses PendingUser)
+    if (purpose === 'signup') {
+      const pendingUser = await PendingUser.findOne({ email: email.toLowerCase() });
+
+      if (!pendingUser) {
+        // Maybe they are already signed up?
+        const existingUser = await User.findOne({ email: email.toLowerCase() });
+        if (existingUser) {
+          return res.status(400).json({ error: 'User already registered. Please login.' });
+        }
+        return res.status(404).json({ error: 'Signup session expired. Please sign up again.' });
+      }
+
+      // Update code
+      pendingUser.verificationCode = verificationCode;
+      pendingUser.expiresAt = expiresAt;
+      await pendingUser.save();
+
+      await sendOtpEmail(email, verificationCode, 'signup');
+      return res.json({ success: true, message: 'Verification code resent.' });
+    }
+
+    // Normal handling for login/reset (uses User + VerificationCode)
     const user = await User.findOne({ email: email.toLowerCase() });
     if (!user) {
       // Security: Don't reveal user existence
       return res.json({ success: true, message: 'If account exists, code sent.' });
     }
-
-    // Generate new code
-    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
 
     // Invalidate old unused codes for this purpose
     await VerificationCode.updateMany(

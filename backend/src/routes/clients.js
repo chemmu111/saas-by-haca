@@ -39,11 +39,15 @@ router.get('/', async (req, res) => {
     // Check if any clients need stats update (older than 24h or never updated)
     // Only for Instagram clients with active tokens
     const now = new Date();
-    const clientsToUpdate = clients.filter(c =>
-      c.platform === 'instagram' &&
-      c.tokenStatus && c.tokenStatus.state === 'active' &&
-      (!c.statsLastUpdated || (now - new Date(c.statsLastUpdated)) > 24 * 60 * 60 * 1000)
-    );
+    const clientsToUpdate = clients.filter(c => {
+      const isTokenActive = typeof c.tokenStatus === 'string'
+        ? c.tokenStatus === 'active'
+        : c.tokenStatus?.state === 'active';
+
+      return c.platform === 'instagram' &&
+        isTokenActive &&
+        (!c.statsLastUpdated || (now - new Date(c.statsLastUpdated)) > 24 * 60 * 60 * 1000);
+    });
 
     // Trigger background update (don't wait for response)
     if (clientsToUpdate.length > 0) {
@@ -63,6 +67,17 @@ router.get('/', async (req, res) => {
     // Calculate dynamic token status for each client
     const clientsWithDynamicStatus = clients.map(client => {
       const clientObj = client.toObject();
+
+      // Normalize string tokenStatus to object (Legacy Support)
+      if (typeof clientObj.tokenStatus === 'string') {
+        clientObj.tokenStatus = {
+          state: clientObj.tokenStatus,
+          expiresInDays: null,
+          lastRefresh: null,
+          nextRefresh: null,
+          lastRefreshStatus: 'unknown'
+        };
+      }
 
       if (clientObj.platform === 'instagram' && clientObj.tokenExpiresAt) {
         const now = new Date();
