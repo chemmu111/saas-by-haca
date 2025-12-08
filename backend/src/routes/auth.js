@@ -169,7 +169,8 @@ router.post('/verify-signup', async (req, res) => {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
+        avatar: user.avatar
       },
       message: 'Account created successfully!'
     });
@@ -247,7 +248,7 @@ router.post('/login', async (req, res) => {
     // For non-admin users, proceed with normal login
     await trackUserDevice(user, req);
     const token = signToken(user);
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar } });
   } catch (err) {
     console.error('Login error', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -338,7 +339,7 @@ router.post('/verify-login-otp', async (req, res) => {
     // Generate token and return user
     await trackUserDevice(user, req);
     const token = signToken(user);
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar } });
   } catch (err) {
     console.error('Verify Login OTP error', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -376,7 +377,7 @@ router.post('/verify-code', async (req, res) => {
     // Generate token and return user
     await trackUserDevice(user, req);
     const token = signToken(user);
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar } });
   } catch (err) {
     console.error('Verification error', err);
     res.status(500).json({ error: 'Internal server error' });

@@ -1,5 +1,5 @@
 import express from 'express';
-import multer from 'multer';
+import upload from '../middleware/upload.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import Post from '../models/Post.js';
@@ -14,69 +14,6 @@ const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadPath = path.join(__dirname, '../../uploads');
-    cb(null, uploadPath);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    // Preserve original filename extension
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-// Define allowed file types
-const allowedImageTypes = /jpeg|jpg|png|gif|webp/;
-const allowedVideoTypes = /mp4|mov|avi|mkv|webm|m4v/;
-const allowedAudioTypes = /mp3|wav|ogg|m4a|aac|flac/;
-const allowedMimeTypes = {
-  // Images
-  'image/jpeg': true,
-  'image/jpg': true,
-  'image/png': true,
-  'image/gif': true,
-  'image/webp': true,
-  // Videos
-  'video/mp4': true,
-  'video/quicktime': true,
-  'video/x-msvideo': true,
-  'video/x-matroska': true,
-  'video/webm': true,
-  'video/x-m4v': true,
-  // Audio
-  'audio/mpeg': true,
-  'audio/mp3': true,
-  'audio/wav': true,
-  'audio/ogg': true,
-  'audio/m4a': true,
-  'audio/aac': true,
-  'audio/flac': true,
-};
-
-const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 100 * 1024 * 1024, // 100MB limit (for videos)
-    // Add timeout for large file uploads (10 minutes)
-    timeout: 10 * 60 * 1000
-  },
-  fileFilter: function (req, file, cb) {
-    const ext = path.extname(file.originalname).toLowerCase().slice(1);
-    const isImage = allowedImageTypes.test(ext);
-    const isVideo = allowedVideoTypes.test(ext);
-    const isAudio = allowedAudioTypes.test(ext);
-    const isValidMimeType = allowedMimeTypes[file.mimetype];
-
-    if ((isImage || isVideo || isAudio) && isValidMimeType) {
-      return cb(null, true);
-    } else {
-      cb(new Error(`File type not allowed. Supported: Images (jpeg, jpg, png, gif, webp), Videos (mp4, mov, avi, mkv, webm, m4v), and Audio (mp3, wav, ogg, m4a, aac, flac)`));
-    }
-  }
-});
-
 // All routes require authentication
 router.use(requireAuth);
 
@@ -86,24 +23,16 @@ router.post('/upload', (req, res, next) => {
   upload.any()(req, res, (err) => {
     if (err) {
       // Handle multer errors
-      if (err instanceof multer.MulterError) {
-        if (err.code === 'LIMIT_FILE_SIZE') {
-          return res.status(400).json({
-            success: false,
-            error: 'File too large. Maximum size is 100MB. File size should be between 1MB and 100MB.'
-          });
-        }
+      if (err.code === 'LIMIT_FILE_SIZE') {
         return res.status(400).json({
           success: false,
-          error: `Upload error: ${err.message}`
-        });
-      } else {
-        // Handle file filter errors and other errors
-        return res.status(400).json({
-          success: false,
-          error: err.message || 'File upload failed'
+          error: 'File too large. Maximum size is 100MB.'
         });
       }
+      return res.status(400).json({
+        success: false,
+        error: `Upload error: ${err.message}`
+      });
     }
     next();
   });
@@ -126,34 +55,19 @@ router.post('/upload', (req, res, next) => {
     const isAudio = file.mimetype.startsWith('audio/');
     const fileType = isImage ? 'image' : isVideo ? 'video' : isAudio ? 'audio' : 'file';
 
-    // Validate file size based on file type
-    const fileSizeInMB = file.size / (1024 * 1024);
-    const maxSizeMB = 100; // Maximum size for all files
-
-    // For video files: must be between 1MB and 100MB
-    if (isVideo) {
-      const minVideoSizeMB = 1;
-      if (fileSizeInMB < minVideoSizeMB) {
-        return res.status(400).json({
-          success: false,
-          error: `Video file too small. Video files must be between ${minVideoSizeMB}MB and ${maxSizeMB}MB. Current file size: ${fileSizeInMB.toFixed(2)}MB.`
-        });
-      }
-    }
-
-    // Maximum size check for all files
-    if (fileSizeInMB > maxSizeMB) {
-      const fileTypeName = isVideo ? 'Video' : isImage ? 'Image' : 'File';
-      return res.status(400).json({
-        success: false,
-        error: `${fileTypeName} file too large. Maximum size is ${maxSizeMB}MB. Current file size: ${fileSizeInMB.toFixed(2)}MB.`
-      });
-    }
-
     // Generate URL for the uploaded file
-    // In production, upload to cloud storage (S3, Cloudinary, etc.)
-    const baseUrl = process.env.API_URL || 'http://localhost:5000';
-    const fileUrl = `${baseUrl}/uploads/${file.filename}`;
+    let fileUrl;
+
+    // Cloudinary provides the full URL in file.path
+    if (file.path && file.path.startsWith('http')) {
+      fileUrl = file.path;
+      console.log('✅ Cloudinary Upload Success:', fileUrl);
+    } else {
+      // Fallback for local disk storage
+      const baseUrl = process.env.API_URL || 'http://localhost:5000';
+      fileUrl = `${baseUrl}/uploads/${file.filename}`;
+      console.log('✅ Local Disk Upload Success:', fileUrl);
+    }
 
     console.log(`✅ File uploaded: ${file.originalname} (${fileType}, ${(file.size / 1024 / 1024).toFixed(2)}MB)`);
 

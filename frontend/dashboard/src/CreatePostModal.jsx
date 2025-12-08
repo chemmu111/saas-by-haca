@@ -1418,6 +1418,20 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
           onClose={() => setShowAIGenerator(false)}
         />
       )}
+      {/* Toast Notification */}
+      {toast.show && (
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 px-6 py-4 rounded-xl shadow-2xl border animate-in fade-in slide-in-from-bottom-5 duration-300 ${toast.type === 'error'
+            ? 'bg-red-50 border-red-100 text-red-900'
+            : 'bg-gray-900 border-gray-800 text-white'
+          }`}>
+          {toast.type === 'error' ? (
+            <AlertCircle size={20} className="text-red-500 shrink-0" />
+          ) : (
+            <CheckCircle size={20} className="text-[#00FF94] shrink-0" />
+          )}
+          <p className="font-medium text-sm">{toast.message}</p>
+        </div>
+      )}
     </>
   );
 };
