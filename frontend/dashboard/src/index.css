@@ -525,9 +525,10 @@ body {
 @media (max-width: 900px) {
   .auth-container {
     flex-direction: column;
-    height: auto;
-    min-height: 100vh;
-    overflow-y: auto;
+    height: auto !important;
+    min-height: 100dvh;
+    overflow-y: visible !important;
+    overflow-x: hidden;
   }
 
   .auth-left {

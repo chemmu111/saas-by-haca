@@ -660,6 +660,39 @@ export async function postToInstagram(mediaUrl, caption, client, postType = 'pos
           const contentType = verifyResponse.headers.get('content-type');
           if (contentType) {
             console.log(`  ✅ Content-Type: ${contentType}`);
+
+            // Check for Ngrok browser warning (it returns HTML instead of image/video)
+            if (contentType.includes('text/html')) {
+              console.warn('  ⚠️  Content-Type is text/html. This might be a browser warning page.');
+
+              // Fetched body to check for specific signatures
+              try {
+                const textBody = await verifyResponse.text();
+                // Check for common Ngrok warning signatures
+                if (textBody.includes('ngrok-skip-browser-warning') ||
+                  textBody.includes('Visit Site') ||
+                  textBody.includes('ngrok.io') ||
+                  textBody.includes('ERR_NGROK_')) {
+
+                  console.error('  ❌ DETECTED NGROK BROWSER WARNING PAGE');
+                  throw new Error(
+                    'Instagram cannot access this image because Ngrok is showing a browser warning page. ' +
+                    'Instagram requires direct access to the file.\n\n' +
+                    'SOLUTIONS:\n' +
+                    '1. Upgrade to a paid Ngrok account to remove the warning\n' +
+                    '2. Add the "ngrok-skip-browser-warning" header (not possible for Instagram bots)\n' +
+                    '3. Use a different tunnel service like localtunnel (npx localtunnel --port 5000)\n' +
+                    '4. Verify your custom domain configuration if using one.'
+                  );
+                }
+              } catch (textError) {
+                // Only throw if it was our specific error, otherwise ignore body read errors
+                if (textError.message && textError.message.includes('Ngrok')) {
+                  throw textError;
+                }
+              }
+            }
+
             // Verify content type matches file type
             if (isVideo && !contentType.startsWith('video/')) {
               console.error(`  ❌ CRITICAL: File is video but Content-Type is ${contentType}`);

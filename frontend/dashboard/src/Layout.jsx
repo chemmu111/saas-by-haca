@@ -138,7 +138,7 @@ const Layout = ({ children }) => {
   const isSidebarExpanded = isExpanded || mobileSidebarOpen;
 
   return (
-    <div className="h-screen overflow-hidden bg-gray-50 flex">
+    <div className="min-h-screen lg:h-screen lg:overflow-hidden bg-gray-50 flex">
       {/* Sidebar - Desktop: consistent width, Mobile: toggle */}
       <aside
         className={`${mobileSidebarOpen ? 'w-64' : 'w-0 lg:w-16'
@@ -232,7 +232,7 @@ const Layout = ({ children }) => {
       </aside >
 
       {/* Main Content */}
-      < div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden" >
+      < div className="flex-1 flex flex-col min-w-0 lg:h-full lg:overflow-hidden" >
         {/* Header */}
         < header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-40" >
           <button
@@ -249,7 +249,7 @@ const Layout = ({ children }) => {
         </header >
 
         {/* Page Content */}
-        < main className="flex-1 p-4 md:p-6 overflow-y-auto" >
+        < main className="flex-1 p-4 md:p-6 lg:overflow-y-auto" >
           <div className="animate-scale-in">
             {children}
           </div>

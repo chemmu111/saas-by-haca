@@ -1112,7 +1112,7 @@ const Reports = () => {
                     </div>
                   ))}
                 </div>
-                <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                   <div>
                     <label className="block text-xs text-slate-500 mb-1">Start Date</label>
                     <input
@@ -1133,7 +1133,7 @@ const Reports = () => {
                   </div>
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <button
                     onClick={generateReport}
                     disabled={loading}
