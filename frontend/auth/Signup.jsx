@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, ArrowRight, Check, RefreshCw, User, Mail, Lock } from 'lucide-react';
 import AuthLayout from './AuthLayout';
+import PageTitle from '../dashboard/src/components/PageTitle';
 
 const Signup = () => {
     const navigate = useNavigate();
@@ -9,7 +10,9 @@ const Signup = () => {
         name: '',
         email: '',
         password: '',
-        confirmPassword: ''
+        confirmPassword: '',
+
+
     });
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -79,7 +82,9 @@ const Signup = () => {
                 body: JSON.stringify({
                     name: formData.name,
                     email: formData.email,
-                    password: formData.password
+                    password: formData.password,
+
+
                 }),
             });
 
@@ -191,12 +196,17 @@ const Signup = () => {
 
     return (
         <AuthLayout>
+            <PageTitle title="Create Account" />
             {step === 'signup' ? (
                 <form onSubmit={handleSignup} noValidate className="w-full">
                     <div className="mb-6"> {/* Reduced from mb-8 */}
                         <h2 className="auth-form-title">Create Account</h2>
                         <p className="auth-form-subtitle">Join Social X to manage your presence</p>
                     </div>
+
+
+
+
 
                     {error && (
                         <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg mb-4 text-sm"> {/* Reduced mb-6 to mb-4 */}

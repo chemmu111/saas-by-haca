@@ -1,14 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import PageTitle from './components/PageTitle';
+import api from './api';
 import Layout from './Layout.jsx';
-import { Settings as SettingsIcon, User, Bell, Lock, Activity, Save, AlertCircle, CheckCircle, Loader } from 'lucide-react';
+import ConfirmationModal from './components/ConfirmationModal.jsx';
+import { User, Bell, Lock, Activity, Settings as SettingsIcon, Save, Loader, CheckCircle, AlertCircle, Camera, Upload, Edit2 } from 'lucide-react';
 
 const Settings = () => {
     const [activeTab, setActiveTab] = useState('profile');
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
+    const [showAvatarSelection, setShowAvatarSelection] = useState(false);
+    const [uploadingAvatar, setUploadingAvatar] = useState(false);
+    const fileInputRef = useRef(null);
 
     // Profile state
-    const [profile, setProfile] = useState({ name: '', email: '', bio: '' });
+    const [profile, setProfile] = useState({ name: '', email: '', bio: '', avatar: '', gender: '' });
 
     // Notifications state
     const [notifications, setNotifications] = useState({
@@ -51,19 +57,7 @@ const Settings = () => {
         };
     })();
 
-    const getBackendUrl = () => {
-        // Check for environment variable first (production)
-        if (import.meta.env.VITE_API_URL) {
-            return import.meta.env.VITE_API_URL;
-        }
-        // Development mode
-        if (window.location.port === '3000') {
-            const savedPort = localStorage.getItem('backend_port');
-            return savedPort ? `http://localhost:${savedPort}` : 'http://localhost:5000';
-        }
-        // Fallback to same origin
-        return window.location.origin;
-    };
+
 
     const showMessage = (type, text) => {
         setMessage({ type, text });
@@ -71,27 +65,10 @@ const Settings = () => {
     };
 
     const fetchTokenHealth = async (showSpinner = true) => {
-        const token = localStorage.getItem('auth_token');
-        if (!token) return;
-
-        if (showSpinner) {
-            setTokenHealthLoading(true);
-        }
-
         try {
-            const backendUrl = getBackendUrl();
-            const response = await fetch(`${backendUrl}/api/settings/token-health`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (response.ok) {
-                const result = await response.json();
-                if (result.success) {
-                    setTokenHealth(result.data);
-                }
+            const response = await api.get('/settings/token-health');
+            if (response.data.success) {
+                setTokenHealth(response.data.data);
             }
         } catch (error) {
             console.error('Error fetching token health:', error);
@@ -120,49 +97,35 @@ const Settings = () => {
             return;
         }
 
-        const token = localStorage.getItem('auth_token');
-        if (!token) return;
-
-        const backendUrl = getBackendUrl();
-        setLoading(true);
-
         try {
             let endpoint = '';
             switch (activeTab) {
                 case 'profile':
-                    endpoint = '/api/settings/profile';
+                    endpoint = '/settings/profile';
                     break;
                 case 'notifications':
-                    endpoint = '/api/settings/notifications';
+                    endpoint = '/settings/notifications';
                     break;
                 case 'security':
-                    endpoint = '/api/settings/security';
+                    endpoint = '/settings/security';
                     break;
                 default:
                     return;
             }
 
-            const response = await fetch(`${backendUrl}${endpoint}`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (response.ok) {
-                const result = await response.json();
-                if (result.success) {
-                    switch (activeTab) {
-                        case 'profile':
-                            setProfile(result.data);
-                            break;
-                        case 'notifications':
-                            setNotifications(result.data);
-                            break;
-                        case 'security':
-                            setSecurity(prev => ({ ...prev, ...result.data }));
-                            break;
-                    }
+            const response = await api.get(endpoint);
+            const result = response.data;
+            if (result.success) {
+                switch (activeTab) {
+                    case 'profile':
+                        setProfile(result.data);
+                        break;
+                    case 'notifications':
+                        setNotifications(result.data);
+                        break;
+                    case 'security':
+                        setSecurity(prev => ({ ...prev, ...result.data }));
+                        break;
                 }
             }
         } catch (error) {
@@ -174,22 +137,11 @@ const Settings = () => {
 
     // Profile handlers
     const handleProfileUpdate = async () => {
-        const token = localStorage.getItem('auth_token');
-        if (!token) return;
-
         setLoading(true);
         try {
-            const backendUrl = getBackendUrl();
-            const response = await fetch(`${backendUrl}/api/settings/profile`, {
-                method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(profile)
-            });
+            const response = await api.put('/settings/profile', profile);
+            const result = response.data;
 
-            const result = await response.json();
             if (result.success) {
                 showMessage('success', 'Profile updated successfully!');
                 setProfile(result.data);
@@ -197,12 +149,16 @@ const Settings = () => {
                 const userInfo = JSON.parse(localStorage.getItem('user_info') || '{}');
                 userInfo.name = result.data.name;
                 userInfo.email = result.data.email;
+                userInfo.avatar = result.data.avatar; // Update avatar in local storage
                 localStorage.setItem('user_info', JSON.stringify(userInfo));
+
+                // Dispatch custom event to notify Sidebar/Layout
+                window.dispatchEvent(new Event('user-info-updated'));
             } else {
                 showMessage('error', result.error || 'Failed to update profile');
             }
         } catch (error) {
-            showMessage('error', 'An error occurred while updating profile');
+            showMessage('error', error.response?.data?.error || 'An error occurred while updating profile');
         } finally {
             setLoading(false);
         }
@@ -213,21 +169,10 @@ const Settings = () => {
         const newNotifications = { ...notifications, [key]: !notifications[key] };
         setNotifications(newNotifications);
 
-        const token = localStorage.getItem('auth_token');
-        if (!token) return;
-
         try {
-            const backendUrl = getBackendUrl();
-            const response = await fetch(`${backendUrl}/api/settings/notifications`, {
-                method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(newNotifications)
-            });
+            const response = await api.put('/settings/notifications', newNotifications);
+            const result = response.data;
 
-            const result = await response.json();
             if (result.success) {
                 showMessage('success', 'Notification settings updated!');
             } else {
@@ -238,7 +183,7 @@ const Settings = () => {
         } catch (error) {
             // Revert on error
             setNotifications(notifications);
-            showMessage('error', 'An error occurred');
+            showMessage('error', error.response?.data?.error || 'An error occurred');
         }
     };
 
@@ -259,26 +204,15 @@ const Settings = () => {
             return;
         }
 
-        const token = localStorage.getItem('auth_token');
-        if (!token) return;
-
         setLoading(true);
         try {
-            const backendUrl = getBackendUrl();
-            const response = await fetch(`${backendUrl}/api/settings/change-password`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    currentPassword: security.currentPassword,
-                    newPassword: security.newPassword,
-                    confirmPassword: security.confirmPassword
-                })
+            const response = await api.post('/settings/change-password', {
+                currentPassword: security.currentPassword,
+                newPassword: security.newPassword,
+                confirmPassword: security.confirmPassword
             });
 
-            const result = await response.json();
+            const result = response.data;
             if (result.success) {
                 showMessage('success', 'Password changed successfully!');
                 setSecurity(prev => ({ ...prev, currentPassword: '', newPassword: '', confirmPassword: '' }));
@@ -286,65 +220,50 @@ const Settings = () => {
                 showMessage('error', result.error || 'Failed to change password');
             }
         } catch (error) {
-            showMessage('error', 'An error occurred while changing password');
+            showMessage('error', error.response?.data?.error || 'An error occurred while changing password');
         } finally {
             setLoading(false);
         }
     };
 
     const handle2FAToggle = async () => {
-        const token = localStorage.getItem('auth_token');
-        if (!token) return;
-
         const newValue = !security.twoFactorEnabled;
+        // Optimistic update
         setSecurity(prev => ({ ...prev, twoFactorEnabled: newValue }));
 
         try {
-            const backendUrl = getBackendUrl();
-            const response = await fetch(`${backendUrl}/api/settings/enable-2fa`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ enabled: newValue })
-            });
+            const response = await api.post('/settings/enable-2fa', { enabled: newValue });
+            const result = response.data;
 
-            const result = await response.json();
             if (result.success) {
                 showMessage('success', result.message);
             } else {
+                // Revert on failure
                 setSecurity(prev => ({ ...prev, twoFactorEnabled: !newValue }));
                 showMessage('error', result.error || 'Failed to update 2FA');
             }
         } catch (error) {
+            // Revert on error
             setSecurity(prev => ({ ...prev, twoFactorEnabled: !newValue }));
-            showMessage('error', 'An error occurred');
+            showMessage('error', error.response?.data?.error || 'An error occurred');
         }
     };
 
-    const handleLogoutAll = async () => {
-        if (!confirm('Are you sure you want to logout from all devices? You will need to login again.')) {
-            return;
-        }
+    const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-        const token = localStorage.getItem('auth_token');
-        if (!token) return;
+    const handleLogoutAll = () => {
+        setShowLogoutModal(true);
+    };
 
+    const confirmLogoutAll = async () => {
         setLoading(true);
         try {
-            const backendUrl = getBackendUrl();
-            const response = await fetch(`${backendUrl}/api/settings/logout-all`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
+            const response = await api.post('/settings/logout-all');
+            const result = response.data;
 
-            const result = await response.json();
             if (result.success) {
                 showMessage('success', 'Logged out from all devices. Redirecting...');
+                setShowLogoutModal(false);
                 setTimeout(() => {
                     localStorage.removeItem('auth_token');
                     localStorage.removeItem('user_info');
@@ -352,16 +271,70 @@ const Settings = () => {
                 }, 2000);
             } else {
                 showMessage('error', result.error || 'Failed to logout');
+                setShowLogoutModal(false);
             }
         } catch (error) {
-            showMessage('error', 'An error occurred');
+            showMessage('error', error.response?.data?.error || 'An error occurred');
+            setShowLogoutModal(false);
         } finally {
             setLoading(false);
         }
     };
 
+
+
+    const handleAvatarUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Basic validation
+        if (!file.type.startsWith('image/')) {
+            showMessage('error', 'Please upload an image file (PNG, JPG)');
+            return;
+        }
+
+        if (file.size > 5 * 1024 * 1024) {
+            showMessage('error', 'File size must be less than 5MB');
+            return;
+        }
+
+        setUploadingAvatar(true);
+        const formData = new FormData();
+        formData.append('image', file);
+
+        try {
+            const response = await api.post('/settings/avatar', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            if (response.data.success) {
+                const newAvatarUrl = response.data.url;
+                setProfile({ ...profile, avatar: newAvatarUrl });
+
+                // Immediately update sidebar too for better UX
+                const userInfo = JSON.parse(localStorage.getItem('user_info') || '{}');
+                userInfo.avatar = newAvatarUrl;
+                localStorage.setItem('user_info', JSON.stringify(userInfo));
+                window.dispatchEvent(new Event('user-info-updated'));
+
+                showMessage('success', 'Avatar uploaded! Click Save Changes to persist fully.');
+                setShowAvatarSelection(false);
+            } else {
+                showMessage('error', response.data.error || 'Failed to upload avatar');
+            }
+        } catch (error) {
+            console.error('Upload error:', error);
+            showMessage('error', error.response?.data?.error || 'Failed to upload avatar');
+        } finally {
+            setUploadingAvatar(false);
+            // Reset input
+            e.target.value = null;
+        }
+    };
+
     return (
         <Layout>
+            <PageTitle title="Settings" />
             <div className="p-4 lg:p-8 bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen">
                 <div className="max-w-7xl mx-auto">
                     {/* Header */}
@@ -373,16 +346,18 @@ const Settings = () => {
                             Settings
                         </h1>
                         <p className="text-slate-600">Manage your account settings and preferences</p>
-                    </div>
+                    </div >
 
                     {/* Message Toast */}
-                    {message.text && (
-                        <div className={`mb-4 p-4 rounded-xl flex items-center gap-3 ${message.type === 'success' ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'
-                            }`}>
-                            {message.type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
-                            <span>{message.text}</span>
-                        </div>
-                    )}
+                    {
+                        message.text && (
+                            <div className={`mb-4 p-4 rounded-xl flex items-center gap-3 ${message.type === 'success' ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'
+                                }`}>
+                                {message.type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
+                                <span>{message.text}</span>
+                            </div>
+                        )
+                    }
 
                     <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                         {/* Sidebar Tabs */}
@@ -421,16 +396,139 @@ const Settings = () => {
                                 {!loading && activeTab === 'profile' && (
                                     <div>
                                         <h2 className="text-2xl font-bold text-slate-900 mb-6">Profile Settings</h2>
+
+                                        {/* Avatar Section */}
+                                        <div className="mb-8 flex flex-col md:flex-row gap-6 items-start">
+                                            <div className="flex-shrink-0 relative group">
+                                                <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-lg bg-slate-100 relative">
+                                                    {profile.avatar ? (
+                                                        <img
+                                                            src={profile.avatar}
+                                                            alt="Profile"
+                                                            className="w-full h-full object-cover"
+                                                            onError={(e) => {
+                                                                console.error('Error loading avatar image:', profile.avatar);
+                                                                e.target.style.display = 'none';
+                                                                e.target.parentNode.classList.add('bg-blue-100', 'flex', 'items-center', 'justify-center');
+                                                                // Create a fallback element
+                                                                const fallback = document.createElement('div');
+                                                                fallback.className = 'text-blue-600 font-bold text-2xl';
+                                                                fallback.innerText = profile.name ? profile.name.charAt(0).toUpperCase() : 'U';
+                                                                e.target.parentNode.appendChild(fallback);
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center bg-blue-100 text-blue-600">
+                                                            <div className="text-2xl font-bold">
+                                                                {profile.name ? profile.name.charAt(0).toUpperCase() : <User size={40} />}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Upload Overlay on Hover/Loading */}
+                                                    {uploadingAvatar && (
+                                                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
+                                                            <Loader className="animate-spin text-white" size={24} />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex-grow w-full">
+                                                <label className="block text-sm font-medium text-slate-700 mb-3">Profile Avatar</label>
+
+                                                <div className="flex flex-wrap gap-3 mb-4">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowAvatarSelection(!showAvatarSelection)}
+                                                        className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                                                    >
+                                                        <Edit2 size={16} />
+                                                        {showAvatarSelection ? 'Hide Presets' : 'Choose Preset'}
+                                                    </button>
+
+                                                    <div className="relative">
+                                                        <input
+                                                            type="file"
+                                                            ref={fileInputRef}
+                                                            className="hidden"
+                                                            accept="image/*"
+                                                            onChange={handleAvatarUpload}
+                                                            disabled={uploadingAvatar}
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => fileInputRef.current?.click()}
+                                                            disabled={uploadingAvatar}
+                                                            className={`flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors ${uploadingAvatar ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                        >
+                                                            <Upload size={16} />
+                                                            {uploadingAvatar ? 'Uploading...' : 'Upload Photo'}
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {showAvatarSelection && (
+                                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 animate-in fade-in slide-in-from-top-2 duration-200">
+                                                        <p className="text-xs text-slate-500 mb-3 uppercase tracking-wide font-semibold">Select a Preset</p>
+                                                        <div className="flex flex-wrap gap-3">
+                                                            {[
+                                                                'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix',
+                                                                'https://api.dicebear.com/7.x/avataaars/svg?seed=Aneka',
+                                                                'https://api.dicebear.com/7.x/avataaars/svg?seed=Bob',
+                                                                'https://api.dicebear.com/7.x/avataaars/svg?seed=Willow',
+                                                                'https://api.dicebear.com/7.x/avataaars/svg?seed=Jack',
+                                                                'https://api.dicebear.com/7.x/avataaars/svg?seed=Mittens',
+                                                                'https://api.dicebear.com/7.x/avataaars/svg?seed=Leo',
+                                                                'https://api.dicebear.com/7.x/avataaars/svg?seed=Bella',
+                                                                'https://api.dicebear.com/7.x/avataaars/svg?seed=Garfield',
+                                                                'https://api.dicebear.com/7.x/avataaars/svg?seed=Loki'
+                                                            ].map((url, index) => (
+                                                                <button
+                                                                    key={index}
+                                                                    onClick={() => {
+                                                                        setProfile({ ...profile, avatar: url });
+                                                                    }}
+                                                                    className={`w-12 h-12 rounded-full overflow-hidden border-2 transition-all p-0.5
+                                                                        ${profile.avatar === url
+                                                                            ? 'border-blue-600 scale-110 shadow-md ring-2 ring-blue-100'
+                                                                            : 'border-transparent hover:border-slate-300'
+                                                                        }`}
+                                                                >
+                                                                    <img src={url} alt="Option" className="w-full h-full rounded-full bg-slate-50" />
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
                                         <div className="space-y-6">
-                                            <div>
-                                                <label className="block text-sm font-medium text-slate-700 mb-2">Full Name</label>
-                                                <input
-                                                    type="text"
-                                                    value={profile.name}
-                                                    onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-                                                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                    placeholder="Your name"
-                                                />
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                <div>
+                                                    <label className="block text-sm font-medium text-slate-700 mb-2">Full Name</label>
+                                                    <input
+                                                        type="text"
+                                                        value={profile.name}
+                                                        onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+                                                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                        placeholder="Your name"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-medium text-slate-700 mb-2">Gender</label>
+                                                    <select
+                                                        value={profile.gender || ''}
+                                                        onChange={(e) => setProfile({ ...profile, gender: e.target.value })}
+                                                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                                                    >
+                                                        <option value="">Select Gender</option>
+                                                        <option value="male">Male</option>
+                                                        <option value="female">Female</option>
+                                                        <option value="other">Other</option>
+                                                    </select>
+                                                </div>
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-slate-700 mb-2">Email</label>
@@ -702,9 +800,19 @@ const Settings = () => {
                             </div>
                         </div>
                     </div>
-                </div>
-            </div>
-        </Layout>
+                </div >
+            </div >
+            <ConfirmationModal
+                isOpen={showLogoutModal}
+                onClose={() => setShowLogoutModal(false)}
+                onConfirm={confirmLogoutAll}
+                title="Logout All Devices?"
+                message="Are you sure you want to logout from all devices? This will terminate all active sessions including this one. You will need to login again."
+                confirmText="Yes, Logout All"
+                confirmStyle="danger"
+                isLoading={loading}
+            />
+        </Layout >
     );
 };
 

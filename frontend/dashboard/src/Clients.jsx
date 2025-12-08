@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import api from './api';
 import { Users, Plus, Undo2, LayoutGrid, List as ListIcon } from 'lucide-react';
 import Layout from './Layout.jsx';
 import ClientCard from './components/ClientCard.jsx';
@@ -6,18 +7,7 @@ import ClientDrawer from './components/ClientDrawer.jsx';
 import FilterBar from './components/FilterBar.jsx';
 import AddClientModal from './components/AddClientModal.jsx';
 import { useNavigate } from 'react-router-dom';
-
-// Helper function to get backend URL
-const getBackendUrl = () => {
-  if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-    return window.location.origin;
-  }
-  if (window.location.port === '3000' || window.location.hostname === 'localhost') {
-    const savedPort = localStorage.getItem('backend_port');
-    return savedPort ? `http://localhost:${savedPort}` : 'http://localhost:5000';
-  }
-  return window.location.origin;
-};
+import PageTitle from './components/PageTitle';
 
 const Clients = () => {
   const navigate = useNavigate();
@@ -38,21 +28,9 @@ const Clients = () => {
   // Fetch clients
   const fetchClients = async () => {
     try {
-      const token = localStorage.getItem('auth_token');
-      if (!token) {
-        window.location.href = `${getBackendUrl()}/login.html`;
-        return;
-      }
+      const response = await api.get('/clients');
+      const result = response.data;
 
-      const response = await fetch(`${getBackendUrl()}/api/clients`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) throw new Error('Failed to fetch clients');
-      const result = await response.json();
       if (result.success) {
         setClients(result.data || []);
       }
@@ -132,17 +110,9 @@ const Clients = () => {
     }
 
     try {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${getBackendUrl()}/api/clients`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
-      });
+      const response = await api.post('/clients', formData);
+      const result = response.data;
 
-      const result = await response.json();
       if (result.success) {
         setClients(prev => [result.data, ...prev]);
         setShowAddModal(false);
@@ -150,28 +120,20 @@ const Clients = () => {
         setError(result.error || 'Failed to add client');
       }
     } catch (err) {
-      setError('Failed to add client');
+      setError(err.response?.data?.error || 'Failed to add client');
     }
   };
 
   const handleOAuthConnect = async (formData) => {
     setConnectingOAuth(true);
     try {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${getBackendUrl()}/api/oauth/authorize`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          platform: formData.platform,
-          name: formData.name,
-          email: formData.email
-        })
+      const response = await api.post('/oauth/authorize', {
+        platform: formData.platform,
+        name: formData.name,
+        email: formData.email
       });
 
-      const result = await response.json();
+      const result = response.data;
       if (result.success && result.authUrl) {
         window.location.href = result.authUrl;
       } else {
@@ -179,7 +141,7 @@ const Clients = () => {
         setConnectingOAuth(false);
       }
     } catch (err) {
-      setError('Failed to connect');
+      setError(err.response?.data?.error || 'Failed to connect');
       setConnectingOAuth(false);
     }
   };
@@ -188,22 +150,17 @@ const Clients = () => {
     if (!window.confirm(`Are you sure you want to delete ${client.name}?`)) return;
 
     try {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${getBackendUrl()}/api/clients/${client._id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        setClients(prev => prev.filter(c => c._id !== client._id));
-      }
+      await api.delete(`/clients/${client._id}`);
+      setClients(prev => prev.filter(c => c._id !== client._id));
     } catch (err) {
       console.error('Error deleting client:', err);
+      // Optional: show error to user
     }
   };
 
   return (
     <Layout>
+      <PageTitle title="Clients" />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">

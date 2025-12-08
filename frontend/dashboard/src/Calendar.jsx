@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import PageTitle from './components/PageTitle';
 import Layout from './Layout.jsx';
 import {
   Calendar as CalendarIcon,
@@ -525,6 +526,7 @@ const Calendar = () => {
 
   return (
     <Layout>
+      <PageTitle title="Scheduler" />
       <div className="p-3 lg:p-6 bg-gradient-to-br from-slate-50 via-white to-blue-50/30 min-h-screen">
         <div className="max-w-7xl mx-auto space-y-4">
           {/* Header - Compact */}

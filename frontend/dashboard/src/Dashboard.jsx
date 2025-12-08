@@ -1,11 +1,37 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import PageTitle from './components/PageTitle';
+import { motion } from 'framer-motion';
 import {
   User, Calendar, Clock, BarChart2, Plus, Users,
   ArrowRight, TrendingUp, Activity, Zap, Layout as LayoutIcon,
-  FileText, Send
+  FileText, Send, ChevronRight
 } from 'lucide-react';
 import Layout from './Layout.jsx';
+
+const SkeletonCard = () => (
+  <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm animate-pulse">
+    <div className="flex justify-between mb-4">
+      <div className="w-12 h-12 bg-slate-200 rounded-xl"></div>
+      <div className="w-5 h-5 bg-slate-200 rounded"></div>
+    </div>
+    <div className="space-y-2">
+      <div className="w-20 h-4 bg-slate-200 rounded"></div>
+      <div className="w-16 h-8 bg-slate-200 rounded"></div>
+      <div className="w-24 h-3 bg-slate-200 rounded"></div>
+    </div>
+  </div>
+);
+
+const SkeletonFeedItem = () => (
+  <div className="p-4 flex items-center gap-4 animate-pulse">
+    <div className="w-12 h-12 rounded-lg bg-slate-200 flex-shrink-0"></div>
+    <div className="flex-1 space-y-2">
+      <div className="w-3/4 h-4 bg-slate-200 rounded"></div>
+      <div className="w-1/2 h-3 bg-slate-200 rounded"></div>
+    </div>
+  </div>
+);
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -95,6 +121,9 @@ const Dashboard = () => {
           'Content-Type': 'application/json'
         };
 
+        // Simulate a small delay to show skeletons (optional context)
+        // await new Promise(resolve => setTimeout(resolve, 1000));
+
         const [clientsRes, analyticsRes, clientsListRes, postsRes] = await Promise.all([
           fetch(`${backendUrl}/api/clients/count`, { headers }),
           fetch(`${backendUrl}/api/analytics?startDate=&endDate=`, { headers }),
@@ -170,18 +199,18 @@ const Dashboard = () => {
     {
       label: 'Total Posts',
       value: stats.totalPosts,
-      subtext: 'Published Content',
-      icon: LayoutIcon,
-      gradient: 'from-violet-500 to-violet-600',
-      shadow: 'shadow-violet-200',
+      subtext: 'Published & Scheduled',
+      icon: FileText,
+      gradient: 'from-violet-500 to-purple-600',
+      shadow: 'shadow-purple-200',
       onClick: () => navigate('/dashboard/posts')
     },
     {
-      label: 'Total Reach',
-      value: stats.totalReach.toLocaleString(),
-      subtext: 'Lifetime Reach',
+      label: 'Monthly Views',
+      value: stats.totalViews.toLocaleString(),
+      subtext: loading ? '-' : (stats.totalReach > 0 ? `+${stats.totalReach.toLocaleString()} Reach` : '0 Reach'),
       icon: Activity,
-      gradient: 'from-emerald-500 to-emerald-600',
+      gradient: 'from-emerald-400 to-emerald-600',
       shadow: 'shadow-emerald-200',
       onClick: () => navigate('/dashboard/analytics')
     },
@@ -204,7 +233,8 @@ const Dashboard = () => {
 
   return (
     <Layout>
-      <div className="p-4 lg:p-8 bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen">
+      <PageTitle title="Dashboard" />
+      <div className="p-4 lg:p-8 animate-gradient-slow min-h-screen">
         <div className="max-w-7xl mx-auto space-y-8">
 
           {/* Header Section */}
@@ -220,73 +250,84 @@ const Dashboard = () => {
             </div>
             <div className="flex flex-wrap gap-3 mt-4 md:mt-0">
               {quickActions.map((action, idx) => (
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                   key={idx}
                   onClick={() => navigate(action.path)}
-                  className={`${action.color} text-white px-4 py-2.5 rounded-xl font-medium shadow-lg flex items-center gap-2 transition-all hover:scale-105 hover:shadow-xl active:scale-95`}
+                  className={`${action.color} text-white px-4 py-2.5 rounded-xl font-medium shadow-lg flex items-center gap-2 transition-shadow`}
                 >
                   <action.icon size={18} />
                   <span className="hidden sm:inline">{action.label}</span>
-                </button>
+                </motion.button>
               ))}
             </div>
           </div>
 
           {/* Stats Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {statCards.map((card, index) => {
-              const Icon = card.icon;
-              return (
-                <div
-                  key={index}
-                  onClick={card.onClick}
-                  className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm hover:shadow-xl transition-all cursor-pointer group relative overflow-hidden"
-                >
-                  <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${card.gradient} opacity-10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110`} />
+            {loading ? (
+              [...Array(4)].map((_, i) => <SkeletonCard key={i} />)
+            ) : (
+              statCards.map((card, index) => {
+                const Icon = card.icon;
+                return (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    whileHover={{ y: -5 }}
+                    key={index}
+                    onClick={card.onClick}
+                    className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-sm hover:shadow-xl transition-all cursor-pointer group relative overflow-hidden"
+                  >
+                    <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${card.gradient} opacity-10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110`} />
 
-                  <div className="flex items-start justify-between mb-4">
-                    <div className={`p-3 rounded-xl bg-gradient-to-br ${card.gradient} text-white shadow-lg ${card.shadow}`}>
-                      <Icon size={24} />
+                    <div className="flex items-start justify-between mb-4">
+                      <div className={`p-3 rounded-xl bg-gradient-to-br ${card.gradient} text-white shadow-lg ${card.shadow}`}>
+                        <Icon size={24} />
+                      </div>
+                      <div className="flex items-center text-slate-400 group-hover:text-slate-600 transition-colors">
+                        <ArrowRight size={20} className="-rotate-45 group-hover:rotate-0 transition-transform duration-300" />
+                      </div>
                     </div>
-                    <div className="flex items-center text-slate-400 group-hover:text-slate-600 transition-colors">
-                      <ArrowRight size={20} className="-rotate-45 group-hover:rotate-0 transition-transform duration-300" />
-                    </div>
-                  </div>
 
-                  <div>
-                    <h3 className="text-slate-500 text-sm font-medium mb-1">{card.label}</h3>
-                    <p className="text-3xl font-bold text-slate-900 tracking-tight">{loading ? '-' : card.value}</p>
-                    <p className="text-xs text-slate-400 mt-1 font-medium">{card.subtext}</p>
-                  </div>
-                </div>
-              );
-            })}
+                    <div>
+                      <h3 className="text-slate-500 text-sm font-medium mb-1">{card.label}</h3>
+                      <p className="text-3xl font-bold text-slate-900 tracking-tight">{card.value}</p>
+                      <p className="text-xs text-slate-400 mt-1 font-medium">{card.subtext}</p>
+                    </div>
+                  </motion.div>
+                );
+              })
+            )}
           </div>
 
           {/* Main Content Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
             {/* Recent Activity Feed */}
-            <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-slate-50 to-white">
+            <div className="lg:col-span-2 bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-sm overflow-hidden">
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-slate-50/50 to-white/50">
                 <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                   <Clock size={20} className="text-blue-500" />
                   Recent Activity
                 </h2>
                 <button
                   onClick={() => navigate('/dashboard/posts')}
-                  className="text-sm text-blue-600 font-medium hover:text-blue-700 hover:underline"
+                  className="group flex items-center gap-1 text-sm text-blue-600 font-medium hover:text-blue-700"
                 >
                   View All
+                  <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
                 </button>
               </div>
 
               <div className="divide-y divide-slate-100">
                 {loading ? (
-                  <div className="p-8 text-center text-slate-500">Loading activity...</div>
+                  [...Array(5)].map((_, i) => <SkeletonFeedItem key={i} />)
                 ) : stats.recentPosts.length > 0 ? (
                   stats.recentPosts.map((post) => (
-                    <div key={post.id} className="p-4 hover:bg-slate-50 transition-colors flex items-center gap-4 group">
+                    <div key={post.id} className="p-4 hover:bg-slate-50/50 transition-colors flex items-center gap-4 group">
                       <div className="w-12 h-12 rounded-lg bg-slate-100 flex-shrink-0 overflow-hidden border border-slate-200">
                         {post.thumbnail_url ? (
                           <img src={post.thumbnail_url} alt="Post" className="w-full h-full object-cover" />
@@ -336,15 +377,22 @@ const Dashboard = () => {
             {/* Quick Stats Sidebar */}
             <div className="space-y-6">
               {/* Recent Clients Card */}
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="p-4 border-b border-slate-100 bg-gradient-to-r from-blue-50 to-purple-50">
-                  <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                    <Users size={18} className="text-blue-600" />
-                    Recent Clients
-                  </h3>
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-slate-100 bg-gradient-to-r from-blue-50/50 to-purple-50/50">
+                  <div className="flex justify-between items-center">
+                    <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                      <Users size={18} className="text-blue-600" />
+                      Recent Clients
+                    </h3>
+                    <button onClick={() => navigate('/dashboard/clients')} className="text-xs text-blue-600 hover:underline">See All</button>
+                  </div>
                 </div>
                 <div className="p-4">
-                  {stats.recentClients.length > 0 ? (
+                  {loading ? (
+                    <div className="space-y-3">
+                      {[...Array(3)].map((_, i) => <SkeletonFeedItem key={i} />)}
+                    </div>
+                  ) : stats.recentClients.length > 0 ? (
                     <div className="space-y-3">
                       {stats.recentClients.map((client) => (
                         <div key={client._id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => navigate('/dashboard/clients')}>
@@ -355,6 +403,7 @@ const Dashboard = () => {
                             <p className="text-sm font-medium text-slate-900 truncate">{client.name}</p>
                             <p className="text-xs text-slate-500 truncate">{client.instagramUsername || 'No username'}</p>
                           </div>
+                          <ChevronRight size={16} className="text-slate-300" />
                         </div>
                       ))}
                     </div>
@@ -374,15 +423,19 @@ const Dashboard = () => {
               </div>
 
               {/* Upcoming Scheduled Posts */}
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="p-4 border-b border-slate-100 bg-gradient-to-r from-yellow-50 to-orange-50">
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-slate-100 bg-gradient-to-r from-yellow-50/50 to-orange-50/50">
                   <h3 className="font-bold text-slate-900 flex items-center gap-2">
                     <Clock size={18} className="text-yellow-600" />
                     Upcoming Posts
                   </h3>
                 </div>
                 <div className="p-4">
-                  {stats.upcomingPosts.length > 0 ? (
+                  {loading ? (
+                    <div className="space-y-3">
+                      {[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-slate-100 rounded animate-pulse"></div>)}
+                    </div>
+                  ) : stats.upcomingPosts.length > 0 ? (
                     <div className="space-y-3">
                       {stats.upcomingPosts.map((post) => (
                         <div key={post._id} className="p-3 rounded-lg border border-slate-100 hover:border-slate-200 hover:bg-slate-50 transition-all cursor-pointer" onClick={() => navigate('/dashboard/posts')}>

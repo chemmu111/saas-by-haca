@@ -3,6 +3,9 @@ import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
 import Client from '../models/Client.js';
 import requireAuth from '../middleware/requireAuth.js';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
 const router = express.Router();
 
@@ -15,7 +18,7 @@ router.use(requireAuth);
 router.get('/profile', async (req, res) => {
   try {
     const userId = req.user.sub;
-    const user = await User.findById(userId).select('name email bio role');
+    const user = await User.findById(userId).select('name email bio role avatar gender');
 
     if (!user) {
       return res.status(404).json({ success: false, error: 'User not found' });
@@ -27,6 +30,8 @@ router.get('/profile', async (req, res) => {
         name: user.name,
         email: user.email,
         bio: user.bio || '',
+        avatar: user.avatar || '',
+        gender: user.gender || '',
         role: user.role
       }
     });
@@ -36,11 +41,65 @@ router.get('/profile', async (req, res) => {
   }
 });
 
+// Configure multer for avatar uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = path.resolve('uploads');
+    // Ensure directory exists
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    // secure filename with timestamp
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'avatar-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    const filetypes = /jpeg|jpg|png|webp/;
+    const mimetype = filetypes.test(file.mimetype);
+    const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+
+    if (mimetype && extname) {
+      return cb(null, true);
+    }
+    cb(new Error('Only image files are allowed!'));
+  }
+});
+
+// POST /api/settings/avatar - Upload profile avatar
+router.post('/avatar', upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'No file uploaded' });
+    }
+
+    // Construct public URL (assuming /uploads is served statically)
+    const backendUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
+    const fileUrl = `${backendUrl}/uploads/${req.file.filename}`;
+
+    res.json({
+      success: true,
+      message: 'Avatar uploaded successfully',
+      url: fileUrl
+    });
+  } catch (error) {
+    console.error('Error uploading avatar:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to upload avatar' });
+  }
+});
+
 // PUT /api/settings/profile - Update user profile
 router.put('/profile', async (req, res) => {
   try {
     const userId = req.user.sub;
-    const { name, email, bio } = req.body;
+    const { name, email, bio, avatar, gender } = req.body;
 
     // Validation
     if (!name || name.trim().length === 0) {
@@ -67,12 +126,14 @@ router.put('/profile', async (req, res) => {
     if (name) updateData.name = name.trim();
     if (email) updateData.email = email.toLowerCase();
     if (bio !== undefined) updateData.bio = bio.trim();
+    if (avatar !== undefined) updateData.avatar = avatar;
+    if (gender !== undefined) updateData.gender = gender;
 
     const user = await User.findByIdAndUpdate(
       userId,
       { $set: updateData },
       { new: true, runValidators: true }
-    ).select('name email bio role');
+    ).select('name email bio role avatar gender');
 
     if (!user) {
       return res.status(404).json({ success: false, error: 'User not found' });
@@ -85,6 +146,8 @@ router.put('/profile', async (req, res) => {
         name: user.name,
         email: user.email,
         bio: user.bio || '',
+        avatar: user.avatar || '',
+        gender: user.gender || '',
         role: user.role
       }
     });

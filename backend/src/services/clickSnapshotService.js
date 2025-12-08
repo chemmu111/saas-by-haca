@@ -1,7 +1,7 @@
 import ClickSnapshot from '../models/ClickSnapshot.js';
 import { fetchContactMetrics } from './instagramInsightsService.js';
 import Client from '../models/Client.js';
-import { getDecryptedAccessToken } from './authService.js';
+import { decryptToken } from '../utils/crypto.js';
 
 /**
  * Take a snapshot of contact metrics for a specific client
@@ -13,7 +13,7 @@ export const takeClickSnapshot = async (client) => {
             return null;
         }
 
-        const accessToken = getDecryptedAccessToken(client.accessToken);
+        const accessToken = decryptToken(client.accessToken);
         if (!accessToken) {
             console.warn(`⚠️ Cannot decrypt token for client ${client.name}`);
             return null;

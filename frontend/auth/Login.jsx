@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, ArrowRight, X, Check, Mail, Lock, RefreshCw } from 'lucide-react';
 import AuthLayout from './AuthLayout';
+import PageTitle from '../dashboard/src/components/PageTitle';
 
 const Login = () => {
     const navigate = useNavigate();
@@ -256,6 +257,7 @@ const Login = () => {
 
     return (
         <AuthLayout>
+            <PageTitle title="Login" />
             <form onSubmit={isOtpLogin ? (otpSent ? handleVerifyOtp : handleSendOtp) : handleLogin} noValidate className="w-full">
                 <div className="mb-6">
                     <h2 className="auth-form-title">Welcome Back</h2>
