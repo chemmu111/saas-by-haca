@@ -1088,74 +1088,7 @@ const Reports = () => {
                     <span className="text-sm font-medium text-slate-300">Select All Clients</span>
                   </div>
 
-<<<<<<< HEAD
-  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
-    {/* LEFT COLUMN: Report Builder (40%) */}
-    <div className="lg:col-span-5 space-y-6">
-
-      {/* 1. Template Selection - REMOVED */}
-
-      {/* 2. Client Selection */}
-      <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-lg">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-purple-500/10 rounded-lg text-purple-400">
-              <Users size={20} />
-            </div>
-            <h3 className="text-lg font-semibold text-white">Select Clients</h3>
-          </div>
-          <span className="text-xs font-medium px-2 py-1 bg-slate-800 rounded-md text-slate-400">
-            {selectedClients.length} selected
-          </span>
-        </div>
-
-        <div className="relative mb-3">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-          <input
-            type="text"
-            placeholder="Search clients..."
-            value={clientSearch}
-            onChange={(e) => setClientSearch(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-          />
-        </div>
-
-        <div className="max-h-[240px] overflow-y-auto pr-1 space-y-1 custom-scrollbar">
-          <div
-            onClick={() => setSelectedClients(selectedClients.length === clients.length ? [] : clients.map(c => c._id))}
-            className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/50 cursor-pointer transition-colors"
-          >
-            <div className={`w - 5 h - 5 rounded border flex items - center justify - center ${selectedClients.length === clients.length && clients.length > 0 ? 'bg-purple-500 border-purple-500' : 'border-slate-600'
-              } `}>
-              {selectedClients.length === clients.length && clients.length > 0 && <Check size={12} className="text-white" />}
-            </div>
-            <span className="text-sm font-medium text-slate-300">Select All Clients</span>
-          </div>
-
-          {filteredClients.map(client => (
-            <div
-              key={client._id}
-              onClick={() => toggleClient(client._id)}
-              className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/50 cursor-pointer transition-colors group"
-            >
-              <div className={`w - 5 h - 5 rounded border flex items - center justify - center transition - colors ${selectedClients.includes(client._id) ? 'bg-purple-500 border-purple-500' : 'border-slate-600 group-hover:border-slate-500'
-                } `}>
-                {selectedClients.includes(client._id) && <Check size={12} className="text-white" />}
-              </div>
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300">
-                  {client.name.substring(0, 2).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-200 truncate">{client.name}</p>
-                  <p className="text-xs text-slate-500 truncate">{client.email || 'No email'}</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-=======
           {filteredClients.map(client => (
           <div
             key={client._id}
@@ -1165,7 +1098,7 @@ const Reports = () => {
             <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${selectedClients.includes(client._id) ? 'bg-purple-500 border-purple-500' : 'border-slate-600 group-hover:border-slate-500'
               }`}>
               {selectedClients.includes(client._id) && <Check size={12} className="text-white" />}
->>>>>>> f15cad277d2bb9c989fc1b6e175447880767cc01
+
             </div>
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300">
@@ -1175,8 +1108,10 @@ const Reports = () => {
                 <p className="text-sm font-medium text-slate-200 truncate">{client.name}</p>
                 <p className="text-xs text-slate-500 truncate">{client.email || 'No email'}</p>
               </div>
-<<<<<<< HEAD
-
+            </div>
+          </div>
+          ))}
+        </div>
                 <div className="grid grid-cols-2 gap-4 mb-6">
                   <div>
                     <label className="block text-xs text-slate-500 mb-1">Start Date</label>
@@ -1456,6 +1391,7 @@ const Reports = () => {
       )}
 
 
+    </div>
     </div>
 
           {/* RIGHT COLUMN: Live Preview (60%) */ }
