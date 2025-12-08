@@ -10,7 +10,7 @@ import {
     BarChart2,
     Calendar,
     Tag,
-    ExternalLink,
+
     Phone,
     Globe,
     Mail,
@@ -221,12 +221,7 @@ const ClientCard = ({ client, onEdit, onDelete, onConnectInstagram, onViewDetail
                 <span className="text-xs text-gray-500">
                     Last synced: {client.statsLastUpdated ? new Date(client.statsLastUpdated).toLocaleString() : 'Never'}
                 </span>
-                <button
-                    className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => { e.stopPropagation(); navigate(`/dashboard/clients/${client._id}`); }}
-                >
-                    View Dashboard <ExternalLink size={14} />
-                </button>
+
             </div>
         </div>
     );
