@@ -1089,29 +1089,29 @@ const Reports = () => {
                   </div>
 
 
-          {filteredClients.map(client => (
-          <div
-            key={client._id}
-            onClick={() => toggleClient(client._id)}
-            className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/50 cursor-pointer transition-colors group"
-          >
-            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${selectedClients.includes(client._id) ? 'bg-purple-500 border-purple-500' : 'border-slate-600 group-hover:border-slate-500'
-              }`}>
-              {selectedClients.includes(client._id) && <Check size={12} className="text-white" />}
+                  {filteredClients.map(client => (
+                    <div
+                      key={client._id}
+                      onClick={() => toggleClient(client._id)}
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/50 cursor-pointer transition-colors group"
+                    >
+                      <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${selectedClients.includes(client._id) ? 'bg-purple-500 border-purple-500' : 'border-slate-600 group-hover:border-slate-500'
+                        }`}>
+                        {selectedClients.includes(client._id) && <Check size={12} className="text-white" />}
 
-            </div>
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300">
-                {client.name.substring(0, 2).toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-200 truncate">{client.name}</p>
-                <p className="text-xs text-slate-500 truncate">{client.email || 'No email'}</p>
-              </div>
-            </div>
-          </div>
-          ))}
-        </div>
+                      </div>
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300">
+                          {client.name.substring(0, 2).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-200 truncate">{client.name}</p>
+                          <p className="text-xs text-slate-500 truncate">{client.email || 'No email'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
                 <div className="grid grid-cols-2 gap-4 mb-6">
                   <div>
                     <label className="block text-xs text-slate-500 mb-1">Start Date</label>
@@ -1152,478 +1152,480 @@ const Reports = () => {
                   </button>
                 </div>
 
-  {/* Download Options (Always visible for demo, but logically after generation) */ }
-  <div className="mt-4 pt-4 border-t border-slate-800 flex justify-center gap-4 flex-wrap">
-    <button onClick={generateSummary} className="text-xs bg-green-500/20 text-green-400 hover:bg-green-500/30 hover:text-green-300 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors font-medium">
-      <FileBarChart2 size={14} /> Get Summary
-    </button>
-    <button onClick={printReportWithWhiteBackground} className="text-xs bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 hover:text-blue-300 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors font-medium">
-      <Download size={14} /> PDF
-    </button>
-    <button onClick={() => downloadReport('json')} className="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition-colors">
-      <Download size={12} /> JSON
-    </button>
-    <button onClick={() => downloadReport('txt')} className="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition-colors">
-      <Download size={12} /> Text
-    </button>
-  </div>
+                {/* Download Options (Always visible for demo, but logically after generation) */}
+                <div className="mt-4 pt-4 border-t border-slate-800 flex justify-center gap-4 flex-wrap">
+                  <button onClick={generateSummary} className="text-xs bg-green-500/20 text-green-400 hover:bg-green-500/30 hover:text-green-300 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors font-medium">
+                    <FileBarChart2 size={14} /> Get Summary
+                  </button>
+                  <button onClick={printReportWithWhiteBackground} className="text-xs bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 hover:text-blue-300 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors font-medium">
+                    <Download size={14} /> PDF
+                  </button>
+                  <button onClick={() => downloadReport('json')} className="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition-colors">
+                    <Download size={12} /> JSON
+                  </button>
+                  <button onClick={() => downloadReport('txt')} className="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition-colors">
+                    <Download size={12} /> Text
+                  </button>
+                </div>
               </div >
 
-  {/* 4. Schedule (Collapsible) */ }
-  < div className = "bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden shadow-lg" >
-    <button
-      onClick={() => setShowSchedule(!showSchedule)}
-      className="w-full flex items-center justify-between p-4 hover:bg-slate-800/50 transition-colors"
-    >
-      <div className="flex items-center gap-3">
-        <div className="p-2 bg-orange-500/10 rounded-lg text-orange-400">
-          <Calendar size={20} />
-        </div>
-        <h3 className="text-base font-semibold text-white">Monthly Schedule</h3>
-      </div>
-      {showSchedule ? <ChevronUp size={18} className="text-slate-500" /> : <ChevronDown size={18} className="text-slate-500" />}
-    </button>
+              {/* 4. Schedule (Collapsible) */}
+              < div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden shadow-lg" >
+                <button
+                  onClick={() => setShowSchedule(!showSchedule)}
+                  className="w-full flex items-center justify-between p-4 hover:bg-slate-800/50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-orange-500/10 rounded-lg text-orange-400">
+                      <Calendar size={20} />
+                    </div>
+                    <h3 className="text-base font-semibold text-white">Monthly Schedule</h3>
+                  </div>
+                  {showSchedule ? <ChevronUp size={18} className="text-slate-500" /> : <ChevronDown size={18} className="text-slate-500" />}
+                </button>
 
-{
-  showSchedule && (
-    <div className="p-6 pt-0 border-t border-slate-800/50 mt-2">
+                {
+                  showSchedule && (
+                    <div className="p-6 pt-0 border-t border-slate-800/50 mt-2">
 
-      {/* Client Selection Area */}
-      <div className="mb-6 mt-4">
-        <label className="block text-xs text-slate-400 mb-2 font-medium">Scheduling for Clients:</label>
+                      {/* Client Selection Area */}
+                      <div className="mb-6 mt-4">
+                        <label className="block text-xs text-slate-400 mb-2 font-medium">Scheduling for Clients:</label>
 
-        {/* Selected Clients Tags */}
-        {selectedClients.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-3">
-            {selectedClients.map(clientId => {
-              const client = clients.find(c => c._id === clientId);
-              return client ? (
-                <div key={clientId} className="flex items-center gap-1.5 bg-blue-500/10 border border-blue-500/20 text-blue-300 px-2.5 py-1 rounded-md text-xs font-medium">
-                  <span>{client.name}</span>
-                  <button
-                    onClick={() => setSelectedClients(selectedClients.filter(id => id !== clientId))}
-                    className="text-blue-400 hover:text-blue-200"
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
-              ) : null;
-            })}
-          </div>
-        )}
+                        {/* Selected Clients Tags */}
+                        {selectedClients.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mb-3">
+                            {selectedClients.map(clientId => {
+                              const client = clients.find(c => c._id === clientId);
+                              return client ? (
+                                <div key={clientId} className="flex items-center gap-1.5 bg-blue-500/10 border border-blue-500/20 text-blue-300 px-2.5 py-1 rounded-md text-xs font-medium">
+                                  <span>{client.name}</span>
+                                  <button
+                                    onClick={() => setSelectedClients(selectedClients.filter(id => id !== clientId))}
+                                    className="text-blue-400 hover:text-blue-200"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                </div>
+                              ) : null;
+                            })}
+                          </div>
+                        )}
 
-        {/* Add Client Dropdown */}
-        <select
-          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:ring-2 focus:ring-blue-500/50 outline-none"
-          onChange={(e) => {
-            if (e.target.value && !selectedClients.includes(e.target.value)) {
-              setSelectedClients([...selectedClients, e.target.value]);
-            }
-          }}
-          value=""
-        >
-          <option value="">{selectedClients.length === 0 ? '-- Select Client to Schedule --' : '+ Add another client'}</option>
-          {clients
-            .filter(c => !selectedClients.includes(c._id))
-            .map(client => (
-              <option key={client._id} value={client._id}>{client.name}</option>
-            ))}
-        </select>
-      </div>
+                        {/* Add Client Dropdown */}
+                        <select
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:ring-2 focus:ring-blue-500/50 outline-none"
+                          onChange={(e) => {
+                            if (e.target.value && !selectedClients.includes(e.target.value)) {
+                              setSelectedClients([...selectedClients, e.target.value]);
+                            }
+                          }}
+                          value=""
+                        >
+                          <option value="">{selectedClients.length === 0 ? '-- Select Client to Schedule --' : '+ Add another client'}</option>
+                          {clients
+                            .filter(c => !selectedClients.includes(c._id))
+                            .map(client => (
+                              <option key={client._id} value={client._id}>{client.name}</option>
+                            ))}
+                        </select>
+                      </div>
 
-      <div className="flex items-center gap-3 mb-4 mt-4">
-        <input
-          type="checkbox"
-          checked={reportSchedule.enabled}
-          onChange={(e) => setReportSchedule({ ...reportSchedule, enabled: e.target.checked })}
-          className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-offset-slate-900"
-        />
-        <label className="text-sm text-slate-300">Enable automatic monthly reports</label>
-      </div>
+                      <div className="flex items-center gap-3 mb-4 mt-4">
+                        <input
+                          type="checkbox"
+                          checked={reportSchedule.enabled}
+                          onChange={(e) => setReportSchedule({ ...reportSchedule, enabled: e.target.checked })}
+                          className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-offset-slate-900"
+                        />
+                        <label className="text-sm text-slate-300">Enable automatic monthly reports</label>
+                      </div>
 
-      {reportSchedule.enabled && (
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Day of Month</label>
-            <select
-              value={reportSchedule.dayOfMonth}
-              onChange={(e) => setReportSchedule({ ...reportSchedule, dayOfMonth: parseInt(e.target.value) })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200"
-            >
-              {[...Array(31)].map((_, i) => (
-                <option key={i + 1} value={i + 1}>{i + 1}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Time</label>
-            <input
-              type="time"
-              value={reportSchedule.time}
-              onChange={(e) => setReportSchedule({ ...reportSchedule, time: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200"
-            />
-          </div>
-        </div>
-      )}
+                      {reportSchedule.enabled && (
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs text-slate-500 mb-1">Day of Month</label>
+                            <select
+                              value={reportSchedule.dayOfMonth}
+                              onChange={(e) => setReportSchedule({ ...reportSchedule, dayOfMonth: parseInt(e.target.value) })}
+                              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200"
+                            >
+                              {[...Array(31)].map((_, i) => (
+                                <option key={i + 1} value={i + 1}>{i + 1}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs text-slate-500 mb-1">Time</label>
+                            <input
+                              type="time"
+                              value={reportSchedule.time}
+                              onChange={(e) => setReportSchedule({ ...reportSchedule, time: e.target.value })}
+                              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200"
+                            />
+                          </div>
+                        </div>
+                      )}
 
-      {reportSchedule.enabled && (
-        <div className="mt-4 space-y-4 border-t border-slate-800 pt-4">
-          {/* Send to Client Checkbox */}
-          <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              checked={reportSchedule.sendToClient}
-              onChange={(e) => setReportSchedule({ ...reportSchedule, sendToClient: e.target.checked })}
-              className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-offset-slate-900"
-            />
-            <label className="text-sm text-slate-300">Send copy to Client Email</label>
-          </div>
+                      {reportSchedule.enabled && (
+                        <div className="mt-4 space-y-4 border-t border-slate-800 pt-4">
+                          {/* Send to Client Checkbox */}
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={reportSchedule.sendToClient}
+                              onChange={(e) => setReportSchedule({ ...reportSchedule, sendToClient: e.target.checked })}
+                              className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-offset-slate-900"
+                            />
+                            <label className="text-sm text-slate-300">Send copy to Client Email</label>
+                          </div>
 
-          {/* Additional Recipients */}
-          <div>
-            <label className="block text-xs text-slate-500 mb-2">Additional Email Recipients</label>
-            <div className="flex gap-2 mb-2">
-              <input
-                type="email"
-                placeholder="Enter email address"
-                value={newRecipient}
-                onChange={(e) => setNewRecipient(e.target.value)}
-                className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    if (newRecipient && newRecipient.includes('@')) {
-                      setReportSchedule({
-                        ...reportSchedule,
-                        emailRecipients: [...reportSchedule.emailRecipients, newRecipient]
-                      });
-                      setNewRecipient('');
-                    }
-                  }
-                }}
-              />
-              <button
-                onClick={() => {
-                  if (newRecipient && newRecipient.includes('@')) {
-                    setReportSchedule({
-                      ...reportSchedule,
-                      emailRecipients: [...reportSchedule.emailRecipients, newRecipient]
-                    });
-                    setNewRecipient('');
-                  }
-                }}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
-              >
-                Add
-              </button>
+                          {/* Additional Recipients */}
+                          <div>
+                            <label className="block text-xs text-slate-500 mb-2">Additional Email Recipients</label>
+                            <div className="flex gap-2 mb-2">
+                              <input
+                                type="email"
+                                placeholder="Enter email address"
+                                value={newRecipient}
+                                onChange={(e) => setNewRecipient(e.target.value)}
+                                className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    if (newRecipient && newRecipient.includes('@')) {
+                                      setReportSchedule({
+                                        ...reportSchedule,
+                                        emailRecipients: [...reportSchedule.emailRecipients, newRecipient]
+                                      });
+                                      setNewRecipient('');
+                                    }
+                                  }
+                                }}
+                              />
+                              <button
+                                onClick={() => {
+                                  if (newRecipient && newRecipient.includes('@')) {
+                                    setReportSchedule({
+                                      ...reportSchedule,
+                                      emailRecipients: [...reportSchedule.emailRecipients, newRecipient]
+                                    });
+                                    setNewRecipient('');
+                                  }
+                                }}
+                                className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                              >
+                                Add
+                              </button>
+                            </div>
+
+                            {/* Recipients List */}
+                            {reportSchedule.emailRecipients.length > 0 && (
+                              <div className="flex flex-wrap gap-2">
+                                {reportSchedule.emailRecipients.map((email, index) => (
+                                  <div key={index} className="flex items-center gap-1 bg-slate-800/50 border border-slate-700 rounded-md px-2 py-1 text-xs text-slate-300">
+                                    <span>{email}</span>
+                                    <button
+                                      onClick={() => {
+                                        const newRecipients = [...reportSchedule.emailRecipients];
+                                        newRecipients.splice(index, 1);
+                                        setReportSchedule({ ...reportSchedule, emailRecipients: newRecipients });
+                                      }}
+                                      className="text-slate-500 hover:text-rose-400"
+                                    >
+                                      <X size={12} />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      <button
+                        onClick={saveSchedule}
+                        disabled={selectedClients.length === 0}
+                        className={`w-full mt-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedClients.length === 0
+                          ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                          : 'bg-slate-800 hover:bg-slate-700 text-white'
+                          }`}
+                      >
+                        {selectedClients.length === 0 ? 'Select a Client to Schedule' : 'Save Schedule'}
+                      </button>
+
+                      {/* Display saved schedules */}
+                      {savedSchedules.length > 0 && (
+                        <div className="mt-6 pt-4 border-t border-slate-800">
+                          <h4 className="text-sm font-medium text-slate-300 mb-3">Active Schedules</h4>
+                          <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                            {savedSchedules.map(schedule => (
+                              <div key={schedule._id} className="flex items-center justify-between bg-slate-950 p-3 rounded-lg border border-slate-800">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-slate-200 truncate">
+                                    {schedule.client?.name || 'Unknown Client'}
+                                  </p>
+                                  <p className="text-xs text-slate-500">
+                                    Next: {new Date(schedule.nextRun).toLocaleDateString()} at {new Date(schedule.nextRun).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </p>
+                                </div>
+                                <div className="flex items-center">
+                                  <button
+                                    onClick={() => runSchedule(schedule._id)}
+                                    className="p-1.5 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded transition-colors mr-1"
+                                    title="Run now"
+                                  >
+                                    <Play size={14} />
+                                  </button>
+                                  <button
+                                    onClick={() => deleteSchedule(schedule._id)}
+                                    className="p-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded transition-colors"
+                                    title="Delete schedule"
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+
+                    </div>
+                  )}
+              </div>
             </div>
 
-            {/* Recipients List */}
-            {reportSchedule.emailRecipients.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {reportSchedule.emailRecipients.map((email, index) => (
-                  <div key={index} className="flex items-center gap-1 bg-slate-800/50 border border-slate-700 rounded-md px-2 py-1 text-xs text-slate-300">
-                    <span>{email}</span>
-                    <button
-                      onClick={() => {
-                        const newRecipients = [...reportSchedule.emailRecipients];
-                        newRecipients.splice(index, 1);
-                        setReportSchedule({ ...reportSchedule, emailRecipients: newRecipients });
-                      }}
-                      className="text-slate-500 hover:text-rose-400"
-                    >
-                      <X size={12} />
-                    </button>
+            {/* RIGHT COLUMN: Live Preview (60%) */}
+            <div className="lg:col-span-7">
+              <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 min-h-[600px] backdrop-blur-sm">
+                {previewLoading ? (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-500 py-20">
+                    <Loader2 size={40} className="animate-spin text-blue-500 mb-4" />
+                    <p>Generating preview...</p>
                   </div>
-                ))}
+                ) : previewError ? (
+                  <div className="h-full flex flex-col items-center justify-center text-rose-500 py-20">
+                    <p>Error loading preview: {previewError}</p>
+                  </div>
+                ) : (
+                  <LiveReportPreview
+                    analytics={previewData}
+                    client={clients.find(c => c._id === selectedClients[0])}
+                    dateRange={{ startDate, endDate }}
+                  />
+                )}
               </div>
-            )}
-          </div>
-        </div>
-      )}
-      <button
-        onClick={saveSchedule}
-        disabled={selectedClients.length === 0}
-        className={`w-full mt-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedClients.length === 0
-          ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
-          : 'bg-slate-800 hover:bg-slate-700 text-white'
-          }`}
-      >
-        {selectedClients.length === 0 ? 'Select a Client to Schedule' : 'Save Schedule'}
-      </button>
+            </div>
 
-      {/* Display saved schedules */}
-      {savedSchedules.length > 0 && (
-        <div className="mt-6 pt-4 border-t border-slate-800">
-          <h4 className="text-sm font-medium text-slate-300 mb-3">Active Schedules</h4>
-          <div className="space-y-2 max-h-[200px] overflow-y-auto">
-            {savedSchedules.map(schedule => (
-              <div key={schedule._id} className="flex items-center justify-between bg-slate-950 p-3 rounded-lg border border-slate-800">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-200 truncate">
-                    {schedule.client?.name || 'Unknown Client'}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    Next: {new Date(schedule.nextRun).toLocaleDateString()} at {new Date(schedule.nextRun).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                </div>
-                <div className="flex items-center">
-                  <button
-                    onClick={() => runSchedule(schedule._id)}
-                    className="p-1.5 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded transition-colors mr-1"
-                    title="Run now"
-                  >
-                    <Play size={14} />
-                  </button>
-                  <button
-                    onClick={() => deleteSchedule(schedule._id)}
-                    className="p-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded transition-colors"
-                    title="Delete schedule"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-
-    </div>
-    </div>
-
-          {/* RIGHT COLUMN: Live Preview (60%) */ }
-  <div className="lg:col-span-7">
-    <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 min-h-[600px] backdrop-blur-sm">
-      {previewLoading ? (
-        <div className="h-full flex flex-col items-center justify-center text-slate-500 py-20">
-          <Loader2 size={40} className="animate-spin text-blue-500 mb-4" />
-          <p>Generating preview...</p>
-        </div>
-      ) : previewError ? (
-        <div className="h-full flex flex-col items-center justify-center text-rose-500 py-20">
-          <p>Error loading preview: {previewError}</p>
-        </div>
-      ) : (
-        <LiveReportPreview
-          analytics={previewData}
-          client={clients.find(c => c._id === selectedClients[0])}
-          dateRange={{ startDate, endDate }}
-        />
-      )}
-    </div>
-  </div>
-
+          </div >
         </div >
       </div >
-    </div >
 
-    {/* Summary Modal */ }
-  {
-    showSummary && summaryData && (
-      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
-          {/* Modal Header */}
-          <div className="sticky top-0 bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 rounded-t-2xl flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold">📊 {summaryData.clientName} – Instagram Monthly Report</h2>
-              <p className="text-slate-300 text-sm mt-1">Period: {summaryData.periodText} | Comparison: {summaryData.comparison}</p>
-            </div>
-            <button onClick={() => setShowSummary(false)} className="p-2 hover:bg-white/10 rounded-lg transition">
-              <X size={24} />
-            </button>
-          </div>
-
-          <div className="p-6 space-y-8 text-slate-800">
-            {/* 1. Performance Metrics Table */}
-            <section>
-              <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-                <span className="text-blue-500">1.</span> Instagram Performance Metrics
-              </h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse">
-                  <thead>
-                    <tr className="bg-slate-100">
-                      <th className="text-left p-3 font-semibold">Metric</th>
-                      <th className="text-right p-3 font-semibold">{summaryData.comparison.split(' ')[0]}</th>
-                      <th className="text-right p-3 font-semibold">Current</th>
-                      <th className="text-right p-3 font-semibold">% Change</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-b">
-                      <td className="p-3">Followers</td>
-                      <td className="p-3 text-right text-slate-500">{summaryData.metrics.followers.previous.toLocaleString()}</td>
-                      <td className="p-3 text-right font-semibold">{summaryData.metrics.followers.current.toLocaleString()}</td>
-                      <td className="p-3 text-right text-green-600">📈 {summaryData.metrics.followers.change}%</td>
-                    </tr>
-                    <tr className="border-b bg-slate-50">
-                      <td className="p-3">Net Growth</td>
-                      <td className="p-3 text-right text-slate-500">{summaryData.metrics.netGrowth.previous}</td>
-                      <td className="p-3 text-right font-semibold">{summaryData.metrics.netGrowth.current}</td>
-                      <td className="p-3 text-right text-green-600">📈 {summaryData.metrics.netGrowth.change}%</td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="p-3">Impressions</td>
-                      <td className="p-3 text-right text-slate-500">{summaryData.metrics.impressions.previous.toLocaleString()}</td>
-                      <td className="p-3 text-right font-semibold">{summaryData.metrics.impressions.current.toLocaleString()}</td>
-                      <td className="p-3 text-right text-green-600">📈 {summaryData.metrics.impressions.change}%</td>
-                    </tr>
-                    <tr className="border-b bg-slate-50">
-                      <td className="p-3">Engagements</td>
-                      <td className="p-3 text-right text-slate-500">{summaryData.metrics.engagements.previous.toLocaleString()}</td>
-                      <td className="p-3 text-right font-semibold">{summaryData.metrics.engagements.current.toLocaleString()}</td>
-                      <td className="p-3 text-right text-green-600">📈 {summaryData.metrics.engagements.change}%</td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="p-3">Engagement Rate</td>
-                      <td className="p-3 text-right text-slate-500">{summaryData.metrics.engagementRate.previous}%</td>
-                      <td className="p-3 text-right font-semibold">{summaryData.metrics.engagementRate.current}%</td>
-                      <td className="p-3 text-right text-green-600">📈 {summaryData.metrics.engagementRate.change}%</td>
-                    </tr>
-                    <tr className="border-b bg-slate-50">
-                      <td className="p-3">Reel Views</td>
-                      <td className="p-3 text-right text-slate-500">{summaryData.metrics.reelViews.previous.toLocaleString()}</td>
-                      <td className="p-3 text-right font-semibold">{summaryData.metrics.reelViews.current.toLocaleString()}</td>
-                      <td className="p-3 text-right text-green-600">📈 {summaryData.metrics.reelViews.change}</td>
-                    </tr>
-                    <tr>
-                      <td className="p-3">Messages (Sent/Received)</td>
-                      <td className="p-3 text-right text-slate-500">{summaryData.metrics.messages.previous}</td>
-                      <td className="p-3 text-right font-semibold">{summaryData.metrics.messages.current}</td>
-                      <td className="p-3 text-right text-green-600">📈 {summaryData.metrics.messages.change}</td>
-                    </tr>
-                  </tbody>
-                </table>
+      {/* Summary Modal */}
+      {
+        showSummary && summaryData && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+              {/* Modal Header */}
+              <div className="sticky top-0 bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 rounded-t-2xl flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold">📊 {summaryData.clientName} – Instagram Monthly Report</h2>
+                  <p className="text-slate-300 text-sm mt-1">Period: {summaryData.periodText} | Comparison: {summaryData.comparison}</p>
+                </div>
+                <button onClick={() => setShowSummary(false)} className="p-2 hover:bg-white/10 rounded-lg transition">
+                  <X size={24} />
+                </button>
               </div>
-            </section>
 
-            {/* 2. What We Did */}
-            <section>
-              <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
-                <span className="text-blue-500">2.</span> What We Did in {summaryData.periodText.split(' ')[0]}
-              </h3>
-              <ul className="list-disc pl-6 space-y-2 text-slate-700">
-                {summaryData.whatWeDid.map((item, i) => (
-                  <li key={i}>{item}</li>
-                ))}
-              </ul>
-            </section>
-
-            {/* 3. What Worked */}
-            <section>
-              <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
-                <span className="text-blue-500">3.</span> What Worked
-              </h3>
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-3">
-                <p className="font-semibold text-green-800 mb-2">🎬 Top Performing Reels</p>
-                <ul className="list-disc pl-6 text-green-700 space-y-1">
-                  {summaryData.whatWorked.topPerformingReels.map((reel, i) => (
-                    <li key={i}>{reel.caption}... – Reach {reel.reach?.toLocaleString()}</li>
-                  ))}
-                </ul>
-              </div>
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <p className="font-semibold text-green-800 mb-2">✅ Key Insights</p>
-                <ul className="list-disc pl-6 text-green-700 space-y-1">
-                  {summaryData.whatWorked.insights.map((insight, i) => (
-                    <li key={i}>{insight}</li>
-                  ))}
-                </ul>
-              </div>
-            </section>
-
-            {/* 4. What Needs Improvement */}
-            <section>
-              <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
-                <span className="text-blue-500">4.</span> What Needs Improvement
-              </h3>
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                <ul className="space-y-2">
-                  {summaryData.needsImprovement.map((item, i) => (
-                    <li key={i} className="flex items-start gap-2 text-amber-800">
-                      <span className="text-amber-500">⚠️</span> {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </section>
-
-            {/* 5. Next Month Focus */}
-            <section>
-              <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
-                <span className="text-blue-500">5.</span> Next Month Focus
-              </h3>
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                <p className="font-semibold text-purple-800 mb-2">🚀 Content Strategy</p>
-                <ul className="list-disc pl-6 text-purple-700 space-y-1">
-                  {summaryData.nextMonthFocus.map((item, i) => (
-                    <li key={i}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-3">
-                <p className="font-semibold text-blue-800 mb-2">⚙️ Optimization</p>
-                <ul className="list-disc pl-6 text-blue-700 space-y-1">
-                  {summaryData.optimization.map((item, i) => (
-                    <li key={i}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-            </section>
-
-            {/* 6. Visual Highlights */}
-            <section>
-              <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
-                <span className="text-blue-500">6.</span> Visual Highlights
-              </h3>
-              <div className="grid grid-cols-2 gap-4">
-                {summaryData.visualHighlights.map((post, i) => (
-                  <div key={i} className="bg-slate-100 rounded-lg p-4">
-                    <p className="font-semibold text-slate-800">Top {i === 0 ? 'Reel' : 'Post'} – {post.caption}...</p>
-                    <p className="text-sm text-slate-600">Reach: {post.reach?.toLocaleString()}</p>
+              <div className="p-6 space-y-8 text-slate-800">
+                {/* 1. Performance Metrics Table */}
+                <section>
+                  <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                    <span className="text-blue-500">1.</span> Instagram Performance Metrics
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm border-collapse">
+                      <thead>
+                        <tr className="bg-slate-100">
+                          <th className="text-left p-3 font-semibold">Metric</th>
+                          <th className="text-right p-3 font-semibold">{summaryData.comparison.split(' ')[0]}</th>
+                          <th className="text-right p-3 font-semibold">Current</th>
+                          <th className="text-right p-3 font-semibold">% Change</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-b">
+                          <td className="p-3">Followers</td>
+                          <td className="p-3 text-right text-slate-500">{summaryData.metrics.followers.previous.toLocaleString()}</td>
+                          <td className="p-3 text-right font-semibold">{summaryData.metrics.followers.current.toLocaleString()}</td>
+                          <td className="p-3 text-right text-green-600">📈 {summaryData.metrics.followers.change}%</td>
+                        </tr>
+                        <tr className="border-b bg-slate-50">
+                          <td className="p-3">Net Growth</td>
+                          <td className="p-3 text-right text-slate-500">{summaryData.metrics.netGrowth.previous}</td>
+                          <td className="p-3 text-right font-semibold">{summaryData.metrics.netGrowth.current}</td>
+                          <td className="p-3 text-right text-green-600">📈 {summaryData.metrics.netGrowth.change}%</td>
+                        </tr>
+                        <tr className="border-b">
+                          <td className="p-3">Impressions</td>
+                          <td className="p-3 text-right text-slate-500">{summaryData.metrics.impressions.previous.toLocaleString()}</td>
+                          <td className="p-3 text-right font-semibold">{summaryData.metrics.impressions.current.toLocaleString()}</td>
+                          <td className="p-3 text-right text-green-600">📈 {summaryData.metrics.impressions.change}%</td>
+                        </tr>
+                        <tr className="border-b bg-slate-50">
+                          <td className="p-3">Engagements</td>
+                          <td className="p-3 text-right text-slate-500">{summaryData.metrics.engagements.previous.toLocaleString()}</td>
+                          <td className="p-3 text-right font-semibold">{summaryData.metrics.engagements.current.toLocaleString()}</td>
+                          <td className="p-3 text-right text-green-600">📈 {summaryData.metrics.engagements.change}%</td>
+                        </tr>
+                        <tr className="border-b">
+                          <td className="p-3">Engagement Rate</td>
+                          <td className="p-3 text-right text-slate-500">{summaryData.metrics.engagementRate.previous}%</td>
+                          <td className="p-3 text-right font-semibold">{summaryData.metrics.engagementRate.current}%</td>
+                          <td className="p-3 text-right text-green-600">📈 {summaryData.metrics.engagementRate.change}%</td>
+                        </tr>
+                        <tr className="border-b bg-slate-50">
+                          <td className="p-3">Reel Views</td>
+                          <td className="p-3 text-right text-slate-500">{summaryData.metrics.reelViews.previous.toLocaleString()}</td>
+                          <td className="p-3 text-right font-semibold">{summaryData.metrics.reelViews.current.toLocaleString()}</td>
+                          <td className="p-3 text-right text-green-600">📈 {summaryData.metrics.reelViews.change}</td>
+                        </tr>
+                        <tr>
+                          <td className="p-3">Messages (Sent/Received)</td>
+                          <td className="p-3 text-right text-slate-500">{summaryData.metrics.messages.previous}</td>
+                          <td className="p-3 text-right font-semibold">{summaryData.metrics.messages.current}</td>
+                          <td className="p-3 text-right text-green-600">📈 {summaryData.metrics.messages.change}</td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
-                ))}
+                </section>
+
+                {/* 2. What We Did */}
+                <section>
+                  <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
+                    <span className="text-blue-500">2.</span> What We Did in {summaryData.periodText.split(' ')[0]}
+                  </h3>
+                  <ul className="list-disc pl-6 space-y-2 text-slate-700">
+                    {summaryData.whatWeDid.map((item, i) => (
+                      <li key={i}>{item}</li>
+                    ))}
+                  </ul>
+                </section>
+
+                {/* 3. What Worked */}
+                <section>
+                  <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
+                    <span className="text-blue-500">3.</span> What Worked
+                  </h3>
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-3">
+                    <p className="font-semibold text-green-800 mb-2">🎬 Top Performing Reels</p>
+                    <ul className="list-disc pl-6 text-green-700 space-y-1">
+                      {summaryData.whatWorked.topPerformingReels.map((reel, i) => (
+                        <li key={i}>{reel.caption}... – Reach {reel.reach?.toLocaleString()}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <p className="font-semibold text-green-800 mb-2">✅ Key Insights</p>
+                    <ul className="list-disc pl-6 text-green-700 space-y-1">
+                      {summaryData.whatWorked.insights.map((insight, i) => (
+                        <li key={i}>{insight}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </section>
+
+                {/* 4. What Needs Improvement */}
+                <section>
+                  <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
+                    <span className="text-blue-500">4.</span> What Needs Improvement
+                  </h3>
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                    <ul className="space-y-2">
+                      {summaryData.needsImprovement.map((item, i) => (
+                        <li key={i} className="flex items-start gap-2 text-amber-800">
+                          <span className="text-amber-500">⚠️</span> {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </section>
+
+                {/* 5. Next Month Focus */}
+                <section>
+                  <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
+                    <span className="text-blue-500">5.</span> Next Month Focus
+                  </h3>
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                    <p className="font-semibold text-purple-800 mb-2">🚀 Content Strategy</p>
+                    <ul className="list-disc pl-6 text-purple-700 space-y-1">
+                      {summaryData.nextMonthFocus.map((item, i) => (
+                        <li key={i}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-3">
+                    <p className="font-semibold text-blue-800 mb-2">⚙️ Optimization</p>
+                    <ul className="list-disc pl-6 text-blue-700 space-y-1">
+                      {summaryData.optimization.map((item, i) => (
+                        <li key={i}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </section>
+
+                {/* 6. Visual Highlights */}
+                <section>
+                  <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
+                    <span className="text-blue-500">6.</span> Visual Highlights
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    {summaryData.visualHighlights.map((post, i) => (
+                      <div key={i} className="bg-slate-100 rounded-lg p-4">
+                        <p className="font-semibold text-slate-800">Top {i === 0 ? 'Reel' : 'Post'} – {post.caption}...</p>
+                        <p className="text-sm text-slate-600">Reach: {post.reach?.toLocaleString()}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                {/* Summary */}
+                <section className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg p-6">
+                  <h3 className="text-lg font-bold text-orange-800 mb-3 flex items-center gap-2">
+                    ✨ Summary
+                  </h3>
+                  <p className="text-orange-900 font-medium mb-3">
+                    Instagram was the <span className="bg-yellow-200 px-1 rounded">primary driver of growth</span> in {summaryData.periodText}:
+                  </p>
+                  <ul className="list-disc pl-6 text-orange-800 space-y-1">
+                    {summaryData.summaryText.map((item, i) => (
+                      <li key={i}>{item}</li>
+                    ))}
+                  </ul>
+                </section>
+
+                {/* Action Buttons */}
+                <div className="flex gap-4 pt-4 border-t">
+                  <button
+                    onClick={printSummary}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-medium flex items-center justify-center gap-2"
+                  >
+                    <Download size={18} /> Print / Save PDF
+                  </button>
+                  <button
+                    onClick={() => setShowSummary(false)}
+                    className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 py-3 rounded-xl font-medium"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
-            </section>
-
-            {/* Summary */}
-            <section className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg p-6">
-              <h3 className="text-lg font-bold text-orange-800 mb-3 flex items-center gap-2">
-                ✨ Summary
-              </h3>
-              <p className="text-orange-900 font-medium mb-3">
-                Instagram was the <span className="bg-yellow-200 px-1 rounded">primary driver of growth</span> in {summaryData.periodText}:
-              </p>
-              <ul className="list-disc pl-6 text-orange-800 space-y-1">
-                {summaryData.summaryText.map((item, i) => (
-                  <li key={i}>{item}</li>
-                ))}
-              </ul>
-            </section>
-
-            {/* Action Buttons */}
-            <div className="flex gap-4 pt-4 border-t">
-              <button
-                onClick={printSummary}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-medium flex items-center justify-center gap-2"
-              >
-                <Download size={18} /> Print / Save PDF
-              </button>
-              <button
-                onClick={() => setShowSummary(false)}
-                className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 py-3 rounded-xl font-medium"
-              >
-                Close
-              </button>
             </div>
           </div>
-        </div>
-      </div>
-    )
-  }
+        )
+      }
 
     </Layout >
   );
