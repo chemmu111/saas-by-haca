@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, ArrowRight, X, Check, Mail, Lock, RefreshCw } from 'lucide-react';
+import { Eye, EyeOff, ArrowRight, X, Check, Mail, Lock } from 'lucide-react';
 import AuthLayout from './AuthLayout';
 import PageTitle from '../dashboard/src/components/PageTitle';
 
@@ -17,20 +17,6 @@ const Login = () => {
     const [newPassword, setNewPassword] = useState('');
     const [forgotStatus, setForgotStatus] = useState({ step: 'email', type: '', message: '' }); // step: email, verify, success
 
-    // OTP Login State
-    const [isOtpLogin, setIsOtpLogin] = useState(false);
-    const [otp, setOtp] = useState('');
-    const [otpSent, setOtpSent] = useState(false);
-    const [resendTimer, setResendTimer] = useState(0);
-
-    useEffect(() => {
-        let interval;
-        if (resendTimer > 0) {
-            interval = setInterval(() => setResendTimer(prev => prev - 1), 1000);
-        }
-        return () => clearInterval(interval);
-    }, [resendTimer]);
-
     const getBackendUrl = () => {
         // Check for environment variable first (production)
         if (import.meta.env.VITE_API_URL) {
@@ -43,7 +29,6 @@ const Login = () => {
         }
 
         // Development mode on localhost with Vite proxy
-        // Use relative paths to let Vite proxy handle the forwarding
         return '';
     };
 
@@ -54,7 +39,6 @@ const Login = () => {
 
         try {
             const backendUrl = getBackendUrl();
-            // Ensure we don't have double slashes if backendUrl is empty
             const url = backendUrl ? `${backendUrl}/api/auth/login` : '/api/auth/login';
 
             const response = await fetch(url, {
@@ -90,104 +74,6 @@ const Login = () => {
         } catch (err) {
             console.error('Login error:', err);
             setError(`Connection error: ${err.message}`);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleSendOtp = async (e) => {
-        e.preventDefault();
-        setError('');
-
-        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-        if (!emailRegex.test(email)) {
-            setError('Please enter a valid email address');
-            return;
-        }
-
-        setIsLoading(true);
-
-        try {
-            const backendUrl = getBackendUrl();
-            const response = await fetch(`${backendUrl}/api/auth/login-otp-init`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email }),
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                setOtpSent(true);
-                setResendTimer(60);
-            } else {
-                setError(data.error || 'Failed to send verification code.');
-            }
-        } catch (err) {
-            console.error('Send OTP error:', err);
-            setError('Network error. Please try again.');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleVerifyOtp = async (e) => {
-        e.preventDefault();
-        setError('');
-        setIsLoading(true);
-
-        try {
-            const backendUrl = getBackendUrl();
-            const response = await fetch(`${backendUrl}/api/auth/verify-login-otp`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, code: otp }),
-            });
-
-            const data = await response.json();
-
-            if (data.token) {
-                localStorage.setItem('auth_token', data.token);
-                if (data.refreshToken) localStorage.setItem('refresh_token', data.refreshToken);
-                localStorage.setItem('user_info', JSON.stringify(data.user));
-
-                if (data.user.role === 'admin') {
-                    navigate('/dashboard/admin/tokens');
-                } else {
-                    navigate('/dashboard');
-                }
-            } else {
-                setError(data.error || 'Invalid code. Please try again.');
-            }
-        } catch (err) {
-            console.error('Verify OTP error:', err);
-            setError('An error occurred. Please try again later.');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleResendOtp = async () => {
-        if (resendTimer > 0) return;
-        setIsLoading(true);
-        setError('');
-
-        try {
-            const backendUrl = getBackendUrl();
-            const response = await fetch(`${backendUrl}/api/auth/resend-otp`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, purpose: 'login' }),
-            });
-
-            const data = await response.json();
-            if (data.success) {
-                setResendTimer(60);
-            } else {
-                setError(data.error || 'Failed to resend code.');
-            }
-        } catch (err) {
-            setError('Network error. Try again.');
         } finally {
             setIsLoading(false);
         }
@@ -260,14 +146,10 @@ const Login = () => {
     return (
         <AuthLayout>
             <PageTitle title="Login" />
-            <form onSubmit={isOtpLogin ? (otpSent ? handleVerifyOtp : handleSendOtp) : handleLogin} noValidate className="w-full">
+            <form onSubmit={handleLogin} noValidate className="w-full">
                 <div className="mb-6">
                     <h2 className="auth-form-title">Welcome Back</h2>
-                    <p className="auth-form-subtitle">
-                        {isOtpLogin
-                            ? (otpSent ? `Enter code sent to ${email}` : "Login with your email")
-                            : "Enter your details to access your account"}
-                    </p>
+                    <p className="auth-form-subtitle">Enter your details to access your account</p>
                 </div>
 
                 {error && (
@@ -290,98 +172,47 @@ const Login = () => {
                                 onChange={(e) => setEmail(e.target.value)}
                                 placeholder="name@company.com"
                                 required
-                                disabled={otpSent && isOtpLogin}
                             />
-                            {otpSent && isOtpLogin && (
-                                <button
-                                    type="button"
-                                    onClick={() => { setOtpSent(false); setOtp(''); }}
-                                    className="absolute right-[14px] top-1/2 -translate-y-1/2 text-blue-600 hover:text-blue-700 text-xs font-medium"
-                                >
-                                    Change
-                                </button>
-                            )}
                         </div>
                     </div>
 
-                    {!isOtpLogin && (
-                        <div className="field-group">
-                            <label htmlFor="login-password">Password</label>
-                            <div className="input-wrapper">
-                                <div className="input-icon">
-                                    <Lock size={18} />
-                                </div>
-                                <input
-                                    id="login-password"
-                                    type={showPassword ? "text" : "password"}
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    placeholder="Enter your password"
-                                    required
-                                />
-                                <button
-                                    type="button"
-                                    className="absolute right-[14px] top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors p-1"
-                                    onClick={() => setShowPassword(!showPassword)}
-                                >
-                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                                </button>
+                    <div className="field-group">
+                        <label htmlFor="login-password">Password</label>
+                        <div className="input-wrapper">
+                            <div className="input-icon">
+                                <Lock size={18} />
                             </div>
+                            <input
+                                id="login-password"
+                                type={showPassword ? "text" : "password"}
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                placeholder="Enter your password"
+                                required
+                            />
+                            <button
+                                type="button"
+                                className="absolute right-[14px] top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors p-1"
+                                onClick={() => setShowPassword(!showPassword)}
+                            >
+                                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
                         </div>
-                    )}
-
-                    {isOtpLogin && otpSent && (
-                        <div className="field-group">
-                            <label htmlFor="login-otp">Verification Code</label>
-                            <div className="input-wrapper">
-                                <div className="input-icon">
-                                    <Lock size={18} />
-                                </div>
-                                <input
-                                    id="login-otp"
-                                    type="text"
-                                    value={otp}
-                                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                    placeholder="Enter 6-digit code"
-                                    className="text-center tracking-widest text-lg"
-                                    maxLength={6}
-                                    required
-                                />
-                            </div>
-                        </div>
-                    )}
+                    </div>
                 </div>
 
                 <div className="flex items-center justify-between text-sm mb-4">
-                    {!isOtpLogin ? (
-                        <>
-                            <label className="flex items-center gap-2 cursor-pointer group">
-                                <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />
-                                <span className="text-gray-500 group-hover:text-gray-700 transition-colors">Remember me</span>
-                            </label>
-                            <button
-                                type="button"
-                                className="text-[#6366f1] hover:text-[#4f46e5] font-medium transition-colors"
-                                onClick={() => setShowForgotModal(true)}
-                            >
-                                Forgot Password?
-                            </button>
-                        </>
-                    ) : (
-                        <div className="flex justify-end w-full">
-                            {otpSent && (
-                                <button
-                                    type="button"
-                                    onClick={handleResendOtp}
-                                    disabled={resendTimer > 0 || isLoading}
-                                    className="text-[#4A6CFF] hover:text-[#3B5BDB] font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
-                                    {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend Code'}
-                                </button>
-                            )}
-                        </div>
-                    )}
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                        <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />
+                        <span className="text-gray-500 group-hover:text-gray-700 transition-colors">Remember me</span>
+                    </label>
+                    <button
+                        type="button"
+                        className="text-[#6366f1] hover:text-[#4f46e5] font-medium transition-colors"
+                        onClick={() => setShowForgotModal(true)}
+                    >
+                        Forgot Password?
+                    </button>
                 </div>
 
                 <button
@@ -389,25 +220,8 @@ const Login = () => {
                     type="submit"
                     disabled={isLoading}
                 >
-                    <span>
-                        {isLoading
-                            ? (isOtpLogin ? (otpSent ? 'Verifying...' : 'Sending Code...') : 'Logging in...')
-                            : (isOtpLogin ? (otpSent ? 'Verify & Login' : 'Send Login Code') : 'Sign In')}
-                    </span>
+                    <span>{isLoading ? 'Logging in...' : 'Sign In'}</span>
                     {!isLoading && <ArrowRight size={18} />}
-                </button>
-
-                <button
-                    type="button"
-                    className="w-full py-2 text-sm text-gray-500 hover:text-gray-700 font-medium transition-colors"
-                    onClick={() => {
-                        setIsOtpLogin(!isOtpLogin);
-                        setOtpSent(false);
-                        setOtp('');
-                        setError('');
-                    }}
-                >
-                    {isOtpLogin ? 'Login with Password' : 'Login with OTP'}
                 </button>
 
                 <div className="auth-footer mt-2">

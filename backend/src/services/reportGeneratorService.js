@@ -146,8 +146,12 @@ export const generateReportData = async (clientId, startDate, endDate) => {
             // Use API data
         }
         if (apiData.media) {
-            totalReach = apiData.account?.reach || totalReach;
-            totalImpressions = apiData.account?.impressions || totalImpressions;
+            // Reach: Prioritize 28-day account reach, then sum of post reach (Gross Reach), then daily reach
+            totalReach = apiData.account?.reach_28d || apiData.media.totalReach || apiData.account?.reach || totalReach;
+
+            // Impressions: Prioritize sum of post impressions (from top 100 posts), then account daily impressions
+            totalImpressions = apiData.media.totalImpressions || apiData.account?.impressions || totalImpressions;
+
             totalLikes = apiData.media.totalLikes || totalLikes;
             totalComments = apiData.media.totalComments || totalComments;
             totalShares = apiData.media.totalShares || totalShares;
@@ -352,7 +356,7 @@ export const generateReportData = async (clientId, startDate, endDate) => {
             return {
                 id: p.id,
                 accountName: client.name || client.username || 'Unknown',
-                thumbnail: p.media_url || p.thumbnail_url || null,
+                thumbnail: p.thumbnail_url || p.media_url || null,
                 type: p.media_type,
                 caption: p.caption ? p.caption.substring(0, 150) : '',
                 publishedAt: p.timestamp,
@@ -370,7 +374,7 @@ export const generateReportData = async (clientId, startDate, endDate) => {
             return {
                 id: p._id,
                 accountName: client.name || client.username || 'Unknown',
-                thumbnail: p.mediaUrl || p.thumbnailUrl || null,
+                thumbnail: p.thumbnailUrl || p.mediaUrl || null,
                 type: p.media_type,
                 caption: p.caption ? p.caption.substring(0, 150) : '',
                 publishedAt: p.publishedTime || p.createdAt,
