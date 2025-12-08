@@ -16,9 +16,25 @@ function isValidEmail(email) {
   return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email);
 }
 
-function signToken(user) {
+function generateTokens(user) {
   const secret = process.env.JWT_SECRET || 'dev-secret';
-  return jwt.sign({ sub: user.id, email: user.email, role: user.role, name: user.name }, secret, { expiresIn: '1d' });
+  // Use a different secret for refresh tokens, or append a string to the main secret
+  // In production, these should be separate env vars. For now, we'll derive it or use a fallback.
+  const refreshSecret = process.env.JWT_REFRESH_SECRET || secret + '_refresh';
+
+  const accessToken = jwt.sign(
+    { sub: user.id, email: user.email, role: user.role, name: user.name, type: 'access' },
+    secret,
+    { expiresIn: '1d' }
+  );
+
+  const refreshToken = jwt.sign(
+    { sub: user.id, type: 'refresh' },
+    refreshSecret,
+    { expiresIn: '2d' }
+  );
+
+  return { accessToken, refreshToken };
 }
 
 router.post('/signup', async (req, res) => {
@@ -115,8 +131,12 @@ router.post('/verify-signup', async (req, res) => {
     await verification.save();
 
     // Generate token and return user
-    const token = signToken(user);
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+    const tokens = generateTokens(user);
+    res.json({
+      token: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: { id: user.id, name: user.name, email: user.email, role: user.role }
+    });
   } catch (err) {
     console.error('Verify signup error', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -188,8 +208,12 @@ router.post('/login', async (req, res) => {
     }
 
     // For non-admin users, proceed with normal login
-    const token = signToken(user);
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+    const tokens = generateTokens(user);
+    res.json({
+      token: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: { id: user.id, name: user.name, email: user.email, role: user.role }
+    });
   } catch (err) {
     console.error('Login error', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -278,8 +302,12 @@ router.post('/verify-login-otp', async (req, res) => {
     }
 
     // Generate token and return user
-    const token = signToken(user);
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+    const tokens = generateTokens(user);
+    res.json({
+      token: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: { id: user.id, name: user.name, email: user.email, role: user.role }
+    });
   } catch (err) {
     console.error('Verify Login OTP error', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -315,8 +343,12 @@ router.post('/verify-code', async (req, res) => {
     await verification.save();
 
     // Generate token and return user
-    const token = signToken(user);
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+    const tokens = generateTokens(user);
+    res.json({
+      token: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: { id: user.id, name: user.name, email: user.email, role: user.role }
+    });
   } catch (err) {
     console.error('Verification error', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -694,6 +726,48 @@ router.get('/token/check/:clientId', async (req, res) => {
   } catch (error) {
     console.error('Error checking token:', error);
     res.status(500).json({ error: 'Failed to check token status' });
+  }
+});
+
+// POST /api/auth/refresh-token - Refresh Access Token
+router.post('/refresh-token', async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+      return res.status(401).json({ error: 'Refresh Token Required' });
+    }
+
+    const secret = process.env.JWT_SECRET || 'dev-secret';
+    const refreshSecret = process.env.JWT_REFRESH_SECRET || secret + '_refresh';
+
+    // Verify Refresh Token
+    let payload;
+    try {
+      payload = jwt.verify(refreshToken, refreshSecret);
+    } catch (e) {
+      console.error('RefreshToken verification failed:', e.message);
+      return res.status(401).json({ error: 'Invalid or Expired Refresh Token', code: 'REFRESH_EXPIRED' });
+    }
+
+    if (payload.type !== 'refresh') {
+      return res.status(401).json({ error: 'Invalid Token Type', code: 'INVALID_TOKEN' });
+    }
+
+    const user = await User.findById(payload.sub);
+    if (!user) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    // Generate new tokens
+    const tokens = generateTokens(user);
+    res.json({
+      token: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: { id: user.id, name: user.name, email: user.email, role: user.role }
+    });
+  } catch (err) {
+    console.error('Refresh token error', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

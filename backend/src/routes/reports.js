@@ -10,6 +10,7 @@ import ReportSchedule from '../models/ReportSchedule.js';
 import requireAuth from '../middleware/requireAuth.js';
 import { sendMonthlyReportEmail, sendReportToClient } from '../services/emailService.js';
 import { generateReport, generateReportWithTemplate, generatePDFFromTemplate, generatePDFFromHTML, generateTextReport, sendToGoogleDoc } from '../services/reportService.js';
+import { processSchedule } from '../cron/reportCron.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -100,7 +101,8 @@ router.post('/schedule', async (req, res) => {
       dayOfMonth = 1,
       dayOfWeek = 1, // 0-6 for weekly
       time = '09:00',
-      emailRecipients,
+      emailRecipients = [],
+      sendToClient = false,
       templateId,
       format = 'pdf',
       enabled = true
@@ -153,7 +155,8 @@ router.post('/schedule', async (req, res) => {
           interval,
           templateId,
           format,
-          emailRecipients: emailRecipients || [user.email],
+          emailRecipients: emailRecipients && emailRecipients.length > 0 ? emailRecipients : [user.email],
+          sendToClient,
           nextRun,
           isActive: enabled
         },
@@ -170,6 +173,75 @@ router.post('/schedule', async (req, res) => {
   } catch (error) {
     console.error('Error scheduling reports:', error);
     res.status(500).json({ success: false, error: 'Failed to schedule reports' });
+  }
+});
+
+// GET /api/reports/schedules - Get all report schedules for user
+router.get('/schedules', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+
+    const schedules = await ReportSchedule.find({ createdBy: userId })
+      .populate('client', 'name platform')
+      .sort({ nextRun: 1 });
+
+    res.json({
+      success: true,
+      data: schedules
+    });
+  } catch (error) {
+    console.error('Error fetching schedules:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch schedules' });
+  }
+});
+
+// DELETE /api/reports/schedules/:id - Delete a schedule
+router.delete('/schedules/:id', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const { id } = req.params;
+
+    const schedule = await ReportSchedule.findOneAndDelete({
+      _id: id,
+      createdBy: userId
+    });
+
+    if (!schedule) {
+      return res.status(404).json({ success: false, error: 'Schedule not found' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Schedule deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting schedule:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete schedule' });
+  }
+});
+
+// POST /api/reports/schedules/:id/run - Manually run a schedule
+router.post('/schedules/:id/run', async (req, res) => {
+  try {
+    const schedule = await ReportSchedule.findById(req.params.id)
+      .populate('client')
+      .populate('createdBy');
+
+    if (!schedule) {
+      return res.status(404).json({ success: false, error: 'Schedule not found' });
+    }
+
+    if (schedule.createdBy._id.toString() !== req.user.sub) {
+      return res.status(403).json({ success: false, error: 'Unauthorized' });
+    }
+
+    // Process immediately
+    await processSchedule(schedule);
+
+    res.json({ success: true, message: 'Schedule triggered successfully' });
+  } catch (error) {
+    console.error('Error running schedule:', error);
+    res.status(500).json({ success: false, error: 'Failed to run schedule' });
   }
 });
 
@@ -226,7 +298,7 @@ router.post('/export', async (req, res) => {
         const reportWithHtml = await generateReportWithTemplate(userId, posts, clients, {
           startDate,
           endDate,
-          templateName: templateId,
+          templateName: templateId || 'professional-modern.html',
           format: 'html'
         });
         buffer = await generatePDFFromHTML(reportWithHtml.html);
@@ -268,9 +340,12 @@ router.post('/export', async (req, res) => {
     }
 
     if (buffer) {
+      // Ensure buffer is a proper Buffer
+      const pdfData = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
       res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Length', pdfData.length);
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      res.send(buffer);
+      res.end(pdfData);
     } else {
       res.setHeader('Content-Type', contentType);
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -593,7 +668,7 @@ router.post('/download', async (req, res) => {
       const reportWithHtml = await generateReportWithTemplate(userId, posts, clients, {
         startDate,
         endDate,
-        templateName,
+        templateName: templateName || 'professional-modern.html',
         format: 'html'
       });
 

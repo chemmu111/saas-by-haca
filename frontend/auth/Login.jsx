@@ -68,6 +68,7 @@ const Login = () => {
 
                 if (data.token) {
                     localStorage.setItem('auth_token', data.token);
+                    if (data.refreshToken) localStorage.setItem('refresh_token', data.refreshToken);
                     localStorage.setItem('user_info', JSON.stringify(data.user));
 
                     // Redirect based on role
@@ -146,6 +147,7 @@ const Login = () => {
 
             if (data.token) {
                 localStorage.setItem('auth_token', data.token);
+                if (data.refreshToken) localStorage.setItem('refresh_token', data.refreshToken);
                 localStorage.setItem('user_info', JSON.stringify(data.user));
 
                 if (data.user.role === 'admin') {

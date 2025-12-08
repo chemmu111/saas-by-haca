@@ -25,12 +25,56 @@ api.interceptors.request.use(
 // Add response interceptor for error handling
 api.interceptors.response.use(
     (response) => response,
-    (error) => {
-        if (error.response?.status === 401) {
-            // Token expired or invalid
-            localStorage.removeItem("auth_token");
-            localStorage.removeItem("user_info");
-            window.location.href = "/login";
+    async (error) => {
+        const originalRequest = error.config;
+
+        // If error is 401 and not already retrying
+        if (error.response?.status === 401 && !originalRequest._retry) {
+            // Prevent infinite loop if refresh token itself is expired
+            if (originalRequest.url.includes('/auth/refresh-token')) {
+                localStorage.removeItem("auth_token");
+                localStorage.removeItem("refresh_token");
+                localStorage.removeItem("user_info");
+                window.location.href = "/login";
+                return Promise.reject(error);
+            }
+
+            originalRequest._retry = true;
+            const refreshToken = localStorage.getItem('refresh_token');
+
+            if (refreshToken) {
+                try {
+                    // Use api instance to respect baseURL, but handle the specific endpoint fail via the check above
+                    const response = await api.post('/auth/refresh-token', {
+                        refreshToken: refreshToken
+                    });
+
+                    if (response.data.token) {
+                        localStorage.setItem('auth_token', response.data.token);
+                        if (response.data.refreshToken) {
+                            localStorage.setItem('refresh_token', response.data.refreshToken);
+                        }
+
+                        // Update header and retry original request
+                        originalRequest.headers.Authorization = `Bearer ${response.data.token}`;
+                        return api(originalRequest);
+                    }
+                } catch (refreshError) {
+                    console.error("Token refresh failed:", refreshError);
+                    // If refresh failed, LOGOUT
+                    localStorage.removeItem("auth_token");
+                    localStorage.removeItem("refresh_token");
+                    localStorage.removeItem("user_info");
+                    window.location.href = "/login";
+                    return Promise.reject(refreshError);
+                }
+            } else {
+                // No refresh token available, logout
+                localStorage.removeItem("auth_token");
+                localStorage.removeItem("refresh_token");
+                localStorage.removeItem("user_info");
+                window.location.href = "/login";
+            }
         }
         return Promise.reject(error);
     }

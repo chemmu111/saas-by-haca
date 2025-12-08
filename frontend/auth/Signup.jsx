@@ -93,6 +93,7 @@ const Signup = () => {
                 } else if (data.token) {
                     // Fallback for old flow if backend doesn't require verification
                     localStorage.setItem('auth_token', data.token);
+                    if (data.refreshToken) localStorage.setItem('refresh_token', data.refreshToken);
                     localStorage.setItem('user_info', JSON.stringify(data.user));
                     navigate('/dashboard');
                 } else {
@@ -135,6 +136,7 @@ const Signup = () => {
 
                 if (data.token) {
                     localStorage.setItem('auth_token', data.token);
+                    if (data.refreshToken) localStorage.setItem('refresh_token', data.refreshToken);
                     localStorage.setItem('user_info', JSON.stringify(data.user));
                     navigate('/dashboard');
                 } else {

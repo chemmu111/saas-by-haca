@@ -203,6 +203,63 @@ const LiveReportPreview = ({ analytics, client, dateRange }) => {
                         </div>
                     </div>
                 </div>
+
+                {/* Engagements Trend Chart */}
+                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 mt-6">
+                    <h4 className="text-lg font-semibold text-white mb-4">Engagements Trend</h4>
+                    <div style={{ width: '100%', height: 250 }}>
+                        <ResponsiveContainer width="100%" height={250}>
+                            <LineChart data={engagementBreakdown.engagementTrend || []}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                                <XAxis dataKey="date" stroke="#64748b" fontSize={12} tickFormatter={formatDate} />
+                                <YAxis stroke="#64748b" fontSize={12} />
+                                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f8fafc' }} />
+                                <Legend wrapperStyle={{ color: '#94a3b8' }} />
+                                <Line type="monotone" dataKey="total" name="Total" stroke="#f43f5e" strokeWidth={2} dot={false} />
+                                <Line type="monotone" dataKey="instagram" name="Instagram" stroke="#e879f9" strokeWidth={2} dot={false} />
+                                <Line type="monotone" dataKey="facebook" name="Facebook" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                {/* Engagement Rate Trend Chart */}
+                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 mt-6">
+                    <h4 className="text-lg font-semibold text-white mb-4">Engagement Rate Trend (%)</h4>
+                    <div style={{ width: '100%', height: 250 }}>
+                        <ResponsiveContainer width="100%" height={250}>
+                            <LineChart data={engagementBreakdown.engagementRateTrend || []}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                                <XAxis dataKey="date" stroke="#64748b" fontSize={12} tickFormatter={formatDate} />
+                                <YAxis stroke="#64748b" fontSize={12} unit="%" />
+                                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f8fafc' }} formatter={(value) => `${value}%`} />
+                                <Legend wrapperStyle={{ color: '#94a3b8' }} />
+                                <Line type="monotone" dataKey="total" name="Total ER" stroke="#10b981" strokeWidth={2} dot={false} />
+                                <Line type="monotone" dataKey="instagram" name="Instagram ER" stroke="#e879f9" strokeWidth={2} dot={false} />
+                                <Line type="monotone" dataKey="facebook" name="Facebook ER" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                {/* Video Views Trend Chart */}
+                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 mt-6">
+                    <h4 className="text-lg font-semibold text-white mb-4">Video Views Trend</h4>
+                    <div style={{ width: '100%', height: 250 }}>
+                        <ResponsiveContainer width="100%" height={250}>
+                            <LineChart data={engagementBreakdown.videoViewsTrend || []}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                                <XAxis dataKey="date" stroke="#64748b" fontSize={12} tickFormatter={formatDate} />
+                                <YAxis stroke="#64748b" fontSize={12} />
+                                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f8fafc' }} />
+                                <Legend wrapperStyle={{ color: '#94a3b8' }} />
+                                <Line type="monotone" dataKey="total" name="Total Views" stroke="#f59e0b" strokeWidth={2} dot={false} />
+                                <Line type="monotone" dataKey="instagram" name="IG Reels" stroke="#e879f9" strokeWidth={2} dot={false} />
+                                <Line type="monotone" dataKey="facebook" name="FB Videos" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
             </section>
 
             {/* 5. CONTENT PERFORMANCE */}
@@ -210,37 +267,29 @@ const LiveReportPreview = ({ analytics, client, dateRange }) => {
                 <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                     <Layers className="text-indigo-400" size={24} /> Content Performance
                 </h3>
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="lg:col-span-2 bg-slate-900/50 border border-slate-800 rounded-xl p-6">
-                        <h4 className="text-lg font-semibold text-white mb-4">Content Mix</h4>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div className="p-4 bg-slate-800/50 rounded-lg text-center">
-                                <Image className="mx-auto mb-2 text-blue-400" />
-                                <div className="text-xl font-bold text-white">{contentPerformance.byFormat.image}</div>
-                                <div className="text-xs text-slate-500">Images</div>
-                            </div>
-                            <div className="p-4 bg-slate-800/50 rounded-lg text-center">
-                                <Video className="mx-auto mb-2 text-purple-400" />
-                                <div className="text-xl font-bold text-white">{contentPerformance.byFormat.video}</div>
-                                <div className="text-xs text-slate-500">Videos</div>
-                            </div>
-                            <div className="p-4 bg-slate-800/50 rounded-lg text-center">
-                                <Layers className="mx-auto mb-2 text-emerald-400" />
-                                <div className="text-xl font-bold text-white">{contentPerformance.byFormat.carousel}</div>
-                                <div className="text-xs text-slate-500">Carousels</div>
-                            </div>
-                            <div className="p-4 bg-slate-800/50 rounded-lg text-center">
-                                <Video className="mx-auto mb-2 text-rose-400" />
-                                <div className="text-xl font-bold text-white">{contentPerformance.byFormat.reel}</div>
-                                <div className="text-xs text-slate-500">Reels</div>
-                            </div>
+                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
+                    <h4 className="text-lg font-semibold text-white mb-4">Content Mix</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="p-4 bg-slate-800/50 rounded-lg text-center">
+                            <Image className="mx-auto mb-2 text-blue-400" />
+                            <div className="text-xl font-bold text-white">{contentPerformance.byFormat.image}</div>
+                            <div className="text-xs text-slate-500">Images</div>
                         </div>
-                    </div>
-                    <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col justify-center items-center text-center">
-                        <Clock size={48} className="text-orange-400 mb-4" />
-                        <h4 className="text-lg font-semibold text-white mb-1">Best Posting Time</h4>
-                        <div className="text-3xl font-bold text-orange-400">{contentPerformance.bestPostingTime}</div>
-                        <p className="text-sm text-slate-500 mt-2">Based on engagement history</p>
+                        <div className="p-4 bg-slate-800/50 rounded-lg text-center">
+                            <Video className="mx-auto mb-2 text-purple-400" />
+                            <div className="text-xl font-bold text-white">{contentPerformance.byFormat.video}</div>
+                            <div className="text-xs text-slate-500">Videos</div>
+                        </div>
+                        <div className="p-4 bg-slate-800/50 rounded-lg text-center">
+                            <Layers className="mx-auto mb-2 text-emerald-400" />
+                            <div className="text-xl font-bold text-white">{contentPerformance.byFormat.carousel}</div>
+                            <div className="text-xs text-slate-500">Carousels</div>
+                        </div>
+                        <div className="p-4 bg-slate-800/50 rounded-lg text-center">
+                            <Video className="mx-auto mb-2 text-rose-400" />
+                            <div className="text-xl font-bold text-white">{contentPerformance.byFormat.reel}</div>
+                            <div className="text-xs text-slate-500">Reels</div>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -255,24 +304,43 @@ const LiveReportPreview = ({ analytics, client, dateRange }) => {
                         <table className="w-full text-left">
                             <thead className="bg-slate-900/80 text-slate-400 text-xs uppercase font-medium">
                                 <tr>
-                                    <th className="px-6 py-4">Content</th>
-                                    <th className="px-6 py-4">Type</th>
-                                    <th className="px-6 py-4">Reach</th>
-                                    <th className="px-6 py-4">Eng. Rate</th>
-                                    <th className="px-6 py-4">Ranking</th>
+                                    <th className="px-4 py-4">Media</th>
+                                    <th className="px-4 py-4">Content</th>
+                                    <th className="px-4 py-4">Type</th>
+                                    <th className="px-4 py-4">Reach</th>
+                                    <th className="px-4 py-4">Eng. Rate</th>
+                                    <th className="px-4 py-4">Ranking</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-800">
                                 {detailedPosts.slice(0, 10).map((post, i) => (
                                     <tr key={i} className="hover:bg-slate-800/50 transition-colors">
-                                        <td className="px-6 py-4">
+                                        <td className="px-4 py-3">
+                                            {post.thumbnail ? (
+                                                <img
+                                                    src={post.thumbnail}
+                                                    alt="Post thumbnail"
+                                                    className="w-16 h-16 object-cover rounded-lg border border-slate-700"
+                                                    onError={(e) => { e.target.style.display = 'none'; }}
+                                                />
+                                            ) : (
+                                                <div className="w-16 h-16 bg-slate-800 rounded-lg flex items-center justify-center">
+                                                    {post.type === 'VIDEO' || post.type === 'REELS' ? (
+                                                        <Video size={20} className="text-slate-500" />
+                                                    ) : (
+                                                        <Image size={20} className="text-slate-500" />
+                                                    )}
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3">
                                             <div className="text-sm text-slate-200 truncate max-w-[200px]">{post.caption || 'No caption'}</div>
                                             <div className="text-xs text-slate-500">{formatDate(post.publishedAt)}</div>
                                         </td>
-                                        <td className="px-6 py-4 text-sm text-slate-400 capitalize">{post.type?.toLowerCase()}</td>
-                                        <td className="px-6 py-4 text-sm text-slate-300">{formatNumber(post.reach)}</td>
-                                        <td className="px-6 py-4 text-sm text-slate-300">{(post.engagementRate || 0).toFixed(1)}%</td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-4 py-3 text-sm text-slate-400 capitalize">{post.type?.toLowerCase()}</td>
+                                        <td className="px-4 py-3 text-sm text-slate-300">{formatNumber(post.reach)}</td>
+                                        <td className="px-4 py-3 text-sm text-slate-300">{(post.engagementRate || 0).toFixed(1)}%</td>
+                                        <td className="px-4 py-3">
                                             <span className={`text-xs font-medium px-2 py-1 rounded-full ${post.ranking === 'Top Performer' ? 'bg-emerald-500/10 text-emerald-400' :
                                                 post.ranking === 'Needs Improvement' ? 'bg-rose-500/10 text-rose-400' :
                                                     'bg-slate-500/10 text-slate-400'

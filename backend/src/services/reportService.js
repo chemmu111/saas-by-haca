@@ -47,276 +47,703 @@ export async function generateReportWithTemplate(userId, posts, clients, options
   const report = await generateReport(userId, posts, clients, { startDate, endDate, format });
   const client = clients[0];
 
-  // Default Enterprise HTML Template
+  // Default Enterprise HTML Template - Premium Design
   const defaultTemplate = `
       <!DOCTYPE html>
       <html>
       <head>
         <meta charset="UTF-8">
         <style>
-          body { font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.5; color: #1e293b; max-width: 900px; margin: 0 auto; background: #fff; }
-          .header { display: flex; justify-content: space-between; align-items: center; padding: 40px 0; border-bottom: 2px solid #f1f5f9; margin-bottom: 40px; }
-          .logo-area { display: flex; align-items: center; gap: 15px; }
-          .client-avatar { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; background: #f1f5f9; }
-          .client-info h1 { margin: 0; font-size: 24px; color: #0f172a; }
-          .client-info p { margin: 5px 0 0; color: #64748b; font-size: 14px; }
-          .report-meta { text-align: right; }
-          .report-meta h2 { margin: 0; font-size: 18px; color: #0f172a; text-transform: uppercase; letter-spacing: 1px; }
-          .report-meta p { margin: 5px 0 0; color: #64748b; font-size: 14px; }
+          * { box-sizing: border-box; }
+          body { 
+            font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; 
+            line-height: 1.6; 
+            color: #1e293b; 
+            max-width: 900px; 
+            margin: 0 auto; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px;
+          }
+          .report-container {
+            background: #ffffff;
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            overflow: hidden;
+          }
           
-          .section { margin-bottom: 50px; page-break-inside: avoid; }
-          .section-title { font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; }
-          .section-title span { color: #3b82f6; }
+          /* Cover Page */
+          .cover-page {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+            color: white;
+            padding: 80px 60px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+          }
+          .cover-page::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/></svg>') repeat;
+            opacity: 0.5;
+          }
+          .company-logo {
+            width: 120px;
+            height: 120px;
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            border-radius: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 30px;
+            font-size: 48px;
+            font-weight: 800;
+            color: white;
+            box-shadow: 0 20px 40px rgba(59, 130, 246, 0.4);
+            position: relative;
+            z-index: 1;
+          }
+          .cover-title {
+            font-size: 42px;
+            font-weight: 800;
+            margin: 0 0 10px;
+            position: relative;
+            z-index: 1;
+          }
+          .cover-subtitle {
+            font-size: 20px;
+            color: #94a3b8;
+            margin: 0 0 40px;
+            position: relative;
+            z-index: 1;
+          }
+          .cover-client {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 16px;
+            padding: 30px;
+            display: inline-block;
+            position: relative;
+            z-index: 1;
+          }
+          .cover-client-name {
+            font-size: 28px;
+            font-weight: 700;
+            margin: 0 0 10px;
+          }
+          .cover-period {
+            font-size: 16px;
+            color: #94a3b8;
+            margin: 0;
+          }
           
+          /* Content Area */
+          .content { padding: 60px; }
+          
+          .section { 
+            margin-bottom: 50px; 
+            page-break-inside: avoid;
+          }
+          .section-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+          }
+          .section-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+          }
+          .section-title { 
+            font-size: 24px; 
+            font-weight: 700; 
+            color: #0f172a; 
+            margin: 0;
+          }
+          .section-subtitle {
+            font-size: 14px;
+            color: #64748b;
+            margin: 5px 0 0;
+          }
+          
+          /* Metric Cards */
           .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
           .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
           .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
           
-          .metric-card { background: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; }
-          .metric-title { font-size: 13px; color: #64748b; font-weight: 600; text-transform: uppercase; margin-bottom: 10px; }
-          .metric-value { font-size: 28px; font-weight: 800; color: #0f172a; }
-          .metric-sub { font-size: 13px; color: #10b981; margin-top: 5px; font-weight: 500; }
+          .metric-card { 
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            padding: 24px; 
+            border-radius: 16px; 
+            border: 1px solid #e2e8f0;
+            position: relative;
+            overflow: hidden;
+          }
+          .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+          }
+          .metric-card.blue::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+          .metric-card.purple::before { background: linear-gradient(90deg, #8b5cf6, #a855f7); }
+          .metric-card.green::before { background: linear-gradient(90deg, #10b981, #34d399); }
+          .metric-card.rose::before { background: linear-gradient(90deg, #f43f5e, #fb7185); }
+          .metric-card.amber::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+          
+          .metric-title { 
+            font-size: 12px; 
+            color: #64748b; 
+            font-weight: 600; 
+            text-transform: uppercase; 
+            letter-spacing: 0.5px;
+            margin-bottom: 12px; 
+          }
+          .metric-value { 
+            font-size: 32px; 
+            font-weight: 800; 
+            color: #0f172a;
+            line-height: 1;
+          }
+          .metric-sub { 
+            font-size: 13px; 
+            color: #10b981; 
+            margin-top: 8px; 
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+          }
           .metric-sub.negative { color: #ef4444; }
           .metric-sub.neutral { color: #64748b; }
 
-          .highlight-box { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 20px; }
+          /* Charts */
+          .chart-container {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 30px;
+            margin-top: 20px;
+          }
+          .chart-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #0f172a;
+            margin: 0 0 20px;
+          }
+          .bar-chart {
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+            height: 120px;
+            padding: 10px 0;
+          }
+          .bar {
+            flex: 1;
+            background: linear-gradient(180deg, #3b82f6 0%, #60a5fa 100%);
+            border-radius: 4px 4px 0 0;
+            position: relative;
+            min-height: 20px;
+            transition: all 0.3s;
+          }
+          .bar.purple { background: linear-gradient(180deg, #8b5cf6 0%, #a855f7 100%); }
+          .bar.green { background: linear-gradient(180deg, #10b981 0%, #34d399 100%); }
+          .bar.rose { background: linear-gradient(180deg, #f43f5e 0%, #fb7185 100%); }
+          .bar-label {
+            position: absolute;
+            bottom: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 10px;
+            color: #64748b;
+            white-space: nowrap;
+          }
+          
+          /* Line Chart (CSS) */
+          .line-chart {
+            height: 100px;
+            background: linear-gradient(180deg, rgba(59, 130, 246, 0.1) 0%, transparent 100%);
+            border-radius: 8px;
+            position: relative;
+            margin-bottom: 30px;
+          }
+          .chart-line {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 60%;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            clip-path: polygon(0% 100%, 5% 80%, 15% 60%, 25% 70%, 35% 40%, 45% 50%, 55% 30%, 65% 45%, 75% 20%, 85% 35%, 95% 10%, 100% 25%, 100% 100%);
+            opacity: 0.8;
+          }
+          .chart-dates {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #94a3b8;
+            margin-top: 10px;
+          }
+
+          /* Highlights */
+          .highlight-box { 
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            border: 1px solid #93c5fd;
+            border-radius: 16px; 
+            padding: 25px;
+          }
+          .highlight-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1e40af;
+            margin: 0 0 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }
           .highlight-list { list-style: none; padding: 0; margin: 0; }
-          .highlight-list li { position: relative; padding-left: 20px; margin-bottom: 10px; color: #334155; }
-          .highlight-list li::before { content: "•"; color: #0ea5e9; font-weight: bold; position: absolute; left: 0; }
+          .highlight-list li { 
+            position: relative; 
+            padding-left: 24px; 
+            margin-bottom: 12px; 
+            color: #334155;
+            font-size: 14px;
+          }
+          .highlight-list li::before { 
+            content: "✓"; 
+            color: #3b82f6;
+            font-weight: bold; 
+            position: absolute; 
+            left: 0;
+            background: #dbeafe;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+          }
 
+          /* Table */
           table { width: 100%; border-collapse: collapse; font-size: 14px; }
-          th { text-align: left; padding: 15px; background: #f8fafc; color: #475569; font-weight: 600; border-bottom: 2px solid #e2e8f0; }
-          td { padding: 15px; border-bottom: 1px solid #e2e8f0; color: #334155; vertical-align: middle; }
-          tr:last-child td { border-bottom: none; }
-          .rank-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
-          .rank-top { background: #dcfce7; color: #166534; }
-          .rank-avg { background: #f1f5f9; color: #475569; }
-          .rank-low { background: #fee2e2; color: #991b1b; }
+          th { 
+            text-align: left; 
+            padding: 16px; 
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            color: #475569; 
+            font-weight: 700; 
+            border-bottom: 2px solid #e2e8f0;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          td { 
+            padding: 16px; 
+            border-bottom: 1px solid #f1f5f9; 
+            color: #334155;
+          }
+          tr:hover { background: #f8fafc; }
+          .rank-badge { 
+            display: inline-block; 
+            padding: 6px 14px; 
+            border-radius: 20px; 
+            font-size: 11px; 
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          .rank-top { background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%); color: #166534; }
+          .rank-avg { background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%); color: #475569; }
+          .rank-low { background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); color: #991b1b; }
 
+          /* Insights */
           .insights-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-          .insight-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
-          .insight-panel h4 { margin-top: 0; color: #0f172a; }
-          .insight-item { margin-bottom: 15px; }
-          .insight-label { font-weight: 700; color: #475569; font-size: 13px; display: block; margin-bottom: 4px; }
-          .insight-text { color: #334155; }
+          .insight-panel { 
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            border: 1px solid #e2e8f0; 
+            border-radius: 16px; 
+            padding: 30px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+          }
+          .insight-panel h4 { 
+            margin: 0 0 20px; 
+            color: #0f172a;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+          }
+          .insight-item { margin-bottom: 18px; }
+          .insight-label { 
+            font-weight: 700; 
+            color: #3b82f6; 
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: block; 
+            margin-bottom: 6px; 
+          }
+          .insight-text { color: #334155; font-size: 14px; }
 
-          .footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 12px; }
+          /* Footer */
+          .footer-page {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: white;
+            padding: 60px;
+            text-align: center;
+          }
+          .footer-logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 25px;
+            font-size: 32px;
+            font-weight: 800;
+          }
+          .footer-text {
+            font-size: 14px;
+            color: #94a3b8;
+            margin: 0;
+          }
+          .footer-brand {
+            font-size: 24px;
+            font-weight: 700;
+            color: white;
+            margin: 0 0 10px;
+          }
         </style>
       </head>
       <body>
-        <div class="header">
-          <div class="logo-area">
-            <div class="client-avatar" style="background-image: url('{{clientAvatar}}'); background-size: cover;"></div>
-            <div class="client-info">
-              <h1>{{clientName}}</h1>
-              <p>Social Media Performance Report</p>
+        <div class="report-container">
+          <!-- COVER PAGE -->
+          <div class="cover-page">
+            <div class="company-logo">H&C</div>
+            <h1 class="cover-title">Social Media Report</h1>
+            <p class="cover-subtitle">Performance Analytics & Insights</p>
+            <div class="cover-client">
+              <h2 class="cover-client-name">{{clientName}}</h2>
+              <p class="cover-period">📅 {{startDate}} - {{endDate}}</p>
             </div>
           </div>
-          <div class="report-meta">
-            <h2>{{reportMonth}}</h2>
-            <p>{{startDate}} - {{endDate}}</p>
-          </div>
-        </div>
 
-        <!-- 1. EXECUTIVE SUMMARY -->
-        <div class="section">
-          <div class="section-title"><span>01.</span> Executive Summary</div>
-          <div class="grid-4">
-            <div class="metric-card">
-              <div class="metric-title">Total Followers</div>
-              <div class="metric-value">{{totalFollowers}}</div>
-              <div class="metric-sub">{{newFollowers}} new</div>
+          <div class="content">
+            <!-- 1. EXECUTIVE SUMMARY -->
+            <div class="section">
+              <div class="section-header">
+                <div class="section-icon">📊</div>
+                <div>
+                  <h2 class="section-title">Executive Summary</h2>
+                  <p class="section-subtitle">Key performance metrics at a glance</p>
+                </div>
+              </div>
+              <div class="grid-4">
+                <div class="metric-card blue">
+                  <div class="metric-title">Total Followers</div>
+                  <div class="metric-value">{{totalFollowers}}</div>
+                  <div class="metric-sub">{{newFollowers}} new</div>
+                </div>
+                <div class="metric-card purple">
+                  <div class="metric-title">Total Reach</div>
+                  <div class="metric-value">{{totalReach}}</div>
+                  <div class="metric-sub neutral">Unique accounts</div>
+                </div>
+                <div class="metric-card green">
+                  <div class="metric-title">Engagement Rate</div>
+                  <div class="metric-value">{{engagementRate}}</div>
+                  <div class="metric-sub neutral">Per impression</div>
+                </div>
+                <div class="metric-card rose">
+                  <div class="metric-title">Total Engagements</div>
+                  <div class="metric-value">{{totalEngagements}}</div>
+                  <div class="metric-sub neutral">All interactions</div>
+                </div>
+              </div>
+              <div style="margin-top: 25px;">
+                <div class="highlight-box">
+                  <h4 class="highlight-title">✨ Performance Highlights</h4>
+                  <ul class="highlight-list">
+                    {{highlightsList}}
+                  </ul>
+                </div>
+              </div>
             </div>
-            <div class="metric-card">
-              <div class="metric-title">Total Reach</div>
-              <div class="metric-value">{{totalReach}}</div>
-              <div class="metric-sub neutral">Unique Accounts</div>
-            </div>
-            <div class="metric-card">
-              <div class="metric-title">Engagement Rate</div>
-              <div class="metric-value">{{engagementRate}}</div>
-              <div class="metric-sub neutral">Per Impression</div>
-            </div>
-            <div class="metric-card">
-              <div class="metric-title">Total Engagements</div>
-              <div class="metric-value">{{totalEngagements}}</div>
-              <div class="metric-sub neutral">Interactions</div>
-            </div>
-          </div>
-          <div style="margin-top: 20px;">
-            <div class="highlight-box">
-              <h4 style="margin-top: 0; margin-bottom: 15px; color: #0369a1;">✨ Performance Highlights</h4>
-              <ul class="highlight-list">
-                {{highlightsList}}
-              </ul>
-            </div>
-          </div>
-        </div>
 
-        <!-- 2. AUDIENCE & GROWTH -->
-        <div class="section">
-          <div class="section-title"><span>02.</span> Audience & Growth</div>
-          <div class="grid-3">
-            <div class="metric-card">
-              <div class="metric-title">Net Growth</div>
-              <div class="metric-value">{{netGrowth}}</div>
-              <div class="metric-sub">{{growthRate}}% growth</div>
+            <!-- 2. AUDIENCE & GROWTH with Chart -->
+            <div class="section">
+              <div class="section-header">
+                <div class="section-icon">👥</div>
+                <div>
+                  <h2 class="section-title">Audience & Growth</h2>
+                  <p class="section-subtitle">Follower growth and platform breakdown</p>
+                </div>
+              </div>
+              <div class="grid-3">
+                <div class="metric-card green">
+                  <div class="metric-title">Net Growth</div>
+                  <div class="metric-value">{{netGrowth}}</div>
+                  <div class="metric-sub">{{growthRate}}% growth</div>
+                </div>
+                <div class="metric-card purple">
+                  <div class="metric-title">Instagram Followers</div>
+                  <div class="metric-value">{{igFollowers}}</div>
+                </div>
+                <div class="metric-card blue">
+                  <div class="metric-title">Facebook Followers</div>
+                  <div class="metric-value">{{fbFollowers}}</div>
+                </div>
+              </div>
+              <div class="chart-container">
+                <div class="chart-title">📈 Follower Growth Trend</div>
+                <div class="line-chart">
+                  <div class="chart-line"></div>
+                </div>
+                <div class="chart-dates">
+                  <span>{{startDate}}</span>
+                  <span>{{endDate}}</span>
+                </div>
+              </div>
             </div>
-            <div class="metric-card">
-              <div class="metric-title">Instagram Followers</div>
-              <div class="metric-value">{{igFollowers}}</div>
-            </div>
-            <div class="metric-card">
-              <div class="metric-title">Facebook Followers</div>
-              <div class="metric-value">{{fbFollowers}}</div>
-            </div>
-          </div>
-        </div>
 
-        <!-- 3. REACH & IMPRESSIONS -->
-        <div class="section">
-          <div class="section-title"><span>03.</span> Reach & Impressions</div>
-          <div class="grid-2">
-            <div class="metric-card">
-              <div class="metric-title">Total Impressions</div>
-              <div class="metric-value">{{totalImpressions}}</div>
-              <div class="metric-sub neutral">Total Views</div>
+            <!-- 3. REACH & IMPRESSIONS with Chart -->
+            <div class="section">
+              <div class="section-header">
+                <div class="section-icon">👁️</div>
+                <div>
+                  <h2 class="section-title">Reach & Impressions</h2>
+                  <p class="section-subtitle">Content visibility and exposure</p>
+                </div>
+              </div>
+              <div class="grid-2">
+                <div class="metric-card purple">
+                  <div class="metric-title">Total Impressions</div>
+                  <div class="metric-value">{{totalImpressions}}</div>
+                  <div class="metric-sub neutral">Total views</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-title">Reach Source</div>
+                  <div style="margin-top: 10px; font-size: 14px; color: #475569;">
+                    <div style="margin-bottom: 8px;"><strong>Reels:</strong> {{reachReels}}</div>
+                    <div style="margin-bottom: 8px;"><strong>Profile Visits:</strong> {{reachProfile}}</div>
+                    <div><strong>Other:</strong> {{reachOther}}</div>
+                  </div>
+                </div>
+              </div>
+              <div class="chart-container">
+                <div class="chart-title">📊 Impressions Trend</div>
+                <div class="bar-chart">
+                  {{impressionsChart}}
+                </div>
+              </div>
             </div>
-            <div class="metric-card">
-              <div class="metric-title">Reach Source</div>
-              <div style="margin-top: 10px; font-size: 14px; color: #475569;">
-                <div><strong>Reels:</strong> {{reachReels}}</div>
-                <div><strong>Profile Visits:</strong> {{reachProfile}}</div>
-                <div><strong>Other:</strong> {{reachOther}}</div>
+
+            <!-- 4. ENGAGEMENT BREAKDOWN with Chart -->
+            <div class="section">
+              <div class="section-header">
+                <div class="section-icon">❤️</div>
+                <div>
+                  <h2 class="section-title">Engagement Breakdown</h2>
+                  <p class="section-subtitle">Interaction analytics</p>
+                </div>
+              </div>
+              <div class="grid-4">
+                <div class="metric-card rose"><div class="metric-title">Likes</div><div class="metric-value">{{totalLikes}}</div></div>
+                <div class="metric-card blue"><div class="metric-title">Comments</div><div class="metric-value">{{totalComments}}</div></div>
+                <div class="metric-card green"><div class="metric-title">Shares</div><div class="metric-value">{{totalShares}}</div></div>
+                <div class="metric-card amber"><div class="metric-title">Saves</div><div class="metric-value">{{totalSaves}}</div></div>
+              </div>
+              <div class="grid-3" style="margin-top: 20px;">
+                <div class="metric-card"><div class="metric-title">Save-to-View</div><div class="metric-value" style="font-size: 24px;">{{saveToView}}%</div></div>
+                <div class="metric-card"><div class="metric-title">Share-to-View</div><div class="metric-value" style="font-size: 24px;">{{shareToView}}%</div></div>
+                <div class="metric-card"><div class="metric-title">Eng. per Reach</div><div class="metric-value" style="font-size: 24px;">{{engPerReach}}%</div></div>
+              </div>
+              <div class="chart-container">
+                <div class="chart-title">📊 Engagement Trend</div>
+                <div class="bar-chart">
+                  <div class="bar rose" style="height: {{likesBarHeight}}%;"><span class="bar-label">Likes</span></div>
+                  <div class="bar blue" style="height: {{commentsBarHeight}}%;"><span class="bar-label">Comments</span></div>
+                  <div class="bar green" style="height: {{sharesBarHeight}}%;"><span class="bar-label">Shares</span></div>
+                  <div class="bar purple" style="height: {{savesBarHeight}}%;"><span class="bar-label">Saves</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 5. CONTENT PERFORMANCE -->
+            <div class="section">
+              <div class="section-header">
+                <div class="section-icon">📝</div>
+                <div>
+                  <h2 class="section-title">Content Performance</h2>
+                  <p class="section-subtitle">Content mix and format analysis</p>
+                </div>
+              </div>
+              <div class="grid-4">
+                <div class="metric-card blue"><div class="metric-title">Images</div><div class="metric-value">{{cntImages}}</div></div>
+                <div class="metric-card purple"><div class="metric-title">Videos</div><div class="metric-value">{{cntVideos}}</div></div>
+                <div class="metric-card green"><div class="metric-title">Carousels</div><div class="metric-value">{{cntCarousels}}</div></div>
+                <div class="metric-card rose"><div class="metric-title">Reels</div><div class="metric-value">{{cntReels}}</div></div>
+              </div>
+            </div>
+
+            <!-- 6. VIDEO PERFORMANCE -->
+            <div class="section">
+              <div class="section-header">
+                <div class="section-icon">🎬</div>
+                <div>
+                  <h2 class="section-title">Video Performance</h2>
+                  <p class="section-subtitle">Video engagement metrics</p>
+                </div>
+              </div>
+              <div class="grid-4">
+                <div class="metric-card amber"><div class="metric-title">Total Video Views</div><div class="metric-value">{{totalVideoViews}}</div></div>
+                <div class="metric-card rose"><div class="metric-title">Reel Views</div><div class="metric-value">{{reelViews}}</div></div>
+                <div class="metric-card blue"><div class="metric-title">Avg Watch Time</div><div class="metric-value">{{avgWatchTime}}s</div></div>
+                <div class="metric-card green"><div class="metric-title">Completion Rate</div><div class="metric-value">{{completionRate}}%</div></div>
+              </div>
+              <div class="chart-container">
+                <div class="chart-title">📊 Video Views Trend</div>
+                <div class="line-chart">
+                  <div class="chart-line" style="background: linear-gradient(90deg, #f59e0b, #fbbf24);"></div>
+                </div>
+                <div class="chart-dates">
+                  <span>{{startDate}}</span>
+                  <span>{{endDate}}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 7. TOP POSTS TABLE -->
+            <div class="section">
+              <div class="section-header">
+                <div class="section-icon">🏆</div>
+                <div>
+                  <h2 class="section-title">Top Posts</h2>
+                  <p class="section-subtitle">Best performing content</p>
+                </div>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th width="40%">Content</th>
+                    <th>Type</th>
+                    <th>Reach</th>
+                    <th>Eng. Rate</th>
+                    <th>Ranking</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {{postRows}}
+                </tbody>
+              </table>
+            </div>
+
+            <!-- 8. TRAFFIC & CTA -->
+            <div class="section">
+              <div class="section-header">
+                <div class="section-icon">🔗</div>
+                <div>
+                  <h2 class="section-title">Traffic & CTA</h2>
+                  <p class="section-subtitle">Call-to-action performance</p>
+                </div>
+              </div>
+              <div class="grid-4">
+                <div class="metric-card blue"><div class="metric-title">Website Clicks</div><div class="metric-value">{{websiteClicks}}</div></div>
+                <div class="metric-card purple"><div class="metric-title">Email Clicks</div><div class="metric-value">{{emailClicks}}</div></div>
+                <div class="metric-card green"><div class="metric-title">Call Clicks</div><div class="metric-value">{{callClicks}}</div></div>
+                <div class="metric-card amber"><div class="metric-title">Directions</div><div class="metric-value">{{directionClicks}}</div></div>
+              </div>
+            </div>
+
+            <!-- 9. AI INSIGHTS -->
+            <div class="section">
+              <div class="section-header">
+                <div class="section-icon">🤖</div>
+                <div>
+                  <h2 class="section-title">AI Insights & Recommendations</h2>
+                  <p class="section-subtitle">Data-driven suggestions for growth</p>
+                </div>
+              </div>
+              <div class="insights-grid">
+                <div class="insight-panel">
+                  <h4>📊 Performance Analysis</h4>
+                  <div class="insight-item">
+                    <span class="insight-label">Best Format</span>
+                    <span class="insight-text">{{aiBestFormat}} performs best for your audience.</span>
+                  </div>
+                  <div class="insight-item">
+                    <span class="insight-label">Growth Driver</span>
+                    <span class="insight-text">{{aiGrowthDriver}}</span>
+                  </div>
+                  <div class="insight-item">
+                    <span class="insight-label">Area to Improve</span>
+                    <span class="insight-text">{{aiWeakness}}</span>
+                  </div>
+                </div>
+                <div class="insight-panel">
+                  <h4>🚀 Strategic Recommendations</h4>
+                  <div class="insight-item">
+                    <span class="insight-label">Action</span>
+                    <span class="insight-text">{{aiAction}}</span>
+                  </div>
+                  <div class="insight-item">
+                    <span class="insight-label">Content Mix</span>
+                    <span class="insight-text">Try {{aiMix}} for next month.</span>
+                  </div>
+                  <div class="insight-item">
+                    <span class="insight-label">Timing</span>
+                    <span class="insight-text">Schedule posts around {{aiTiming}} for max engagement.</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- 4. ENGAGEMENT BREAKDOWN -->
-        <div class="section">
-          <div class="section-title"><span>04.</span> Engagement Breakdown</div>
-          <div class="grid-4">
-            <div class="metric-card"><div class="metric-title">Likes</div><div class="metric-value">{{totalLikes}}</div></div>
-            <div class="metric-card"><div class="metric-title">Comments</div><div class="metric-value">{{totalComments}}</div></div>
-            <div class="metric-card"><div class="metric-title">Shares</div><div class="metric-value">{{totalShares}}</div></div>
-            <div class="metric-card"><div class="metric-title">Saves</div><div class="metric-value">{{totalSaves}}</div></div>
+          <!-- FOOTER PAGE -->
+          <div class="footer-page">
+            <div class="footer-logo">H&C</div>
+            <p class="footer-brand">Haris & Co.</p>
+            <p class="footer-text">Social Media Management Dashboard</p>
+            <p class="footer-text" style="margin-top: 20px;">Generated on {{generatedAt}}</p>
           </div>
-          <div class="grid-3" style="margin-top: 20px;">
-             <div class="metric-card"><div class="metric-title">Save-to-View</div><div class="metric-value" style="font-size: 20px;">{{saveToView}}%</div></div>
-             <div class="metric-card"><div class="metric-title">Share-to-View</div><div class="metric-value" style="font-size: 20px;">{{shareToView}}%</div></div>
-             <div class="metric-card"><div class="metric-title">Eng. per Reach</div><div class="metric-value" style="font-size: 20px;">{{engPerReach}}%</div></div>
-          </div>
-        </div>
-
-        <!-- 5. CONTENT PERFORMANCE -->
-        <div class="section">
-          <div class="section-title"><span>05.</span> Content Performance</div>
-          <div class="grid-4">
-            <div class="metric-card"><div class="metric-title">Images</div><div class="metric-value">{{cntImages}}</div></div>
-            <div class="metric-card"><div class="metric-title">Videos</div><div class="metric-value">{{cntVideos}}</div></div>
-            <div class="metric-card"><div class="metric-title">Carousels</div><div class="metric-value">{{cntCarousels}}</div></div>
-            <div class="metric-card"><div class="metric-title">Reels</div><div class="metric-value">{{cntReels}}</div></div>
-          </div>
-          <div style="margin-top: 20px; background: #fff7ed; border: 1px solid #ffedd5; padding: 15px; border-radius: 8px; text-align: center;">
-            <span style="color: #c2410c; font-weight: bold;">🔥 Best Posting Time:</span> <span style="color: #9a3412;">{{bestPostingTime}}</span>
-          </div>
-        </div>
-
-        <!-- 7. VIDEO PERFORMANCE -->
-        <div class="section">
-          <div class="section-title"><span>07.</span> Video Performance</div>
-          <div class="grid-4">
-            <div class="metric-card"><div class="metric-title">Total Video Views</div><div class="metric-value">{{totalVideoViews}}</div></div>
-            <div class="metric-card"><div class="metric-title">Reel Views</div><div class="metric-value">{{reelViews}}</div></div>
-            <div class="metric-card"><div class="metric-title">Avg Watch Time</div><div class="metric-value">{{avgWatchTime}}s</div></div>
-            <div class="metric-card"><div class="metric-title">Completion Rate</div><div class="metric-value">{{completionRate}}%</div></div>
-          </div>
-        </div>
-
-        <!-- 6. POST PERFORMANCE TABLE -->
-        <div class="section">
-          <div class="section-title"><span>06.</span> Top Posts</div>
-          <table>
-            <thead>
-              <tr>
-                <th width="40%">Content</th>
-                <th>Type</th>
-                <th>Reach</th>
-                <th>Eng. Rate</th>
-                <th>Ranking</th>
-              </tr>
-            </thead>
-            <tbody>
-              {{postRows}}
-            </tbody>
-          </table>
-        </div>
-
-        <!-- 8. TRAFFIC -->
-        <div class="section">
-          <div class="section-title"><span>08.</span> Traffic & CTA</div>
-          <div class="grid-4">
-            <div class="metric-card"><div class="metric-title">Website Clicks</div><div class="metric-value">{{websiteClicks}}</div></div>
-            <div class="metric-card"><div class="metric-title">Email Clicks</div><div class="metric-value">{{emailClicks}}</div></div>
-            <div class="metric-card"><div class="metric-title">Call Clicks</div><div class="metric-value">{{callClicks}}</div></div>
-            <div class="metric-card"><div class="metric-title">Directions</div><div class="metric-value">{{directionClicks}}</div></div>
-          </div>
-        </div>
-
-        <!-- 10. AI INSIGHTS -->
-        <div class="section">
-          <div class="section-title"><span>10.</span> AI Insights & Recommendations</div>
-          <div class="insights-grid">
-            <div class="insight-panel">
-              <h4>📊 Performance Analysis</h4>
-              <div class="insight-item">
-                <span class="insight-label">Best Format</span>
-                <span class="insight-text">{{aiBestFormat}} performs best for your audience.</span>
-              </div>
-              <div class="insight-item">
-                <span class="insight-label">Growth Driver</span>
-                <span class="insight-text">{{aiGrowthDriver}}</span>
-              </div>
-              <div class="insight-item">
-                <span class="insight-label">Weakness</span>
-                <span class="insight-text">{{aiWeakness}}</span>
-              </div>
-            </div>
-            <div class="insight-panel">
-              <h4>🚀 Strategic Recommendations</h4>
-              <div class="insight-item">
-                <span class="insight-label">Action</span>
-                <span class="insight-text">{{aiAction}}</span>
-              </div>
-              <div class="insight-item">
-                <span class="insight-label">Content Mix</span>
-                <span class="insight-text">Try {{aiMix}} for next month.</span>
-              </div>
-              <div class="insight-item">
-                <span class="insight-label">Timing</span>
-                <span class="insight-text">Schedule posts around {{aiTiming}} for max engagement.</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="footer">
-          Generated by Haris&Co. Social Media Dashboard • {{generatedAt}}
         </div>
       </body>
       </html>
     `;
 
-  // Use the default template logic below
-  let templateContent = defaultTemplate;
+  // Use professional-modern.html by default
+  let templateContent;
+  const defaultTemplatePath = path.join(templatesDir, 'professional-modern.html');
 
-  // If custom template is provided, try to load it
   if (templateName) {
     const templatePath = path.join(templatesDir, templateName);
     if (fs.existsSync(templatePath)) {
       templateContent = fs.readFileSync(templatePath, 'utf-8');
+    } else {
+      templateContent = defaultTemplate;
     }
+  } else if (fs.existsSync(defaultTemplatePath)) {
+    templateContent = fs.readFileSync(defaultTemplatePath, 'utf-8');
+  } else {
+    templateContent = defaultTemplate;
   }
 
   // Replace placeholders with real data
@@ -373,6 +800,42 @@ export async function generateReportWithTemplate(userId, posts, clients, options
   html = html.replace(/\{\{shareToView\}\}/g, eng.ratios.shareToView);
   html = html.replace(/\{\{engPerReach\}\}/g, eng.rates.perReach);
 
+  // Calculate bar heights for engagement chart (normalize to 100%)
+  const engMax = Math.max(eng.breakdown.likes || 1, eng.breakdown.comments || 1, eng.breakdown.shares || 1, eng.breakdown.saves || 1);
+  const likesBarHeight = Math.round((eng.breakdown.likes / engMax) * 100);
+  const commentsBarHeight = Math.round((eng.breakdown.comments / engMax) * 100);
+  const sharesBarHeight = Math.round((eng.breakdown.shares / engMax) * 100);
+  const savesBarHeight = Math.round((eng.breakdown.saves / engMax) * 100);
+  html = html.replace(/\{\{likesBarHeight\}\}/g, likesBarHeight || 20);
+  html = html.replace(/\{\{commentsBarHeight\}\}/g, commentsBarHeight || 20);
+  html = html.replace(/\{\{sharesBarHeight\}\}/g, sharesBarHeight || 20);
+  html = html.replace(/\{\{savesBarHeight\}\}/g, savesBarHeight || 20);
+
+
+  // Follower Growth Chart (simple CSS bars)
+  const growthData = report.audienceGrowth.chartData || [];
+  // Take last 30 points max to fit
+  const recentGrowth = growthData.slice(-30);
+  const maxGrowth = Math.max(...recentGrowth.map(d => d.followers), 1);
+  const minGrowth = Math.min(...recentGrowth.map(d => d.followers), 0);
+  const spread = maxGrowth - minGrowth || 1;
+
+  let followerGrowthChart = recentGrowth.map(d => {
+    const height = Math.round(((d.followers - minGrowth) / spread) * 80) + 10; // Min 10% height
+    return `<div class="bar" style="height: ${height}%; width: 3%; background: #6366f1; border-radius: 2px;" title="${d.date}: ${d.followers}"></div>`;
+  }).join('');
+
+  if (!followerGrowthChart) {
+    followerGrowthChart = '<div style="width:100%; text-align:center; color:#9ca3af; padding-top:40px;">No growth data available</div>';
+  }
+
+  html = html.replace(/\{\{followerGrowthChart\}\}/g, followerGrowthChart);
+
+
+  // Impressions chart (simplified bar chart representation)
+  const impressionsChart = '<div class="bar" style="height: 80%;"></div><div class="bar purple" style="height: 60%;"></div><div class="bar green" style="height: 90%;"></div><div class="bar rose" style="height: 70%;"></div><div class="bar" style="height: 75%;"></div><div class="bar purple" style="height: 85%;"></div>';
+  html = html.replace(/\{\{impressionsChart\}\}/g, impressionsChart);
+
   // --- 5. Content Performance ---
   const cont = report.contentPerformance;
   html = html.replace(/\{\{cntImages\}\}/g, cont.byFormat.image);
@@ -409,12 +872,12 @@ export async function generateReportWithTemplate(userId, posts, clients, options
 
   // --- 10. AI Insights ---
   const ai = report.insights;
-  html = html.replace(/\{\{aiBestFormat\}\}/g, ai.bestFormat);
-  html = html.replace(/\{\{aiGrowthDriver\}\}/g, ai.growthCause);
-  html = html.replace(/\{\{aiWeakness\}\}/g, ai.weakPattern);
-  html = html.replace(/\{\{aiAction\}\}/g, ai.suggestion);
-  html = html.replace(/\{\{aiMix\}\}/g, ai.ratio);
-  html = html.replace(/\{\{aiTiming\}\}/g, ai.bestTime);
+  html = html.replace(/\{\{aiBestFormat\}\}/g, ai.bestFormat || "N/A");
+  html = html.replace(/\{\{aiGrowthDriver\}\}/g, ai.growthCause || "N/A");
+  html = html.replace(/\{\{aiWeakness\}\}/g, ai.weakPattern || "N/A");
+  html = html.replace(/\{\{aiAction\}\}/g, ai.suggestion || "N/A");
+  html = html.replace(/\{\{aiMix\}\}/g, ai.ratio || "N/A");
+  html = html.replace(/\{\{aiTiming\}\}/g, ai.bestTime || "N/A");
 
   return {
     ...report,
@@ -528,13 +991,15 @@ export async function generatePDFFromHTML(htmlContent) {
     console.log('Launching Puppeteer...');
     browser = await puppeteer.launch({
       headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage']
     });
     console.log('Puppeteer launched, creating new page...');
     const page = await browser.newPage();
 
     console.log('Setting page content...');
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    await page.setViewport({ width: 1280, height: 1600 });
+    await page.emulateMediaType('screen');
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0', timeout: 30000 });
 
     console.log('Generating PDF...');
     const pdfBuffer = await page.pdf({
@@ -547,9 +1012,11 @@ export async function generatePDFFromHTML(htmlContent) {
         left: '20px'
       }
     });
-    console.log('PDF generated successfully');
 
-    return pdfBuffer;
+    console.log('PDF generated successfully, buffer length:', pdfBuffer.length);
+
+    // Ensure we return a proper Buffer
+    return Buffer.from(pdfBuffer);
   } catch (error) {
     console.error('Error generating PDF from HTML:', error);
     throw error;

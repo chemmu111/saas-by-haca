@@ -271,8 +271,7 @@ export async function fetchAccountInsights(igUserId, pageAccessToken) {
 
     // Fetch additional account metrics (day period)
     // Fetch additional account metrics (day period)
-    // metric=impressions,reach,profile_views
-    const dailyMetrics = 'impressions,reach';
+    const dailyMetrics = 'reach';
     const url = `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=${dailyMetrics}&period=day&access_token=${pageAccessToken}`;
 
     const response = await fetch(url);
@@ -394,8 +393,9 @@ export async function fetchAccountInsightsTrend(igUserId, pageAccessToken) {
       return createSuccessResponse(cached);
     }
 
-    // Daily trends: reach and follower_count CAN be combined. Adding impressions if available.
-    const metrics = 'reach,follower_count,impressions';
+    // Daily trends: reach and follower_count CAN be combined.
+    // NOTE: 'impressions' was removed from Instagram Graph API v22+ (no longer supported)
+    const metrics = 'reach,follower_count';
     const url = `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=${metrics}&period=day&access_token=${pageAccessToken}`;
 
     const response = await fetch(url);
