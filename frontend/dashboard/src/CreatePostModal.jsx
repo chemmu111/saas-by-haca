@@ -917,10 +917,10 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
             </div>
 
             {/* 2. Main Content Area (2-Column Split) */}
-            <div className="flex flex-1 overflow-hidden">
+            <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
 
               {/* Left Column: Form (60%) */}
-              <div className="w-[60%] overflow-y-auto [&::-webkit-scrollbar]:hidden p-8 border-r border-[#E9E9E9] bg-white">
+              <div className="w-full lg:w-[60%] overflow-y-auto [&::-webkit-scrollbar]:hidden p-4 lg:p-8 border-r border-[#E9E9E9] bg-white">
                 <div className="max-w-3xl mx-auto space-y-8">
 
                   <div className="flex items-center justify-between">
@@ -960,7 +960,7 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
                   </div>
 
                   {/* Platform & Type */}
-                  <div className="grid grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Platform
@@ -1021,7 +1021,7 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
                       Media Assets
                     </label>
                     <div
-                      className="border-2 border-dashed border-gray-200 rounded-xl p-10 text-center hover:border-[#6A4DFF] hover:bg-[#6A4DFF]/5 transition-all cursor-pointer bg-gray-50 group"
+                      className="border-2 border-dashed border-gray-200 rounded-xl p-6 lg:p-10 text-center hover:border-[#6A4DFF] hover:bg-[#6A4DFF]/5 transition-all cursor-pointer bg-gray-50 group"
                       onClick={() => fileInputRef.current?.click()}
                     >
                       <div className="flex flex-col items-center gap-3">
@@ -1202,7 +1202,7 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
               </div>
 
               {/* Right Column: Preview (40%) */}
-              <div className="w-[40%] bg-gray-50 flex items-center justify-center p-8 relative overflow-hidden">
+              <div className="hidden lg:flex w-full lg:w-[40%] bg-gray-50 items-center justify-center p-8 relative overflow-hidden">
                 <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:20px_20px] opacity-50"></div>
 
                 {/* Smartphone Frame - Resized to be smaller */}
@@ -1309,7 +1309,7 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
             </div>
 
             {/* 3. Bottom Sticky Action Bar */}
-            <div className="flex-none px-8 py-5 bg-white border-t border-[#E9E9E9] flex items-center justify-between z-20">
+            <div className="flex-none px-4 lg:px-8 py-5 bg-white border-t border-[#E9E9E9] flex items-center justify-between z-20">
               <button
                 type="button"
                 onClick={() => handleSubmit(null, true)}
@@ -1421,8 +1421,8 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
       {/* Toast Notification */}
       {toast.show && (
         <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 px-6 py-4 rounded-xl shadow-2xl border animate-in fade-in slide-in-from-bottom-5 duration-300 ${toast.type === 'error'
-            ? 'bg-red-50 border-red-100 text-red-900'
-            : 'bg-gray-900 border-gray-800 text-white'
+          ? 'bg-red-50 border-red-100 text-red-900'
+          : 'bg-gray-900 border-gray-800 text-white'
           }`}>
           {toast.type === 'error' ? (
             <AlertCircle size={20} className="text-red-500 shrink-0" />

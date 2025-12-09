@@ -30,7 +30,8 @@ const Settings = () => {
         newPassword: '',
         confirmPassword: '',
         twoFactorEnabled: false,
-        activeSessions: 0
+        activeSessions: 0,
+        sessions: []
     });
 
     // Token Health state
@@ -246,6 +247,28 @@ const Settings = () => {
             // Revert on error
             setSecurity(prev => ({ ...prev, twoFactorEnabled: !newValue }));
             showMessage('error', error.response?.data?.error || 'An error occurred');
+        }
+    };
+
+    const handleRevokeSession = async (sessionId) => {
+        setLoading(true);
+        try {
+            const response = await api.delete(`/settings/security/sessions/${sessionId}`);
+            if (response.data.success) {
+                showMessage('success', 'Session revoked successfully');
+                // Remove locally
+                setSecurity(prev => ({
+                    ...prev,
+                    sessions: prev.sessions.filter(s => s.id !== sessionId),
+                    activeSessions: Math.max(0, prev.activeSessions - 1)
+                }));
+            } else {
+                showMessage('error', response.data.error || 'Failed to revoke session');
+            }
+        } catch (error) {
+            showMessage('error', error.response?.data?.error || 'Failed to revoke session');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -662,14 +685,56 @@ const Settings = () => {
                                                 </div>
                                             </div>
 
-                                            {/* Logout All Devices */}
+                                            {/* Active Sessions */}
                                             <div className="border-t border-slate-200 pt-6">
                                                 <h3 className="text-lg font-semibold text-slate-900 mb-4">Active Sessions</h3>
                                                 <p className="text-sm text-slate-600 mb-4">You have {security.activeSessions} active session(s)</p>
+
+                                                <div className="space-y-3 mb-6">
+                                                    {security.sessions && security.sessions.map(session => (
+                                                        <div key={session.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border border-slate-200 rounded-xl bg-slate-50/50 hover:bg-white transition-colors">
+                                                            <div className="flex items-center gap-3 mb-3 sm:mb-0">
+                                                                <div className={`p-2.5 rounded-lg ${session.isCurrent ? 'bg-green-100 text-green-600' : 'bg-white text-slate-500 border border-slate-200'}`}>
+                                                                    <Activity size={20} />
+                                                                </div>
+                                                                <div>
+                                                                    <p className="font-semibold text-slate-900 flex items-center gap-2">
+                                                                        {session.deviceName}
+                                                                        {session.isCurrent && <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider border border-green-200">Current</span>}
+                                                                    </p>
+                                                                    <div className="text-xs text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
+                                                                        <span className="flex items-center gap-1">
+                                                                            IP: {session.ip}
+                                                                        </span>
+                                                                        <span className="flex items-center gap-1">
+                                                                            Last active: {new Date(session.lastActive).toLocaleDateString()} {new Date(session.lastActive).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                                {/* Mobile Revoke Button - Inline if space permits, but easier to just use standard layout */}
+                                                            </div>
+                                                            {!session.isCurrent && (
+                                                                <button
+                                                                    onClick={() => handleRevokeSession(session.id)}
+                                                                    disabled={loading}
+                                                                    className="self-end sm:self-auto text-sm text-red-600 hover:text-red-700 font-medium hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-red-100"
+                                                                >
+                                                                    Revoke Access
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                    {(!security.sessions || security.sessions.length === 0) && (
+                                                        <div className="text-center p-6 text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                                                            No active session details available.
+                                                        </div>
+                                                    )}
+                                                </div>
+
                                                 <button
                                                     onClick={handleLogoutAll}
                                                     disabled={loading}
-                                                    className="px-6 py-3 bg-red-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl hover:bg-red-700 transition-all disabled:opacity-50"
+                                                    className="w-full sm:w-auto px-6 py-3 bg-red-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl hover:bg-red-700 transition-all disabled:opacity-50"
                                                 >
                                                     Logout from All Devices
                                                 </button>

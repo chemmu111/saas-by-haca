@@ -241,7 +241,7 @@ const Layout = ({ children }) => {
       {/* Main Content */}
       < div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden" >
         {/* Header */}
-        < header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-40" >
+        < header className="bg-white border-b border-gray-200 px-4 lg:px-6 py-4 flex items-center justify-between sticky top-0 z-40" >
           <button
             onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
             className="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"

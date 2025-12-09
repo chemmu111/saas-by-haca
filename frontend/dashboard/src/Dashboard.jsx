@@ -234,7 +234,7 @@ const Dashboard = () => {
   return (
     <Layout>
       <PageTitle title="Dashboard" />
-      <div className="p-4 lg:p-8 animate-gradient-slow min-h-screen">
+      <div className="lg:p-8 animate-gradient-slow min-h-screen">
         <div className="max-w-7xl mx-auto space-y-8">
 
           {/* Header Section */}

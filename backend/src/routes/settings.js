@@ -306,16 +306,61 @@ router.get('/security', async (req, res) => {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
 
+    const formattedSessions = (user.sessions || []).map(session => ({
+      id: session._id,
+      deviceName: session.deviceName || 'Unknown Device',
+      ip: session.ip || 'Unknown IP',
+      lastActive: session.lastActive || session.createdAt,
+      createdAt: session.createdAt,
+      isCurrent: req.user.sessionId && session._id && session._id.toString() === req.user.sessionId
+    }));
+
     res.json({
       success: true,
       data: {
         twoFactorEnabled: user.twoFactorEnabled || false,
-        activeSessions: user.sessions ? user.sessions.length : 0
+        activeSessions: formattedSessions.length,
+        sessions: formattedSessions
       }
     });
   } catch (error) {
     console.error('Error fetching security settings:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch security settings' });
+  }
+});
+
+// DELETE /api/settings/security/sessions/:sessionId - Revoke a specific session
+router.delete('/security/sessions/:sessionId', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const { sessionId } = req.params;
+
+    if (!sessionId) {
+      return res.status(400).json({ success: false, error: 'Session ID is required' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    // Filter out the session to be revoked
+    const originalLength = user.sessions.length;
+    user.sessions = user.sessions.filter(s => s._id.toString() !== sessionId);
+
+    if (user.sessions.length === originalLength) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Session revoked successfully'
+    });
+  } catch (error) {
+    console.error('Error revoking session:', error);
+    res.status(500).json({ success: false, error: 'Failed to revoke session' });
   }
 });
 

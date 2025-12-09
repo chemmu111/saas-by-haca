@@ -36,7 +36,9 @@ const userSchema = new mongoose.Schema(
       token: String,
       createdAt: { type: Date, default: Date.now },
       expiresAt: Date,
+      lastActive: { type: Date, default: Date.now },
       userAgent: String,
+      deviceName: String,
       ip: String
     }],
     devices: [{

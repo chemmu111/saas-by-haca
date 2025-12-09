@@ -10,6 +10,7 @@ import { sendVerificationEmail, sendPasswordResetEmail, sendOtpEmail } from '../
 import Client from '../models/Client.js';
 import mongoose from 'mongoose';
 import { refreshLongLivedToken } from '../services/instagramTokenService.js';
+import { UAParser } from 'ua-parser-js';
 
 const router = Router();
 
@@ -17,9 +18,11 @@ function isValidEmail(email) {
   return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email);
 }
 
-function signToken(user) {
+function signToken(user, sessionId) {
   const secret = process.env.JWT_SECRET || 'dev-secret';
-  return jwt.sign({ sub: user.id, email: user.email, role: user.role, name: user.name }, secret, { expiresIn: '12h' });
+  const payload = { sub: user.id, email: user.email, role: user.role, name: user.name };
+  if (sessionId) payload.sessionId = sessionId;
+  return jwt.sign(payload, secret, { expiresIn: '12h' });
 }
 
 async function trackUserDevice(user, req) {
@@ -52,6 +55,37 @@ async function trackUserDevice(user, req) {
     console.error('Error tracking device:', error);
     // Fallback: don't fail auth just because tracking failed
   }
+}
+
+async function createSession(user, req) {
+  const userAgent = req.headers['user-agent'] || 'Unknown';
+  const ip = req.ip || req.connection.remoteAddress || 'Unknown';
+
+  const parser = new UAParser(userAgent);
+  const result = parser.getResult();
+  const deviceName = `${result.browser.name || 'Unknown Browser'} on ${result.os.name || 'Unknown OS'}`;
+
+  const sessionId = new mongoose.Types.ObjectId();
+
+  if (!user.sessions) user.sessions = [];
+
+  // Prune expired sessions
+  user.sessions = user.sessions.filter(s => s.expiresAt > new Date());
+
+  user.sessions.push({
+    _id: sessionId,
+    createdAt: new Date(),
+    expiresAt: new Date(Date.now() + 12 * 60 * 60 * 1000), // 12 hours
+    lastActive: new Date(),
+    userAgent,
+    deviceName,
+    ip
+  });
+
+  // Track device history as well (and save user)
+  await trackUserDevice(user, req);
+
+  return sessionId;
 }
 
 router.post('/signup', async (req, res) => {
@@ -160,8 +194,8 @@ router.post('/verify-signup', async (req, res) => {
     await PendingUser.deleteOne({ _id: pendingUser._id });
 
     // 5. Track device & Generate Token
-    await trackUserDevice(user, req);
-    const token = signToken(user);
+    const sessionId = await createSession(user, req);
+    const token = signToken(user, sessionId);
 
     res.json({
       token,
@@ -246,8 +280,8 @@ router.post('/login', async (req, res) => {
     }
 
     // For non-admin users, proceed with normal login
-    await trackUserDevice(user, req);
-    const token = signToken(user);
+    const sessionId = await createSession(user, req);
+    const token = signToken(user, sessionId);
     res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar } });
   } catch (err) {
     console.error('Login error', err);
@@ -337,8 +371,8 @@ router.post('/verify-login-otp', async (req, res) => {
     }
 
     // Generate token and return user
-    await trackUserDevice(user, req);
-    const token = signToken(user);
+    const sessionId = await createSession(user, req);
+    const token = signToken(user, sessionId);
     res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar } });
   } catch (err) {
     console.error('Verify Login OTP error', err);
@@ -375,8 +409,8 @@ router.post('/verify-code', async (req, res) => {
     await verification.save();
 
     // Generate token and return user
-    await trackUserDevice(user, req);
-    const token = signToken(user);
+    const sessionId = await createSession(user, req);
+    const token = signToken(user, sessionId);
     res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar } });
   } catch (err) {
     console.error('Verification error', err);
