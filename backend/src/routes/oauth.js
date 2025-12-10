@@ -383,7 +383,9 @@ router.get('/callback/:platform', async (req, res) => {
         let instagramProfilePicture = null;
 
         try {
-          const igInfoUrl = `https://graph.facebook.com/v18.0/${igUserId}?fields=id,username,profile_picture_url&access_token=${pageAccessToken}`;
+          // Note: Instagram Business API doesn't provide profile_picture_url directly
+          // We can only get username and then construct profile link
+          const igInfoUrl = `https://graph.facebook.com/v18.0/${igUserId}?fields=id,username&access_token=${pageAccessToken}`;
           console.log('  IG Info URL (masked):', igInfoUrl.replace(/access_token=[^&]+/, 'access_token=***'));
 
           let igInfoResponse;
@@ -416,10 +418,12 @@ router.get('/callback/:platform', async (req, res) => {
               socialMediaLink = `https://instagram.com/${igInfo.username}`;
               socialMediaId = igInfo.id;
               instagramUsername = igInfo.username; // Store for client model
-              instagramProfilePicture = igInfo.profile_picture_url || null; // Store profile picture
+              // Instagram Business API doesn't provide profile picture URL
+              // We'll use a placeholder or fetch from Instagram public API
+              instagramProfilePicture = null; // Will be null for now
               console.log('✅ Instagram username:', igInfo.username);
               console.log('  Instagram link:', socialMediaLink);
-              console.log('  Profile picture:', instagramProfilePicture ? 'Available' : 'Not available');
+              console.log('  Profile picture: Not available via Instagram Business API');
             } else {
               console.error('  ⚠️ No username in IG info, using ID as fallback');
               socialMediaId = igUserId;

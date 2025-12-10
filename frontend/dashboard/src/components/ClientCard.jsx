@@ -118,16 +118,14 @@ const ClientCard = ({ client, onEdit, onDelete, onConnectInstagram, onViewDetail
                             <h3 className="font-semibold text-gray-900 text-lg leading-tight">{client.name}</h3>
 
                             {/* Instagram Profile Info */}
-                            {client.platform === 'instagram' && client.instagramConnected && (
+                            {client.platform === 'instagram' && client.instagramUsername && (
                                 <div className="mt-1 space-y-1">
-                                    {client.instagramUsername && (
-                                        <div className="flex items-center gap-1.5">
-                                            <Instagram size={12} className="text-purple-600" />
-                                            <span className="text-xs text-gray-600 font-medium">
-                                                @{client.instagramUsername}
-                                            </span>
-                                        </div>
-                                    )}
+                                    <div className="flex items-center gap-1.5">
+                                        <Instagram size={12} className="text-purple-600" />
+                                        <span className="text-xs text-gray-600 font-medium">
+                                            @{client.instagramUsername}
+                                        </span>
+                                    </div>
                                     <div className="flex items-center gap-1.5">
                                         <CheckCircle2 size={12} className="text-green-600" />
                                         <span className="text-xs text-green-600 font-medium">
