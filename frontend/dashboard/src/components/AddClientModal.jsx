@@ -40,13 +40,21 @@ const AddClientModal = ({ isOpen, onClose, onAdd, connectingOAuth, error }) => {
 
     const handleLogoChange = (e) => {
         const file = e.target.files[0];
+        console.log('Logo file selected:', file);
         if (file) {
+            console.log('File details:', { name: file.name, size: file.size, type: file.type });
             setFormData(prev => ({ ...prev, logo: file }));
             const reader = new FileReader();
             reader.onloadend = () => {
+                console.log('FileReader loaded, setting preview');
                 setLogoPreview(reader.result);
             };
+            reader.onerror = (error) => {
+                console.error('FileReader error:', error);
+            };
             reader.readAsDataURL(file);
+        } else {
+            console.log('No file selected');
         }
     };
 
@@ -220,10 +228,10 @@ const AddClientModal = ({ isOpen, onClose, onAdd, connectingOAuth, error }) => {
                             type="submit"
                             disabled={connectingOAuth}
                             className={`flex-1 px-4 py-3 rounded-xl text-white font-medium transition-colors ${formData.platform === 'instagram'
-                                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600'
-                                    : formData.platform === 'manual'
-                                        ? 'bg-blue-600 hover:bg-blue-700'
-                                        : 'bg-blue-600 hover:bg-blue-700'
+                                ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600'
+                                : formData.platform === 'manual'
+                                    ? 'bg-blue-600 hover:bg-blue-700'
+                                    : 'bg-blue-600 hover:bg-blue-700'
                                 }`}
                         >
                             {connectingOAuth ? 'Connecting...' : formData.platform === 'manual' ? 'Add Client' : 'Add Client & Connect'}
