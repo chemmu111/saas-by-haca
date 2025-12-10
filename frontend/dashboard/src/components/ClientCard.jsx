@@ -93,7 +93,14 @@ const ClientCard = ({ client, onEdit, onDelete, onConnectInstagram, onViewDetail
                 {/* Header */}
                 <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">
-                        {client.logo ? (
+                        {/* Show Instagram profile picture if connected, otherwise client logo */}
+                        {client.platform === 'instagram' && client.instagramProfilePicture ? (
+                            <img
+                                src={client.instagramProfilePicture}
+                                alt={client.instagramUsername || client.name}
+                                className="w-12 h-12 rounded-lg object-cover border border-gray-100"
+                            />
+                        ) : client.logo ? (
                             <img
                                 src={client.logo}
                                 alt={client.name}
@@ -109,7 +116,28 @@ const ClientCard = ({ client, onEdit, onDelete, onConnectInstagram, onViewDetail
                         )}
                         <div>
                             <h3 className="font-semibold text-gray-900 text-lg leading-tight">{client.name}</h3>
-                            <div className="flex items-center gap-2 mt-1">
+
+                            {/* Instagram Profile Info */}
+                            {client.platform === 'instagram' && client.instagramConnected && (
+                                <div className="mt-1 space-y-1">
+                                    {client.instagramUsername && (
+                                        <div className="flex items-center gap-1.5">
+                                            <Instagram size={12} className="text-purple-600" />
+                                            <span className="text-xs text-gray-600 font-medium">
+                                                @{client.instagramUsername}
+                                            </span>
+                                        </div>
+                                    )}
+                                    <div className="flex items-center gap-1.5">
+                                        <CheckCircle2 size={12} className="text-green-600" />
+                                        <span className="text-xs text-green-600 font-medium">
+                                            Instagram Connected
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex items-center gap-2 mt-1.5">
                                 <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(client.tokenStatus)}`}>
                                     {getStatusIcon(client.tokenStatus)}
                                     {getStatusText(client)}

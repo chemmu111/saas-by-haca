@@ -378,8 +378,12 @@ router.get('/callback/:platform', async (req, res) => {
         console.log('  IG User ID:', igUserId);
         console.log('  Page Access Token:', pageAccessToken ? 'Yes (length: ' + pageAccessToken.length + ')' : 'No');
 
+        // Variables to store Instagram profile data
+        let instagramUsername = null;
+        let instagramProfilePicture = null;
+
         try {
-          const igInfoUrl = `https://graph.facebook.com/v18.0/${igUserId}?fields=id,username&access_token=${pageAccessToken}`;
+          const igInfoUrl = `https://graph.facebook.com/v18.0/${igUserId}?fields=id,username,profile_picture_url&access_token=${pageAccessToken}`;
           console.log('  IG Info URL (masked):', igInfoUrl.replace(/access_token=[^&]+/, 'access_token=***'));
 
           let igInfoResponse;
@@ -411,8 +415,11 @@ router.get('/callback/:platform', async (req, res) => {
             if (igInfo.username) {
               socialMediaLink = `https://instagram.com/${igInfo.username}`;
               socialMediaId = igInfo.id;
+              instagramUsername = igInfo.username; // Store for client model
+              instagramProfilePicture = igInfo.profile_picture_url || null; // Store profile picture
               console.log('✅ Instagram username:', igInfo.username);
               console.log('  Instagram link:', socialMediaLink);
+              console.log('  Profile picture:', instagramProfilePicture ? 'Available' : 'Not available');
             } else {
               console.error('  ⚠️ No username in IG info, using ID as fallback');
               socialMediaId = igUserId;
@@ -735,10 +742,16 @@ router.get('/callback/:platform', async (req, res) => {
       clientDataToSave.instagramAccessToken = pageAccessToken;
       clientDataToSave.instagramRefreshToken = refreshToken || null;
       clientDataToSave.instagramTokenExpiresAt = clientDataToSave.tokenExpiresAt || null;
+      // Add Instagram profile data
+      clientDataToSave.instagramUsername = instagramUsername;
+      clientDataToSave.instagramProfilePicture = instagramProfilePicture;
+      clientDataToSave.instagramConnected = true;
 
       console.log('✅ Instagram-specific fields added with LONG-LIVED tokens only');
       console.log('    Page ID:', pageId);
       console.log('    IG User ID:', igUserId);
+      console.log('    Instagram Username:', instagramUsername || 'Not available');
+      console.log('    Profile Picture:', instagramProfilePicture ? 'Available' : 'Not available');
       console.log('    ✅ User token: long-lived (60 days)');
       console.log('    ✅ Page token: long-lived (60 days)');
       console.log('    ✅ NO short-lived tokens saved!');
@@ -783,7 +796,8 @@ router.get('/callback/:platform', async (req, res) => {
 
       // Redirect to clients page with success
       const action = existingClient ? 'client_updated' : 'client_added';
-      return res.redirect(`/dashboard/clients?success=${action}&platform=${platform}`);
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      return res.redirect(`${frontendUrl}/dashboard/clients?success=${action}&platform=${platform}`);
     } catch (dbError) {
       console.error('❌ Database error saving client:');
       console.error('  Error message:', dbError.message);

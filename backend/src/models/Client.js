@@ -5,7 +5,7 @@ const clientSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, lowercase: true, trim: true },
     socialMediaLink: { type: String, trim: true }, // Optional now, can be derived from OAuth
-    platform: { 
+    platform: {
       type: String,
       enum: ['instagram', 'facebook', 'manual'],
       default: 'manual'
@@ -20,6 +20,9 @@ const clientSchema = new mongoose.Schema(
     pageId: { type: String, trim: true }, // Facebook Page ID
     pageAccessToken: { type: String, trim: true }, // Long-lived Page Access Token for publishing
     igUserId: { type: String, trim: true }, // Instagram Business Account ID
+    instagramUsername: { type: String, trim: true }, // Instagram @username
+    instagramProfilePicture: { type: String, trim: true }, // Instagram profile picture URL
+    instagramConnected: { type: Boolean, default: false }, // Instagram connection status
     longLivedUserToken: { type: String, trim: true }, // Long-lived user token (60 days)
     // Token lifecycle management
     tokenType: { type: String, enum: ['short-lived', 'long-lived'], default: 'long-lived' },
