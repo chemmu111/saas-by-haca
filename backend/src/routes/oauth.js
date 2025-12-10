@@ -103,6 +103,9 @@ router.get('/callback/:platform', async (req, res) => {
     let accessToken, refreshToken, socialMediaId, socialMediaLink;
     // Instagram Business API specific variables
     let pageId = null, pageAccessToken = null, igUserId = null;
+    // Instagram profile variables
+    let instagramUsername = null;
+    let instagramProfilePicture = null;
 
     if (platform === 'instagram') {
       console.log('📱 Starting Instagram Business API OAuth flow...');
@@ -378,9 +381,6 @@ router.get('/callback/:platform', async (req, res) => {
         console.log('  IG User ID:', igUserId);
         console.log('  Page Access Token:', pageAccessToken ? 'Yes (length: ' + pageAccessToken.length + ')' : 'No');
 
-        // Variables to store Instagram profile data
-        let instagramUsername = null;
-        let instagramProfilePicture = null;
 
         try {
           // Note: Instagram Business API doesn't provide profile_picture_url directly
