@@ -16,20 +16,11 @@ function isValidEmail(email) {
   return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email);
 }
 
-<<<<<<< HEAD
 function generateTokens(user) {
   const secret = process.env.JWT_SECRET || 'dev-secret';
   // Use a different secret for refresh tokens, or append a string to the main secret
   // In production, these should be separate env vars. For now, we'll derive it or use a fallback.
   const refreshSecret = process.env.JWT_REFRESH_SECRET || secret + '_refresh';
-=======
-function signToken(user, sessionId) {
-  const secret = process.env.JWT_SECRET || 'dev-secret';
-  const payload = { sub: user.id, email: user.email, role: user.role, name: user.name };
-  if (sessionId) payload.sessionId = sessionId;
-  return jwt.sign(payload, secret, { expiresIn: '12h' });
-}
->>>>>>> 948280193025f5befea7a6d98c9913e92dcb6017
 
   const accessToken = jwt.sign(
     { sub: user.id, email: user.email, role: user.role, name: user.name, type: 'access' },
@@ -71,8 +62,8 @@ async function createSession(user, req) {
     ip
   });
 
-  // Track device history as well (and save user)
-  await trackUserDevice(user, req);
+  // Save user with new session
+  await user.save();
 
   return sessionId;
 }
@@ -119,67 +110,7 @@ router.post('/signup', async (req, res) => {
 });
 
 
-<<<<<<< HEAD
-=======
-    // 1. Find in PendingUser
-    const pendingUser = await PendingUser.findOne({ email: email.toLowerCase() });
 
-    if (!pendingUser) {
-      return res.status(401).json({ error: 'Verification session not found. Please sign up again.' });
-    }
-
-    if (pendingUser.verificationCode !== code.trim()) {
-      return res.status(401).json({ error: 'Invalid verification code' });
-    }
-
-    if (new Date() > new Date(pendingUser.expiresAt)) {
-      return res.status(401).json({ error: 'Verification code expired' });
-    }
-
-    // 2. Check if user already exists (double check race condition)
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
-    if (existingUser) {
-      // Logic if user somehow exists now? Maybe just login?
-      // Or error out. Let's error out for safety.
-      return res.status(409).json({ error: 'User already exists' });
-    }
-
-    // 3. Create Real User
-    const user = await User.create({
-      name: pendingUser.name,
-      email: pendingUser.email,
-      passwordHash: pendingUser.passwordHash,
-      avatar: pendingUser.avatar || '',
-      gender: pendingUser.gender || '',
-      role: pendingUser.role,
-      isVerified: true
-    });
-
-    // 4. Delete PendingUser record
-    await PendingUser.deleteOne({ _id: pendingUser._id });
-
-    // 5. Track device & Generate Token
-    const sessionId = await createSession(user, req);
-    const token = signToken(user, sessionId);
-
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        avatar: user.avatar
-      },
-      message: 'Account created successfully!'
-    });
-
-  } catch (err) {
-    console.error('Verify signup error', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
->>>>>>> 948280193025f5befea7a6d98c9913e92dcb6017
 
 router.post('/login', async (req, res) => {
   try {
@@ -214,7 +145,6 @@ router.post('/login', async (req, res) => {
 
 
     // For non-admin users, proceed with normal login
-<<<<<<< HEAD
     // 5. Track device
     await trackUserDevice(user, req);
 
@@ -224,11 +154,6 @@ router.post('/login', async (req, res) => {
       refreshToken: tokens.refreshToken,
       user: { id: user.id, name: user.name, email: user.email, role: user.role }
     });
-=======
-    const sessionId = await createSession(user, req);
-    const token = signToken(user, sessionId);
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar } });
->>>>>>> 948280193025f5befea7a6d98c9913e92dcb6017
   } catch (err) {
     console.error('Login error', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -274,7 +199,6 @@ router.post('/verify-login-otp', async (req, res) => {
     }
 
     // Generate token and return user
-<<<<<<< HEAD
 
     // Track device
     await trackUserDevice(user, req);
@@ -285,11 +209,6 @@ router.post('/verify-login-otp', async (req, res) => {
       refreshToken: tokens.refreshToken,
       user: { id: user.id, name: user.name, email: user.email, role: user.role }
     });
-=======
-    const sessionId = await createSession(user, req);
-    const token = signToken(user, sessionId);
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar } });
->>>>>>> 948280193025f5befea7a6d98c9913e92dcb6017
   } catch (err) {
     console.error('Verify Login OTP error', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -325,7 +244,6 @@ router.post('/verify-code', async (req, res) => {
     await verification.save();
 
     // Generate token and return user
-<<<<<<< HEAD
 
     // Track device
     await trackUserDevice(user, req);
@@ -336,11 +254,6 @@ router.post('/verify-code', async (req, res) => {
       refreshToken: tokens.refreshToken,
       user: { id: user.id, name: user.name, email: user.email, role: user.role }
     });
-=======
-    const sessionId = await createSession(user, req);
-    const token = signToken(user, sessionId);
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar } });
->>>>>>> 948280193025f5befea7a6d98c9913e92dcb6017
   } catch (err) {
     console.error('Verification error', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -721,6 +634,10 @@ router.post('/refresh-token', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+async function trackUserDevice(user, req) {
+  await createSession(user, req);
+}
 
 export default router;
 
