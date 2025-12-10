@@ -8,12 +8,27 @@
  * @returns {string} - 'image', 'video', 'audio', or 'unknown'
  */
 export const getFileType = (file) => {
-  if (!file || !file.type) return 'unknown';
-  
-  if (file.type.startsWith('image/')) return 'image';
-  if (file.type.startsWith('video/')) return 'video';
-  if (file.type.startsWith('audio/')) return 'audio';
-  
+  if (!file) return 'unknown';
+
+  // Check by MIME type first
+  if (file.type) {
+    if (file.type.startsWith('image/')) return 'image';
+    if (file.type.startsWith('video/')) return 'video';
+    if (file.type.startsWith('audio/')) return 'audio';
+  }
+
+  // Fallback: Check by file extension
+  const name = file.name || '';
+  const ext = name.split('.').pop().toLowerCase();
+
+  const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'heic'];
+  const videoExts = ['mp4', 'mov', 'avi', 'mkv', 'webm', 'm4v', '3gp'];
+  const audioExts = ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'];
+
+  if (imageExts.includes(ext)) return 'image';
+  if (videoExts.includes(ext)) return 'video';
+  if (audioExts.includes(ext)) return 'audio';
+
   return 'unknown';
 };
 
@@ -24,11 +39,11 @@ export const getFileType = (file) => {
  */
 export const formatFileSize = (bytes) => {
   if (bytes === 0) return '0 Bytes';
-  
+
   const k = 1024;
   const sizes = ['Bytes', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
+
   return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
 };
 
@@ -41,17 +56,17 @@ export const getImageDimensions = (file) => {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
-    
+
     img.onload = () => {
       URL.revokeObjectURL(url);
       resolve({ width: img.width, height: img.height });
     };
-    
+
     img.onerror = () => {
       URL.revokeObjectURL(url);
       reject(new Error('Failed to load image'));
     };
-    
+
     img.src = url;
   });
 };
@@ -65,9 +80,9 @@ export const getVideoMetadata = (file) => {
   return new Promise((resolve, reject) => {
     const video = document.createElement('video');
     const url = URL.createObjectURL(file);
-    
+
     video.preload = 'metadata';
-    
+
     video.onloadedmetadata = () => {
       URL.revokeObjectURL(url);
       resolve({
@@ -76,12 +91,12 @@ export const getVideoMetadata = (file) => {
         height: video.videoHeight
       });
     };
-    
+
     video.onerror = () => {
       URL.revokeObjectURL(url);
       reject(new Error('Failed to load video'));
     };
-    
+
     video.src = url;
   });
 };
@@ -95,21 +110,21 @@ export const getVideoMetadata = (file) => {
 export const validateInstagramFile = async (file, postType = 'post') => {
   const errors = [];
   const fileType = getFileType(file);
-  
+
   // Size limits
   const maxSize = {
     image: 8 * 1024 * 1024, // 8MB
     video: 100 * 1024 * 1024 // 100MB
   };
-  
+
   if (fileType === 'image' && file.size > maxSize.image) {
     errors.push(`Image exceeds 8MB limit (${formatFileSize(file.size)})`);
   }
-  
+
   if (fileType === 'video' && file.size > maxSize.video) {
     errors.push(`Video exceeds 100MB limit (${formatFileSize(file.size)})`);
   }
-  
+
   // Post type specific validations
   if (postType === 'reel') {
     if (fileType !== 'video') {
@@ -128,7 +143,7 @@ export const validateInstagramFile = async (file, postType = 'post') => {
       }
     }
   }
-  
+
   if (postType === 'story') {
     if (fileType === 'video') {
       try {
@@ -141,13 +156,13 @@ export const validateInstagramFile = async (file, postType = 'post') => {
       }
     }
   }
-  
+
   if (postType === 'carousel') {
     if (fileType !== 'image') {
       errors.push('Carousels only support images');
     }
   }
-  
+
   return {
     isValid: errors.length === 0,
     errors
@@ -162,17 +177,17 @@ export const validateInstagramFile = async (file, postType = 'post') => {
  */
 export const calculateAspectRatio = (width, height) => {
   if (!width || !height) return 'unknown';
-  
+
   const ratio = width / height;
-  
+
   // Common ratios
   if (Math.abs(ratio - 1) < 0.01) return '1:1';
-  if (Math.abs(ratio - 4/5) < 0.01) return '4:5';
-  if (Math.abs(ratio - 5/4) < 0.01) return '5:4';
-  if (Math.abs(ratio - 16/9) < 0.01) return '16:9';
-  if (Math.abs(ratio - 9/16) < 0.01) return '9:16';
+  if (Math.abs(ratio - 4 / 5) < 0.01) return '4:5';
+  if (Math.abs(ratio - 5 / 4) < 0.01) return '5:4';
+  if (Math.abs(ratio - 16 / 9) < 0.01) return '16:9';
+  if (Math.abs(ratio - 9 / 16) < 0.01) return '9:16';
   if (Math.abs(ratio - 1.91) < 0.01) return '1.91:1';
-  
+
   return `${width}:${height}`;
 };
 
@@ -184,7 +199,7 @@ export const calculateAspectRatio = (width, height) => {
  */
 export const getRecommendedFormat = (width, height) => {
   const ratio = calculateAspectRatio(width, height);
-  
+
   switch (ratio) {
     case '1:1':
       return 'square';
@@ -227,17 +242,17 @@ export const revokePreviewUrl = (url) => {
  */
 export const validateCarouselFiles = async (files) => {
   const errors = [];
-  
+
   if (!files || files.length < 2) {
     errors.push('Carousels require at least 2 images');
     return { isValid: false, errors };
   }
-  
+
   if (files.length > 10) {
     errors.push('Carousels can have maximum 10 images');
     return { isValid: false, errors };
   }
-  
+
   // Check all files are images
   for (let i = 0; i < files.length; i++) {
     const fileType = getFileType(files[i]);
@@ -245,7 +260,7 @@ export const validateCarouselFiles = async (files) => {
       errors.push(`File ${i + 1} is not an image`);
     }
   }
-  
+
   return {
     isValid: errors.length === 0,
     errors

@@ -40,13 +40,21 @@ const AddClientModal = ({ isOpen, onClose, onAdd, connectingOAuth, error }) => {
 
     const handleLogoChange = (e) => {
         const file = e.target.files[0];
+        console.log('Logo file selected:', file);
         if (file) {
+            console.log('File details:', { name: file.name, size: file.size, type: file.type });
             setFormData(prev => ({ ...prev, logo: file }));
             const reader = new FileReader();
             reader.onloadend = () => {
+                console.log('FileReader loaded, setting preview');
                 setLogoPreview(reader.result);
             };
+            reader.onerror = (error) => {
+                console.error('FileReader error:', error);
+            };
             reader.readAsDataURL(file);
+        } else {
+            console.log('No file selected');
         }
     };
 
@@ -131,7 +139,10 @@ const AddClientModal = ({ isOpen, onClose, onAdd, connectingOAuth, error }) => {
                                     className="hidden"
                                 />
                                 <div
-                                    onClick={() => logoInputRef.current?.click()}
+                                    onClick={() => {
+                                        console.log('Logo upload area clicked, opening file dialog');
+                                        logoInputRef.current?.click();
+                                    }}
                                     className="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center hover:border-blue-500 transition-colors cursor-pointer bg-gray-50"
                                 >
                                     {logoPreview ? (
@@ -188,11 +199,16 @@ const AddClientModal = ({ isOpen, onClose, onAdd, connectingOAuth, error }) => {
                     {/* Platform Selection */}
                     <div className="border-t border-gray-100 pt-6">
                         <label className="block text-sm font-medium text-gray-700 mb-4">Connection Method</label>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <label className={`relative flex flex-col items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${formData.platform === 'instagram' ? 'border-pink-500 bg-pink-50' : 'border-gray-200 hover:border-gray-300'}`}>
                                 <input type="radio" name="platform" value="instagram" checked={formData.platform === 'instagram'} onChange={handleInputChange} className="absolute opacity-0" />
                                 <Instagram className={formData.platform === 'instagram' ? 'text-pink-600' : 'text-gray-400'} size={24} />
                                 <span className="font-semibold text-gray-900 mt-2">Instagram</span>
+                            </label>
+                            <label className={`relative flex flex-col items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${formData.platform === 'manual' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                                <input type="radio" name="platform" value="manual" checked={formData.platform === 'manual'} onChange={handleInputChange} className="absolute opacity-0" />
+                                <Upload className={formData.platform === 'manual' ? 'text-blue-600' : 'text-gray-400'} size={24} />
+                                <span className="font-semibold text-gray-900 mt-2">Manual Entry</span>
                             </label>
                             <div className="relative flex flex-col items-center p-4 border-2 rounded-xl border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed">
                                 <span className="absolute top-2 right-2 text-[10px] font-bold text-white bg-blue-500 px-2 py-0.5 rounded-full">Coming Soon</span>
@@ -216,10 +232,12 @@ const AddClientModal = ({ isOpen, onClose, onAdd, connectingOAuth, error }) => {
                             disabled={connectingOAuth}
                             className={`flex-1 px-4 py-3 rounded-xl text-white font-medium transition-colors ${formData.platform === 'instagram'
                                 ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600'
-                                : 'bg-blue-600 hover:bg-blue-700'
+                                : formData.platform === 'manual'
+                                    ? 'bg-blue-600 hover:bg-blue-700'
+                                    : 'bg-blue-600 hover:bg-blue-700'
                                 }`}
                         >
-                            {connectingOAuth ? 'Connecting...' : `Add Client ${formData.platform !== 'manual' ? '& Connect' : ''}`}
+                            {connectingOAuth ? 'Connecting...' : formData.platform === 'manual' ? 'Add Client' : 'Add Client & Connect'}
                         </button>
                     </div>
                 </form>

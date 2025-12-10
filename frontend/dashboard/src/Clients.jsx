@@ -110,7 +110,26 @@ const Clients = () => {
     }
 
     try {
-      const response = await api.post('/clients', formData);
+      // If logo file exists, upload it first
+      let logoUrl = null;
+      if (formData.logo && formData.logo instanceof File) {
+        console.log('Uploading logo file:', formData.logo.name);
+        const uploadFormData = new FormData();
+        uploadFormData.append('mediaFile', formData.logo); // Changed from 'image' to 'mediaFile'
+
+        const uploadResponse = await api.post('/media/upload', uploadFormData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+
+        if (uploadResponse.data.success) {
+          logoUrl = uploadResponse.data.data.url; // Changed from fileUrl to data.url
+          console.log('Logo uploaded successfully:', logoUrl);
+        }
+      }
+
+      // Create client with logo URL
+      const clientData = { ...formData, logo: logoUrl || undefined };
+      const response = await api.post('/clients', clientData);
       const result = response.data;
 
       if (result.success) {
@@ -127,10 +146,30 @@ const Clients = () => {
   const handleOAuthConnect = async (formData) => {
     setConnectingOAuth(true);
     try {
+      // Upload logo first if it exists
+      let logoUrl = null;
+      if (formData.logo && formData.logo instanceof File) {
+        console.log('Uploading logo before OAuth:', formData.logo.name);
+        const uploadFormData = new FormData();
+        uploadFormData.append('mediaFile', formData.logo);
+
+        const uploadResponse = await api.post('/media/upload', uploadFormData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+
+        if (uploadResponse.data.success) {
+          logoUrl = uploadResponse.data.data.url;
+          console.log('Logo uploaded for OAuth client:', logoUrl);
+          // Store in localStorage to apply after OAuth callback
+          localStorage.setItem('pendingClientLogo', logoUrl);
+        }
+      }
+
       const response = await api.post('/oauth/authorize', {
         platform: formData.platform,
         name: formData.name,
-        email: formData.email
+        email: formData.email,
+        logo: logoUrl
       });
 
       const result = response.data;
@@ -161,7 +200,7 @@ const Clients = () => {
   return (
     <Layout>
       <PageTitle title="Clients" />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto lg:px-8 py-8">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>

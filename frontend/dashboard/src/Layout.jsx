@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Menu, X, LogOut, LayoutDashboard, Users, FileText, TrendingUp, FileCheck, Calendar, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
 import logoWhite from './assets/social_x_logo_white.svg';
+import ConfirmationModal from './components/ConfirmationModal.jsx';
 
 const Layout = ({ children }) => {
   const [userName, setUserName] = useState('User');
@@ -12,6 +13,7 @@ const Layout = ({ children }) => {
     return saved !== null ? JSON.parse(saved) : true;
   });
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -112,8 +114,13 @@ const Layout = ({ children }) => {
   }, [location.pathname]); // Re-fetch when route changes
 
   const handleLogout = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = () => {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user_info');
+    setShowLogoutConfirm(false);
     navigate('/login');
   };
 
@@ -234,7 +241,7 @@ const Layout = ({ children }) => {
       {/* Main Content */}
       < div className="flex-1 flex flex-col min-w-0 lg:h-full lg:overflow-hidden" >
         {/* Header */}
-        < header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-40" >
+        < header className="bg-white border-b border-gray-200 px-4 lg:px-6 py-4 flex items-center justify-between sticky top-0 z-40" >
           <button
             onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
             className="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
@@ -255,6 +262,17 @@ const Layout = ({ children }) => {
           </div>
         </main >
       </div >
+
+      {/* Logout Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={confirmLogout}
+        title="Confirm Logout"
+        message="Are you sure you want to log out of your account?"
+        confirmText="Logout"
+        confirmStyle="danger"
+      />
 
       {/* Mobile Sidebar Overlay */}
       {

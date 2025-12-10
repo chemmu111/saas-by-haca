@@ -16,6 +16,7 @@
   "dependencies": {
     "axios": "^1.13.2",
     "bcryptjs": "^2.4.3",
+    "cloudinary": "^1.41.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
@@ -25,11 +26,13 @@
     "mongodb": "^6.20.0",
     "mongoose": "^8.6.3",
     "multer": "^2.0.2",
+    "multer-storage-cloudinary": "^4.0.0",
     "node-cron": "^3.0.3",
     "nodemailer": "^7.0.10",
     "pdf-lib": "^1.17.1",
     "puppeteer": "^24.31.0",
     "resend": "^6.5.2",
-    "sharp": "^0.33.0"
+    "sharp": "^0.33.0",
+    "ua-parser-js": "^2.0.6"
   }
 }

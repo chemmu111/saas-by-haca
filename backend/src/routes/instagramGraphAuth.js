@@ -8,27 +8,19 @@ router.get('/login', (req, res) => {
   const FB_APP_ID = process.env.FB_APP_ID || '';
   const REDIRECT_URI = process.env.OAUTH_REDIRECT_URI || 'http://localhost:5000/api/auth/facebook/callback';
 
-  // Instagram Graph API scopes
-  const SCOPES = [
-    'pages_show_list',
-    'instagram_basic',
-    'instagram_content_publish',
-    'pages_read_engagement'
-  ].join(',');
-
   if (!FB_APP_ID) {
     return res.status(500).json({
       error: 'FB_APP_ID not configured. Please set FB_APP_ID in .env file.'
     });
   }
 
-  // Generate authorization URL using Facebook OAuth endpoint
-  const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent(SCOPES)}&response_type=code`;
+  // Generate authorization URL using Facebook OAuth endpoint with config_id
+  const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&config_id=840928395225436&response_type=code`;
 
   console.log('📱 Instagram Graph API OAuth - Redirecting to Facebook OAuth');
   console.log('  App ID:', FB_APP_ID);
   console.log('  Redirect URI:', REDIRECT_URI);
-  console.log('  Scopes:', SCOPES);
+  console.log('  Config ID: 840928395225436');
   console.log('  Auth URL:', authUrl.replace(/client_id=[^&]+/, 'client_id=***'));
 
   // Redirect to Facebook OAuth

@@ -209,10 +209,10 @@ const PostsPerformanceTable = ({ posts }) => {
                 <table className="w-full">
                     <thead>
                         <tr className="border-b border-slate-200">
-                            <th className="text-left py-3 px-2 text-xs font-semibold text-slate-600 w-10">#</th>
+                            <th className="text-left py-3 px-2 text-xs font-semibold text-slate-600 w-10 hidden sm:table-cell">#</th>
                             <th className="text-left py-3 px-2 text-xs font-semibold text-slate-600">Post</th>
                             <th
-                                className="text-left py-3 px-2 text-xs font-semibold text-slate-600 cursor-pointer hover:text-blue-600"
+                                className="text-left py-3 px-2 text-xs font-semibold text-slate-600 cursor-pointer hover:text-blue-600 hidden md:table-cell"
                                 onClick={() => handleSort('timestamp')}
                             >
                                 <div className="flex items-center gap-1">
@@ -220,7 +220,7 @@ const PostsPerformanceTable = ({ posts }) => {
                                 </div>
                             </th>
                             <th
-                                className="text-right py-3 px-2 text-xs font-semibold text-slate-600 cursor-pointer hover:text-blue-600"
+                                className="text-right py-3 px-2 text-xs font-semibold text-slate-600 cursor-pointer hover:text-blue-600 hidden lg:table-cell"
                                 onClick={() => handleSort('likes')}
                             >
                                 <div className="flex items-center justify-end gap-1">
@@ -236,7 +236,7 @@ const PostsPerformanceTable = ({ posts }) => {
                                 </div>
                             </th>
                             <th
-                                className="text-right py-3 px-2 text-xs font-semibold text-slate-600 cursor-pointer hover:text-blue-600"
+                                className="text-right py-3 px-2 text-xs font-semibold text-slate-600 cursor-pointer hover:text-blue-600 hidden xl:table-cell"
                                 onClick={() => handleSort('reach')}
                             >
                                 <div className="flex items-center justify-end gap-1">
@@ -244,7 +244,7 @@ const PostsPerformanceTable = ({ posts }) => {
                                 </div>
                             </th>
                             <th
-                                className="text-right py-3 px-2 text-xs font-semibold text-slate-600 cursor-pointer hover:text-blue-600"
+                                className="text-right py-3 px-2 text-xs font-semibold text-slate-600 cursor-pointer hover:text-blue-600 hidden xl:table-cell"
                                 onClick={() => handleSort('views')}
                             >
                                 <div className="flex items-center justify-end gap-1">
@@ -264,7 +264,7 @@ const PostsPerformanceTable = ({ posts }) => {
                             return (
                                 <tr key={post.id || index} className="border-b border-slate-100 hover:bg-slate-50">
                                     {/* Post Number */}
-                                    <td className="py-3 px-2">
+                                    <td className="py-3 px-2 hidden sm:table-cell">
                                         <span className="text-sm font-medium text-slate-500">{postNumber}</span>
                                     </td>
                                     {/* Post Info with Thumbnail */}
@@ -303,19 +303,19 @@ const PostsPerformanceTable = ({ posts }) => {
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="py-3 px-2 text-sm text-slate-600">
+                                    <td className="py-3 px-2 text-sm text-slate-600 hidden md:table-cell">
                                         {new Date(post.timestamp || post.createdAt).toLocaleDateString()}
                                     </td>
-                                    <td className="py-3 px-2 text-sm font-semibold text-slate-900 text-right">
+                                    <td className="py-3 px-2 text-sm font-semibold text-slate-900 text-right hidden lg:table-cell">
                                         {formatNumber(engagement.likes)}
                                     </td>
                                     <td className="py-3 px-2 text-sm font-semibold text-slate-900 text-right">
                                         {formatNumber(engagement.total)}
                                     </td>
-                                    <td className="py-3 px-2 text-sm text-slate-600 text-right">
+                                    <td className="py-3 px-2 text-sm text-slate-600 text-right hidden xl:table-cell">
                                         {formatNumber(engagement.reach)}
                                     </td>
-                                    <td className="py-3 px-2 text-sm text-slate-600 text-right">
+                                    <td className="py-3 px-2 text-sm text-slate-600 text-right hidden xl:table-cell">
                                         {formatNumber(engagement.views)}
                                     </td>
                                     <td className="py-3 px-2 text-center">

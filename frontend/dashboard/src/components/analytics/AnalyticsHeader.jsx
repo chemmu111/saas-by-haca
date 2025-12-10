@@ -24,7 +24,7 @@ const AnalyticsHeader = ({
     hideClientSelector = false
 }) => {
     return (
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between mb-8">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-8">
             <div>
                 <h1 className="text-3xl font-bold text-slate-900 mb-2">Analytics Dashboard</h1>
                 <div className="flex items-center gap-3">

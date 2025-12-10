@@ -41,37 +41,8 @@ router.get('/profile', async (req, res) => {
   }
 });
 
-// Configure multer for avatar uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadDir = path.resolve('uploads');
-    // Ensure directory exists
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    // secure filename with timestamp
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'avatar-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-const upload = multer({
-  storage: storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
-  fileFilter: (req, file, cb) => {
-    const filetypes = /jpeg|jpg|png|webp/;
-    const mimetype = filetypes.test(file.mimetype);
-    const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-
-    if (mimetype && extname) {
-      return cb(null, true);
-    }
-    cb(new Error('Only image files are allowed!'));
-  }
-});
+// Import centralized upload middleware
+import upload from '../middleware/upload.js';
 
 // POST /api/settings/avatar - Upload profile avatar
 router.post('/avatar', upload.single('image'), async (req, res) => {
@@ -80,9 +51,17 @@ router.post('/avatar', upload.single('image'), async (req, res) => {
       return res.status(400).json({ success: false, error: 'No file uploaded' });
     }
 
-    // Construct public URL (assuming /uploads is served statically)
-    const backendUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
-    const fileUrl = `${backendUrl}/uploads/${req.file.filename}`;
+    // Use the file path returned by the middleware (Cloudinary URL or local path)
+    // upload middleware already handles storage logic
+    let fileUrl;
+
+    if (req.file.path) {
+      fileUrl = req.file.path;
+    } else {
+      // Fallback for local storage if path didn't come through full url (shouldn't happen with correct middleware)
+      const backendUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
+      fileUrl = `${backendUrl}/uploads/${req.file.filename}`;
+    }
 
     res.json({
       success: true,
@@ -327,16 +306,61 @@ router.get('/security', async (req, res) => {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
 
+    const formattedSessions = (user.sessions || []).map(session => ({
+      id: session._id,
+      deviceName: session.deviceName || 'Unknown Device',
+      ip: session.ip || 'Unknown IP',
+      lastActive: session.lastActive || session.createdAt,
+      createdAt: session.createdAt,
+      isCurrent: req.user.sessionId && session._id && session._id.toString() === req.user.sessionId
+    }));
+
     res.json({
       success: true,
       data: {
         twoFactorEnabled: user.twoFactorEnabled || false,
-        activeSessions: user.sessions ? user.sessions.length : 0
+        activeSessions: formattedSessions.length,
+        sessions: formattedSessions
       }
     });
   } catch (error) {
     console.error('Error fetching security settings:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch security settings' });
+  }
+});
+
+// DELETE /api/settings/security/sessions/:sessionId - Revoke a specific session
+router.delete('/security/sessions/:sessionId', async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const { sessionId } = req.params;
+
+    if (!sessionId) {
+      return res.status(400).json({ success: false, error: 'Session ID is required' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    // Filter out the session to be revoked
+    const originalLength = user.sessions.length;
+    user.sessions = user.sessions.filter(s => s._id.toString() !== sessionId);
+
+    if (user.sessions.length === originalLength) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Session revoked successfully'
+    });
+  } catch (error) {
+    console.error('Error revoking session:', error);
+    res.status(500).json({ success: false, error: 'Failed to revoke session' });
   }
 });
 

@@ -103,6 +103,9 @@ router.get('/callback/:platform', async (req, res) => {
     let accessToken, refreshToken, socialMediaId, socialMediaLink;
     // Instagram Business API specific variables
     let pageId = null, pageAccessToken = null, igUserId = null;
+    // Instagram profile variables
+    let instagramUsername = null;
+    let instagramProfilePicture = null;
 
     if (platform === 'instagram') {
       console.log('📱 Starting Instagram Business API OAuth flow...');
@@ -378,7 +381,10 @@ router.get('/callback/:platform', async (req, res) => {
         console.log('  IG User ID:', igUserId);
         console.log('  Page Access Token:', pageAccessToken ? 'Yes (length: ' + pageAccessToken.length + ')' : 'No');
 
+
         try {
+          // Note: Instagram Business API doesn't provide profile_picture_url directly
+          // We can only get username and then construct profile link
           const igInfoUrl = `https://graph.facebook.com/v18.0/${igUserId}?fields=id,username&access_token=${pageAccessToken}`;
           console.log('  IG Info URL (masked):', igInfoUrl.replace(/access_token=[^&]+/, 'access_token=***'));
 
@@ -411,8 +417,13 @@ router.get('/callback/:platform', async (req, res) => {
             if (igInfo.username) {
               socialMediaLink = `https://instagram.com/${igInfo.username}`;
               socialMediaId = igInfo.id;
+              instagramUsername = igInfo.username; // Store for client model
+              // Instagram Business API doesn't provide profile picture URL
+              // We'll use a placeholder or fetch from Instagram public API
+              instagramProfilePicture = null; // Will be null for now
               console.log('✅ Instagram username:', igInfo.username);
               console.log('  Instagram link:', socialMediaLink);
+              console.log('  Profile picture: Not available via Instagram Business API');
             } else {
               console.error('  ⚠️ No username in IG info, using ID as fallback');
               socialMediaId = igUserId;
@@ -677,6 +688,7 @@ router.get('/callback/:platform', async (req, res) => {
       accessToken: accessToken,
       refreshToken: refreshToken,
       socialMediaId: socialMediaId,
+      logo: clientData.logo || undefined, // Include logo from OAuth state
       createdBy: userId,
     };
 
@@ -735,10 +747,16 @@ router.get('/callback/:platform', async (req, res) => {
       clientDataToSave.instagramAccessToken = pageAccessToken;
       clientDataToSave.instagramRefreshToken = refreshToken || null;
       clientDataToSave.instagramTokenExpiresAt = clientDataToSave.tokenExpiresAt || null;
+      // Add Instagram profile data
+      clientDataToSave.instagramUsername = instagramUsername;
+      clientDataToSave.instagramProfilePicture = instagramProfilePicture;
+      clientDataToSave.instagramConnected = true;
 
       console.log('✅ Instagram-specific fields added with LONG-LIVED tokens only');
       console.log('    Page ID:', pageId);
       console.log('    IG User ID:', igUserId);
+      console.log('    Instagram Username:', instagramUsername || 'Not available');
+      console.log('    Profile Picture:', instagramProfilePicture ? 'Available' : 'Not available');
       console.log('    ✅ User token: long-lived (60 days)');
       console.log('    ✅ Page token: long-lived (60 days)');
       console.log('    ✅ NO short-lived tokens saved!');
@@ -783,7 +801,8 @@ router.get('/callback/:platform', async (req, res) => {
 
       // Redirect to clients page with success
       const action = existingClient ? 'client_updated' : 'client_added';
-      return res.redirect(`/dashboard/clients?success=${action}&platform=${platform}`);
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      return res.redirect(`${frontendUrl}/dashboard/clients?success=${action}&platform=${platform}`);
     } catch (dbError) {
       console.error('❌ Database error saving client:');
       console.error('  Error message:', dbError.message);
@@ -792,13 +811,15 @@ router.get('/callback/:platform', async (req, res) => {
       if (dbError.errors) {
         console.error('  Validation errors:', JSON.stringify(dbError.errors, null, 2));
       }
-      return res.redirect(`/dashboard/clients?error=database_error`);
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      return res.redirect(`${frontendUrl}/dashboard/clients?error=database_error`);
     }
   } catch (error) {
     console.error('❌ OAuth callback error:', error);
     console.error('  Error stack:', error.stack);
     // Always redirect, never return JSON error (to avoid "Unauthorized" JSON response)
-    return res.redirect(`/dashboard/clients?error=oauth_failed`);
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    return res.redirect(`${frontendUrl}/dashboard/clients?error=oauth_failed`);
   }
 });
 
@@ -809,7 +830,7 @@ router.post('/authorize', requireAuth, async (req, res) => {
     console.log('  Body:', JSON.stringify(req.body));
     console.log('  User:', req.user?.sub || req.user?.id);
 
-    const { platform, name, email } = req.body;
+    const { platform, name, email, logo } = req.body;
 
     if (!['instagram', 'facebook'].includes(platform)) {
       return res.status(400).json({ success: false, error: 'Invalid platform' });
@@ -833,6 +854,7 @@ router.post('/authorize', requireAuth, async (req, res) => {
     const state = Buffer.from(JSON.stringify({
       name,
       email,
+      logo: logo || null,
       userId: userId.toString()
     })).toString('base64');
     // Robustly construct base URL by removing trailing slash and any existing /api path
@@ -853,34 +875,15 @@ router.post('/authorize', requireAuth, async (req, res) => {
         });
       }
 
-      // Instagram Business API scopes (via Facebook OAuth)
-      // Required permissions for Instagram publishing:
-      // - pages_manage_posts: Required to publish content to Instagram via Page
-      // - instagram_content_publish: Required to publish to Instagram
-      // - pages_show_list: Required to list user's Facebook Pages
-      // - pages_read_engagement: Required to read page engagement metrics
-      // - instagram_basic: Required for basic Instagram account info
-      // - business_management: Required for managing business assets
-      const scopes = [
-        'instagram_basic',
-        'instagram_content_publish',
-        'pages_show_list',
-        'pages_read_engagement',
-        'pages_manage_posts',
-        'instagram_manage_insights',
-        'instagram_manage_comments',
-        'business_management'
-      ].join(',');
-
       // Log the configuration
       console.log('Instagram Business API OAuth Configuration:');
       console.log('  Facebook App ID:', facebookAppId);
       console.log('  Redirect URI:', redirectUri);
       console.log('  API URL:', process.env.API_URL || 'http://localhost:5001');
-      console.log('  Scopes:', scopes);
+      console.log('  Using config_id: 840928395225436');
 
-      // Use Facebook OAuth endpoint for Instagram Business API
-      authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${facebookAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&response_type=code&state=${state}`;
+      // Use Facebook OAuth endpoint for Instagram Business API with config_id
+      authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${facebookAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&config_id=840928395225436&response_type=code&state=${state}`;
       console.log('Instagram Business API OAuth URL generated:', authUrl.replace(/client_id=[^&]+/, 'client_id=***'));
       console.log('⚠️  Make sure this redirect URI is configured in Instagram Business API settings:', redirectUri);
     } else if (platform === 'facebook') {

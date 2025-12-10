@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
 
-export default function requireAuth(req, res, next) {
+export default async function requireAuth(req, res, next) {
   const auth = req.headers.authorization || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
 
@@ -16,6 +17,30 @@ export default function requireAuth(req, res, next) {
   try {
     const secret = process.env.JWT_SECRET || 'dev-secret';
     const payload = jwt.verify(token, secret);
+
+    // Check session validity if sessionId is present
+    if (payload.sessionId) {
+      const user = await User.findById(payload.sub).select('sessions');
+      if (!user) {
+        return res.status(401).json({
+          error: 'Unauthorized',
+          message: 'User no longer exists.',
+          code: 'USER_NOT_FOUND'
+        });
+      }
+
+      const sessionExists = user.sessions.some(s => s._id.toString() === payload.sessionId);
+      if (!sessionExists) {
+        return res.status(401).json({
+          error: 'Unauthorized',
+          message: 'Session has been revoked or expired.',
+          code: 'SESSION_REVOKED'
+        });
+      }
+
+      // Optional: Update lastActive (debounced or skip for performance)
+    }
+
     req.user = payload;
     next();
   } catch (e) {
