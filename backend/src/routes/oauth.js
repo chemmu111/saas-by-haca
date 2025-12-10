@@ -688,6 +688,7 @@ router.get('/callback/:platform', async (req, res) => {
       accessToken: accessToken,
       refreshToken: refreshToken,
       socialMediaId: socialMediaId,
+      logo: clientData.logo || undefined, // Include logo from OAuth state
       createdBy: userId,
     };
 
@@ -829,7 +830,7 @@ router.post('/authorize', requireAuth, async (req, res) => {
     console.log('  Body:', JSON.stringify(req.body));
     console.log('  User:', req.user?.sub || req.user?.id);
 
-    const { platform, name, email } = req.body;
+    const { platform, name, email, logo } = req.body;
 
     if (!['instagram', 'facebook'].includes(platform)) {
       return res.status(400).json({ success: false, error: 'Invalid platform' });
@@ -853,6 +854,7 @@ router.post('/authorize', requireAuth, async (req, res) => {
     const state = Buffer.from(JSON.stringify({
       name,
       email,
+      logo: logo || null,
       userId: userId.toString()
     })).toString('base64');
     // Robustly construct base URL by removing trailing slash and any existing /api path
