@@ -93,7 +93,7 @@ const ClientCard = ({ client, onEdit, onDelete, onConnectInstagram, onViewDetail
                 {/* Header */}
                 <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">
-                        {/* Show Instagram profile picture if connected, otherwise client logo */}
+                        {/* Show Instagram profile picture ONLY for Instagram clients */}
                         {client.platform === 'instagram' && client.instagramProfilePicture ? (
                             <img
                                 src={client.instagramProfilePicture}
@@ -101,12 +101,14 @@ const ClientCard = ({ client, onEdit, onDelete, onConnectInstagram, onViewDetail
                                 className="w-12 h-12 rounded-lg object-cover border border-gray-100"
                             />
                         ) : client.logo ? (
+                            /* Show uploaded logo for all other clients */
                             <img
                                 src={client.logo}
                                 alt={client.name}
                                 className="w-12 h-12 rounded-lg object-cover border border-gray-100"
                             />
                         ) : (
+                            /* Show initials as fallback */
                             <div
                                 className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold text-lg"
                                 style={{ backgroundColor: client.brandColors?.primary || '#3b82f6' }}

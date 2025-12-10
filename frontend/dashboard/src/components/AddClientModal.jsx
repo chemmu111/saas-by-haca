@@ -139,7 +139,10 @@ const AddClientModal = ({ isOpen, onClose, onAdd, connectingOAuth, error }) => {
                                     className="hidden"
                                 />
                                 <div
-                                    onClick={() => logoInputRef.current?.click()}
+                                    onClick={() => {
+                                        console.log('Logo upload area clicked, opening file dialog');
+                                        logoInputRef.current?.click();
+                                    }}
                                     className="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center hover:border-blue-500 transition-colors cursor-pointer bg-gray-50"
                                 >
                                     {logoPreview ? (

@@ -110,7 +110,26 @@ const Clients = () => {
     }
 
     try {
-      const response = await api.post('/clients', formData);
+      // If logo file exists, upload it first
+      let logoUrl = null;
+      if (formData.logo && formData.logo instanceof File) {
+        console.log('Uploading logo file:', formData.logo.name);
+        const uploadFormData = new FormData();
+        uploadFormData.append('mediaFile', formData.logo); // Changed from 'image' to 'mediaFile'
+
+        const uploadResponse = await api.post('/media/upload', uploadFormData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+
+        if (uploadResponse.data.success) {
+          logoUrl = uploadResponse.data.data.url; // Changed from fileUrl to data.url
+          console.log('Logo uploaded successfully:', logoUrl);
+        }
+      }
+
+      // Create client with logo URL
+      const clientData = { ...formData, logo: logoUrl || undefined };
+      const response = await api.post('/clients', clientData);
       const result = response.data;
 
       if (result.success) {

@@ -120,7 +120,7 @@ router.get('/', async (req, res) => {
 // POST /api/clients - Create a new client (manual entry)
 router.post('/', async (req, res) => {
   try {
-    const { name, email, socialMediaLink, phone, website, tags, brandColors } = req.body;
+    const { name, email, socialMediaLink, phone, website, tags, brandColors, logo } = req.body;
 
     // Validation
     if (!name || !email) {
@@ -162,6 +162,7 @@ router.post('/', async (req, res) => {
       socialMediaLink: socialMediaLink ? socialMediaLink.trim() : '',
       phone: phone ? phone.trim() : '',
       website: website ? website.trim() : '',
+      logo: logo || undefined,
       tags: Array.isArray(tags) ? tags : [],
       brandColors: brandColors || undefined,
       platform: 'manual',
