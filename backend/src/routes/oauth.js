@@ -853,34 +853,15 @@ router.post('/authorize', requireAuth, async (req, res) => {
         });
       }
 
-      // Instagram Business API scopes (via Facebook OAuth)
-      // Required permissions for Instagram publishing:
-      // - pages_manage_posts: Required to publish content to Instagram via Page
-      // - instagram_content_publish: Required to publish to Instagram
-      // - pages_show_list: Required to list user's Facebook Pages
-      // - pages_read_engagement: Required to read page engagement metrics
-      // - instagram_basic: Required for basic Instagram account info
-      // - business_management: Required for managing business assets
-      const scopes = [
-        'instagram_basic',
-        'instagram_content_publish',
-        'pages_show_list',
-        'pages_read_engagement',
-        'pages_manage_posts',
-        'instagram_manage_insights',
-        'instagram_manage_comments',
-        'business_management'
-      ].join(',');
-
       // Log the configuration
       console.log('Instagram Business API OAuth Configuration:');
       console.log('  Facebook App ID:', facebookAppId);
       console.log('  Redirect URI:', redirectUri);
       console.log('  API URL:', process.env.API_URL || 'http://localhost:5001');
-      console.log('  Scopes:', scopes);
+      console.log('  Using config_id: 840928395225436');
 
-      // Use Facebook OAuth endpoint for Instagram Business API
-      authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${facebookAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&response_type=code&state=${state}`;
+      // Use Facebook OAuth endpoint for Instagram Business API with config_id
+      authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${facebookAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&config_id=840928395225436&response_type=code&state=${state}`;
       console.log('Instagram Business API OAuth URL generated:', authUrl.replace(/client_id=[^&]+/, 'client_id=***'));
       console.log('⚠️  Make sure this redirect URI is configured in Instagram Business API settings:', redirectUri);
     } else if (platform === 'facebook') {
