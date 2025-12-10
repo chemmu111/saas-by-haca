@@ -806,13 +806,15 @@ router.get('/callback/:platform', async (req, res) => {
       if (dbError.errors) {
         console.error('  Validation errors:', JSON.stringify(dbError.errors, null, 2));
       }
-      return res.redirect(`/dashboard/clients?error=database_error`);
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      return res.redirect(`${frontendUrl}/dashboard/clients?error=database_error`);
     }
   } catch (error) {
     console.error('❌ OAuth callback error:', error);
     console.error('  Error stack:', error.stack);
     // Always redirect, never return JSON error (to avoid "Unauthorized" JSON response)
-    return res.redirect(`/dashboard/clients?error=oauth_failed`);
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    return res.redirect(`${frontendUrl}/dashboard/clients?error=oauth_failed`);
   }
 });
 
