@@ -16,7 +16,7 @@ router.get('/connect/:provider', requireAuth, async (req, res) => {
   try {
     const { provider } = req.params;
     const userId = req.user.sub;
-    
+
     // Validate provider
     if (!ALLOWED_PROVIDERS.includes(provider)) {
       return res.status(400).json({
@@ -24,14 +24,14 @@ router.get('/connect/:provider', requireAuth, async (req, res) => {
         error: `Invalid provider. Allowed: ${ALLOWED_PROVIDERS.join(', ')}`
       });
     }
-    
+
     // Check if provider is configured
     try {
       // Build OAuth URL - this will throw if not configured
       const state = generateStateToken();
       storeState(state, userId, provider);
       const redirectUrl = buildAuthUrl(provider, state);
-      
+
       res.json({
         success: true,
         redirectUrl
@@ -60,45 +60,47 @@ router.get('/callback/:provider', async (req, res) => {
   try {
     const { provider } = req.params;
     const { code, state, error, error_description } = req.query;
-    
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
     // Check for OAuth errors
     if (error) {
       console.error(`OAuth error from ${provider}:`, error, error_description);
-      return res.redirect(`/dashboard/clients?error=oauth_denied&provider=${provider}`);
+      return res.redirect(`${frontendUrl}/dashboard/clients?error=oauth_denied&provider=${provider}`);
     }
-    
+
     // Validate provider
     if (!ALLOWED_PROVIDERS.includes(provider)) {
-      return res.redirect(`/dashboard/clients?error=invalid_provider`);
+      return res.redirect(`${frontendUrl}/dashboard/clients?error=invalid_provider`);
     }
-    
+
     // Validate state
     if (!state) {
-      return res.redirect(`/dashboard/clients?error=missing_state`);
+      return res.redirect(`${frontendUrl}/dashboard/clients?error=missing_state`);
     }
-    
+
     // Retrieve state
     const stateData = getState(state);
     if (!stateData) {
-      return res.redirect(`/dashboard/clients?error=invalid_state`);
+      return res.redirect(`${frontendUrl}/dashboard/clients?error=invalid_state`);
     }
-    
+
     const { userId } = stateData;
-    
+
     // Validate code
     if (!code) {
-      return res.redirect(`/dashboard/clients?error=missing_code`);
+      return res.redirect(`${frontendUrl}/dashboard/clients?error=missing_code`);
     }
-    
+
     // Connect account
     await connectAccount(userId, provider, code);
-    
+
     // Redirect to clients page with success
-    return res.redirect(`/dashboard/clients?connected=${provider}`);
+    return res.redirect(`${frontendUrl}/dashboard/clients?connected=${provider}`);
   } catch (error) {
     console.error('OAuth callback error:', error);
     const errorMessage = error.message || 'Connection failed';
-    return res.redirect(`/dashboard/clients?error=connection_failed&msg=${encodeURIComponent(errorMessage)}`);
+    return res.redirect(`${frontendUrl}/dashboard/clients?error=connection_failed&msg=${encodeURIComponent(errorMessage)}`);
   }
 });
 
