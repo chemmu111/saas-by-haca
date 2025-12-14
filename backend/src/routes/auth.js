@@ -50,7 +50,7 @@ async function trackUserDevice(user, req) {
       });
     }
 
-    await user.save();
+    // Don't save here - let caller save once to avoid redundant writes
   } catch (error) {
     console.error('Error tracking device:', error);
     // Fallback: don't fail auth just because tracking failed
@@ -69,8 +69,10 @@ async function createSession(user, req) {
 
   if (!user.sessions) user.sessions = [];
 
-  // Prune expired sessions
-  user.sessions = user.sessions.filter(s => s.expiresAt > new Date());
+  // Prune expired sessions (only if there are more than 50 sessions)
+  if (user.sessions.length > 50) {
+    user.sessions = user.sessions.filter(s => s.expiresAt > new Date());
+  }
 
   user.sessions.push({
     _id: sessionId,
@@ -84,6 +86,7 @@ async function createSession(user, req) {
 
   // Track device history as well (and save user)
   await trackUserDevice(user, req);
+  await user.save(); // Single save for both session + device tracking
 
   return sessionId;
 }
@@ -104,7 +107,7 @@ router.post('/signup', async (req, res) => {
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + 10); // 10 minutes expiry
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, 8); // Reduced from 10 for performance
     const userRole = 'social media manager';
 
     // 3. Store in PendingUser (Overwrite existing pending request if any)
@@ -507,7 +510,7 @@ router.post('/reset-password', async (req, res) => {
     }
 
     // Hash new password
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, 8); // Reduced from 10 for performance
 
     // Update user password
     user.passwordHash = passwordHash;
