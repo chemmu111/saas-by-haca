@@ -38,8 +38,11 @@ router.get('/callback/:platform', async (req, res) => {
         errorParam = 'oauth_cancelled';
       }
 
+      // Get frontend URL for redirect
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
       // Build redirect URL with error parameters
-      let redirectUrl = `/dashboard/clients?error=${errorParam}`;
+      let redirectUrl = `${frontendUrl}/dashboard/clients?error=${errorParam}`;
       if (error_description) {
         // Encode error description to pass it to frontend
         const encodedError = encodeURIComponent(error_description);
