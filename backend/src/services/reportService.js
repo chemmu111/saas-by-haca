@@ -779,6 +779,7 @@ export async function generateReportWithTemplate(userId, posts, clients, options
   // --- 2. Audience & Growth ---
   const aud = report.audienceGrowth;
   html = html.replace(/\{\{netGrowth\}\}/g, (aud.netGrowth > 0 ? '+' : '') + formatNumber(aud.netGrowth));
+  html = html.replace(/\{\{netGrowthClass\}\}/g, aud.netGrowth >= 0 ? 'trend-up' : 'trend-down');
   html = html.replace(/\{\{growthRate\}\}/g, aud.growthRate || '0.0');
   html = html.replace(/\{\{igFollowers\}\}/g, formatNumber(aud.platformSplit.instagram));
   html = html.replace(/\{\{fbFollowers\}\}/g, formatNumber(aud.platformSplit.facebook));
