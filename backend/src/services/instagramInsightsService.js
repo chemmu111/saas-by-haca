@@ -1558,3 +1558,159 @@ export const fetchContactMetrics = async (igUserId, pageAccessToken) => {
     return null;
   }
 };
+
+/**
+ * Import historical Instagram posts for a new client
+ * Fetches up to 100 posts with pagination and saves to database
+ * @param {string} igUserId - Instagram User ID
+ * @param {string} pageAccessToken - Instagram Page Access Token  
+ * @param {string} clientId - Client MongoDB ID
+ * @returns {Promise<number>} - Number of posts imported
+ */
+export async function importHistoricalPosts(igUserId, pageAccessToken, clientId) {
+  try {
+    console.log(`📥 Starting historical post import for client ${clientId}...`);
+
+    if (!igUserId || !pageAccessToken || !clientId) {
+      throw new Error('Missing required parameters');
+    }
+
+    let allPosts = [];
+    let pageCount = 0;
+    let nextCursor = null;
+    const POSTS_PER_PAGE = 25;
+    const MAX_POSTS = 100;
+
+    // Fetch posts with pagination
+    do {
+      pageCount++;
+      console.log(`📄 Fetching page ${pageCount}...`);
+
+      const fields = 'id,media_type,media_product_type,media_url,thumbnail_url,caption,permalink,timestamp,like_count,comments_count,video_play_count';
+      let url = `https://graph.facebook.com/v22.0/${igUserId}/media?fields=${fields}&limit=${POSTS_PER_PAGE}&access_token=${pageAccessToken}`;
+
+      if (nextCursor) {
+        url += `&after=${nextCursor}`;
+      }
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        console.error(`Failed to fetch page ${pageCount}: ${response.status}`);
+        break;
+      }
+
+      const data = await response.json();
+      const posts = data.data || [];
+
+      console.log(`   ✅ Fetched ${posts.length} posts from page ${pageCount}`);
+      allPosts = allPosts.concat(posts);
+
+      // Check for next page
+      nextCursor = data.paging?.cursors?.after || null;
+
+      // Stop if we've reached max posts or no more pages
+      if (allPosts.length >= MAX_POSTS || !nextCursor) {
+        break;
+      }
+    } while (nextCursor && pageCount < 10); // Max 10 pages as safety
+
+    // Limit to MAX_POSTS
+    allPosts = allPosts.slice(0, MAX_POSTS);
+    console.log(`📊 Total posts fetched: ${allPosts.length}`);
+
+    if (allPosts.length === 0) {
+      console.log('No posts to import');
+      return 0;
+    }
+
+    // Import posts to database
+    let importedCount = 0;
+    let skippedCount = 0;
+
+    for (const item of allPosts) {
+      try {
+        // Check if post already exists
+        const existingPost = await Post.findOne({ instagramPostId: item.id });
+        if (existingPost) {
+          skippedCount++;
+          continue;
+        }
+
+        // Fetch insights for this post
+        let insights = null;
+        try {
+          const extraData = { video_play_count: item.video_play_count };
+          let mediaType = item.media_type;
+
+          // Detect reels
+          if (mediaType === 'VIDEO' && item.permalink && item.permalink.includes('/reel/')) {
+            mediaType = 'REELS';
+          }
+
+          const insightsResponse = await fetchMediaInsights(item.id, pageAccessToken, mediaType, extraData);
+          if (insightsResponse.success) {
+            insights = insightsResponse.data;
+          }
+        } catch (err) {
+          console.warn(`Failed to fetch insights for ${item.id}: ${err.message}`);
+        }
+
+        // Determine post type
+        let postType = 'post';
+        if (item.media_type === 'VIDEO' && item.permalink && item.permalink.includes('/reel/')) {
+          postType = 'reel';
+        } else if (item.media_type === 'VIDEO') {
+          postType = 'video';
+        } else if (item.media_type === 'CAROUSEL_ALBUM') {
+          postType = 'carousel';
+        }
+
+        // Create post document
+        const newPost = new Post({
+          client: clientId,
+          platform: 'instagram',
+          instagramPostId: item.id,
+          caption: item.caption || '',
+          content: item.caption || '',
+          mediaUrls: item.media_url ? [item.media_url] : [],
+          thumbnailUrl: item.thumbnail_url || item.media_url,
+          postType: postType,
+          status: 'published',
+          publishedTime: item.timestamp ? new Date(item.timestamp) : new Date(),
+          createdAt: item.timestamp ? new Date(item.timestamp) : new Date(),
+          engagement: insights ? {
+            likes: insights.likes || item.like_count || 0,
+            comments: insights.comments || item.comments_count || 0,
+            shares: insights.shares || 0,
+            saves: insights.saved || 0,
+            views: insights.views || 0,
+            reach: insights.reach || 0,
+            interactions: insights.totalInteractions || 0,
+            watchTime: insights.watchTimeTotal || 0,
+            lastUpdated: new Date()
+          } : {
+            likes: item.like_count || 0,
+            comments: item.comments_count || 0,
+            shares: 0,
+            saves: 0,
+            views: 0,
+            reach: 0,
+            interactions: (item.like_count || 0) + (item.comments_count || 0),
+            lastUpdated: new Date()
+          }
+        });
+
+        await newPost.save();
+        importedCount++;
+      } catch (err) {
+        console.error(`Error importing post ${item.id}:`, err.message);
+      }
+    }
+
+    console.log(`✅ Import complete: ${importedCount} imported, ${skippedCount} skipped`);
+    return importedCount;
+  } catch (error) {
+    console.error('❌ Error in importHistoricalPosts:', error.message);
+    throw error;
+  }
+}

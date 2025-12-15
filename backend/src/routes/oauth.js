@@ -827,11 +827,27 @@ router.get('/callback/:platform', async (req, res) => {
           console.error('  Stats can be synced later from clients page');
           // Don't block OAuth flow - stats can be fetched later
         }
+
+        // Import historical posts for NEW clients only
+        if (!existingClient) {
+          console.log('📥 Importing historical Instagram posts...');
+          try {
+            const importedCount = await importHistoricalPosts(client.igUserId, client.pageAccessToken, client._id);
+            console.log(`✅ Historical import complete: ${importedCount} posts imported`);
+          } catch (importError) {
+            console.error('⚠️  Failed to import historical posts (non-blocking):', importError.message);
+            console.error('  Posts can be manually refreshed later');
+            // Don't block OAuth flow - posts can be fetched later
+          }
+        } else {
+          console.log('ℹ️  Skipping historical import for existing client');
+        }
       }
 
       // Redirect to clients page with success
       const action = existingClient ? 'client_updated' : 'client_added';
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const frontendUrl = process.env.FRONTEND_URL ||
+        'http://localhost:3000';
       return res.redirect(`${frontendUrl}/dashboard/clients?success=${action}&platform=${platform}`);
     } catch (dbError) {
       console.error('❌ Database error saving client:');
