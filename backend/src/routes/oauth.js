@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import Client from '../models/Client.js';
 import requireAuth from '../middleware/requireAuth.js';
 import { exchangeForLongLivedToken } from '../services/instagramTokenService.js';
+import { updateClientStats } from '../services/analyticsService.js';
 
 const router = express.Router();
 
@@ -800,6 +801,32 @@ router.get('/callback/:platform', async (req, res) => {
         await client.save();
         console.log('✅ Client saved successfully!');
         console.log('  Client ID:', client._id);
+      }
+
+      // Fetch initial stats for Instagram clients
+      if (platform === 'instagram' && client.pageAccessToken && client.igUserId) {
+        console.log('📊 Fetching initial Instagram analytics...');
+        try {
+          const stats = await updateClientStats(client);
+          if (stats) {
+            // Update client with fetched stats
+            client.followerCount = stats.followerCount;
+            client.totalPosts = stats.totalPosts;
+            client.engagementRate = stats.engagementRate;
+            client.statsLastUpdated = stats.statsLastUpdated;
+            await client.save();
+            console.log('✅ Initial stats fetched successfully!');
+            console.log('  Followers:', stats.followerCount);
+            console.log('  Posts:', stats.totalPosts);
+            console.log('  Engagement Rate:', stats.engagementRate);
+          } else {
+            console.log('⚠️  Stats fetch returned null - may need manual sync later');
+          }
+        } catch (statsError) {
+          console.error('⚠️  Failed to fetch initial stats (non-blocking):', statsError.message);
+          console.error('  Stats can be synced later from clients page');
+          // Don't block OAuth flow - stats can be fetched later
+        }
       }
 
       // Redirect to clients page with success

@@ -1,0 +1,5 @@
+﻿      // Get frontend URL for redirect
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+      // Build redirect URL with error parameters
+      let redirectUrl = `/dashboard/clients?error=`;

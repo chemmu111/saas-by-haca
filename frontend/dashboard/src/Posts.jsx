@@ -12,6 +12,7 @@ const Posts = () => {
   const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [clientFilter, setClientFilter] = useState('all'); // New client filter state
   const [deletingId, setDeletingId] = useState(null);
   const [editingPost, setEditingPost] = useState(null);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
@@ -111,6 +112,9 @@ const Posts = () => {
       if (statusFilter !== 'all') {
         queryParams.append('status', statusFilter);
       }
+      if (clientFilter !== 'all') {
+        queryParams.append('clientId', clientFilter);
+      }
 
       const response = await fetch(`${backendUrl}/api/posts?${queryParams.toString()}`, {
         headers: {
@@ -151,7 +155,7 @@ const Posts = () => {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, clientFilter]);
 
   const fetchClients = useCallback(async () => {
     try {
@@ -364,58 +368,94 @@ const Posts = () => {
 
         {/* Status Filter */}
         <div className="mb-8 bg-white rounded-2xl shadow-sm border border-gray-200 p-4">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            <div className="flex items-center gap-2 text-gray-700 font-medium">
-              <Filter size={18} />
-              <span>Filter by Status</span>
+          <div className="flex flex-col gap-4">
+            {/* Status Filter */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="flex items-center gap-2 text-gray-700 font-medium">
+                <Filter size={18} />
+                <span>Filter by Status</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setStatusFilter('all')}
+                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'all'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                >
+                  All
+                </button>
+                <button
+                  onClick={() => setStatusFilter('draft')}
+                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'draft'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                >
+                  Draft
+                </button>
+                <button
+                  onClick={() => setStatusFilter('scheduled')}
+                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'scheduled'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                >
+                  Scheduled
+                </button>
+                <button
+                  onClick={() => setStatusFilter('published')}
+                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'published'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                >
+                  Published
+                </button>
+                <button
+                  onClick={() => setStatusFilter('processing')}
+                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'processing'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                >
+                  Processing
+                </button>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setStatusFilter('all')}
-                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'all'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setStatusFilter('draft')}
-                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'draft'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-              >
-                Draft
-              </button>
-              <button
-                onClick={() => setStatusFilter('scheduled')}
-                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'scheduled'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-              >
-                Scheduled
-              </button>
-              <button
-                onClick={() => setStatusFilter('published')}
-                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'published'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-              >
-                Published
-              </button>
-              <button
-                onClick={() => setStatusFilter('processing')}
-                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'processing'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-              >
-                Processing
-              </button>
-            </div>
+
+            {/* Client Filter */}
+            {clients.length > 0 && (
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4 pt-4 border-t border-gray-200">
+                <div className="flex items-center gap-2 text-gray-700 font-medium">
+                  <Filter size={18} />
+                  <span>Filter by Client</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setClientFilter('all')}
+                    className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${clientFilter === 'all'
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                  >
+                    All Clients
+                  </button>
+                  {clients.map((client) => (
+                    <button
+                      key={client._id}
+                      onClick={() => setClientFilter(client._id)}
+                      className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${clientFilter === client._id
+                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                    >
+                      {client.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
