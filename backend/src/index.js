@@ -54,7 +54,8 @@ app.use((req, res, next) => {
 // Middleware
 // CORS configuration with cookie support for cross-origin requests
 const allowedOrigins = [
-  "https://social-x-idsr.onrender.com", // Frontend URL (NEW)
+  "https://haca-social-x.onrender.com", // Frontend URL
+  "https://social-x-idsr.onrender.com", // New Frontend URL
   "https://haca-social-x-backend.onrender.com", // Backend URL (Render internal call)
   "http://localhost:3000", // Development frontend
   "http://localhost:5000", // Development backend
@@ -142,8 +143,8 @@ const helmetConfig = {
 
 app.use(helmet(helmetConfig));
 // Increase body parser limits for large file uploads and JSON payloads
-app.use(express.json({ limit: '50mb' })); // Reduced from 200mb for better performance
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: '200mb' }));
+app.use(express.urlencoded({ extended: true, limit: '200mb' }));
 
 // Serve uploaded files statically
 const uploadsDir = path.resolve(__dirname, '../uploads');
@@ -451,14 +452,12 @@ async function start() {
     try {
       const { initViewSnapshotCron, manualViewSnapshot } = await import('./cron/viewSnapshotCron.js');
       initViewSnapshotCron();
-      // Take initial snapshot on startup (async - don't block server)
-      console.log('📊 Scheduling initial view snapshot...');
-      setImmediate(() => {
-        manualViewSnapshot().then(results => {
-          console.log('📊 Initial view snapshot complete:', results.length, 'clients processed');
-        }).catch(err => {
-          console.warn('⚠️ Initial view snapshot failed:', err.message);
-        });
+      // Take initial snapshot on startup
+      console.log('📊 Taking initial view snapshot...');
+      manualViewSnapshot().then(results => {
+        console.log('📊 Initial view snapshot complete:', results.length, 'clients processed');
+      }).catch(err => {
+        console.warn('⚠️ Initial view snapshot failed:', err.message);
       });
     } catch (error) {
       console.warn('⚠️ Failed to start view snapshot cron:', error.message);
@@ -469,14 +468,12 @@ async function start() {
     try {
       const { initClickSnapshotCron, manualClickSnapshot } = await import('./cron/clickSnapshotCron.js');
       initClickSnapshotCron();
-      // Take initial snapshot on startup (async - don't block server)
-      console.log('📊 Scheduling initial click snapshot...');
-      setImmediate(() => {
-        manualClickSnapshot().then(() => {
-          console.log('📊 Initial click snapshot complete');
-        }).catch(err => {
-          console.warn('⚠️ Initial click snapshot failed:', err.message);
-        });
+      // Take initial snapshot on startup
+      console.log('📊 Taking initial click snapshot...');
+      manualClickSnapshot().then(() => {
+        console.log('📊 Initial click snapshot complete');
+      }).catch(err => {
+        console.warn('⚠️ Initial click snapshot failed:', err.message);
       });
     } catch (error) {
       console.warn('⚠️ Failed to start click snapshot cron:', error.message);

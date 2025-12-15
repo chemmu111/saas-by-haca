@@ -1,7 +1,6 @@
 import ClickSnapshot from '../models/ClickSnapshot.js';
 import { fetchContactMetrics } from './instagramInsightsService.js';
 import Client from '../models/Client.js';
-import { decryptToken } from '../utils/crypto.js';
 
 /**
  * Take a snapshot of contact metrics for a specific client
@@ -9,18 +8,20 @@ import { decryptToken } from '../utils/crypto.js';
  */
 export const takeClickSnapshot = async (client) => {
     try {
-        if (!client.instagramId || !client.accessToken) {
+        // Use pageAccessToken (Instagram Graph API) or accessToken (Legacy)
+        const token = client.pageAccessToken || client.accessToken;
+
+        if (!client.igUserId && !client.instagramId) {
             return null;
         }
 
-        const accessToken = decryptToken(client.accessToken);
-        if (!accessToken) {
-            console.warn(`⚠️ Cannot decrypt token for client ${client.name}`);
+        if (!token) {
+            // console.warn(`⚠️ No access token for client ${client.name}`);
             return null;
         }
 
         // Fetch metrics from Instagram
-        const metrics = await fetchContactMetrics(client.instagramId, accessToken);
+        const metrics = await fetchContactMetrics(client.igUserId || client.instagramId, token);
 
         if (!metrics) {
             return null;

@@ -25,6 +25,10 @@ const reportScheduleSchema = new mongoose.Schema({
         trim: true,
         lowercase: true
     }],
+    sendToClient: {
+        type: Boolean,
+        default: false
+    },
     lastRun: {
         type: Date,
         default: null

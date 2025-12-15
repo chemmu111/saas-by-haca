@@ -271,8 +271,7 @@ export async function fetchAccountInsights(igUserId, pageAccessToken) {
 
     // Fetch additional account metrics (day period)
     // Fetch additional account metrics (day period)
-    // metric=impressions,reach,profile_views
-    const dailyMetrics = 'impressions,reach';
+    const dailyMetrics = 'reach';
     const url = `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=${dailyMetrics}&period=day&access_token=${pageAccessToken}`;
 
     const response = await fetch(url);
@@ -394,8 +393,9 @@ export async function fetchAccountInsightsTrend(igUserId, pageAccessToken) {
       return createSuccessResponse(cached);
     }
 
-    // Daily trends: reach and follower_count CAN be combined. Adding impressions if available.
-    const metrics = 'reach,follower_count,impressions';
+    // Daily trends: reach and follower_count CAN be combined.
+    // NOTE: 'impressions' was removed from Instagram Graph API v22+ (no longer supported)
+    const metrics = 'reach,follower_count';
     const url = `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=${metrics}&period=day&access_token=${pageAccessToken}`;
 
     const response = await fetch(url);
@@ -918,6 +918,7 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
     let totalSaves = 0;
     let totalShares = 0;
     let totalMediaReach = 0;
+    let totalMediaImpressions = 0;
     let totalMediaInteractions = 0;
     let totalWatchTimeAvgSum = 0;
     let totalWatchTimeTotal = 0;
@@ -944,6 +945,9 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
 
       const reach = insights.reach || 0;
       totalMediaReach += reach;
+
+      const impressions = insights.impressions || reach || 0;
+      totalMediaImpressions += impressions;
 
       const interactionValue = insights.totalInteractions ?? insights.interactions ?? insights.engagement ??
         ((insights.likes || 0) + (insights.comments || 0) + (insights.saved || 0) + (insights.shares || 0));
@@ -1167,6 +1171,7 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
         totalSaves,
         totalShares,
         totalReach: totalMediaReach,
+        totalImpressions: totalMediaImpressions,
         totalInteractions: totalMediaInteractions,
         avgWatchTime: watchTimeSampleCount > 0 ? totalWatchTimeAvgSum / watchTimeSampleCount : 0,
         totalWatchTime: totalWatchTimeTotal,
@@ -1209,9 +1214,13 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
           || item.insights?.interactions
           || calculatedEngagement;
 
+        // Calculate per-post engagement rate (Interactions / Reach * 100) or (Interactions / Impressions * 100)
+        const reachRef = item.insights?.reach || item.insights?.impressions || 0;
+        const engagementRate = reachRef > 0 ? ((finalEngagement / reachRef) * 100) : 0;
+
         return {
           id: item.id,
-          media_type: displayType, // Use corrected type
+          media_type: displayType,
           thumbnail_url: item.thumbnail_url,
           caption: item.caption,
           permalink: item.permalink,
@@ -1227,7 +1236,8 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
             profileActivity: item.insights?.profileActivity || 0,
             watchTimeAvg: item.insights?.watchTimeAvg || 0,
             watchTimeTotal: item.insights?.watchTimeTotal || 0,
-            engagement: finalEngagement
+            engagement: finalEngagement,
+            engagementRate: engagementRate
           }
         };
       }),
@@ -1256,9 +1266,13 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
           || item.insights?.interactions
           || calculatedEngagement;
 
+        // Calculate per-post engagement rate (Interactions / Reach * 100) or (Interactions / Impressions * 100)
+        const reachRef = item.insights?.reach || item.insights?.impressions || 0;
+        const engagementRate = reachRef > 0 ? ((finalEngagement / reachRef) * 100) : 0;
+
         return {
           id: item.id,
-          media_type: displayType, // Use corrected type
+          media_type: displayType,
           thumbnail_url: item.thumbnail_url,
           caption: item.caption,
           permalink: item.permalink,
@@ -1274,7 +1288,8 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
             profileActivity: item.insights?.profileActivity || 0,
             watchTimeAvg: item.insights?.watchTimeAvg || 0,
             watchTimeTotal: item.insights?.watchTimeTotal || 0,
-            engagement: finalEngagement
+            engagement: finalEngagement,
+            engagementRate: engagementRate
           }
         };
       }),

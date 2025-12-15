@@ -1,19 +1,14 @@
 import nodemailer from 'nodemailer';
-import { Resend } from 'resend';
 
 // Email provider configuration
-// Set EMAIL_PROVIDER=resend in production (Render), or EMAIL_PROVIDER=gmail for local
-const EMAIL_PROVIDER = process.env.EMAIL_PROVIDER || 'gmail'; // 'gmail' or 'resend'
+// We are now enforcing 'gmail' provider which uses Nodemailer
+const EMAIL_PROVIDER = 'gmail';
 
-// Gmail configuration (for local development)
+// Gmail configuration (used for all environments now)
 const EMAIL_USER = process.env.EMAIL_USER || 'tech.haca@gmail.com';
 const EMAIL_PASS = process.env.EMAIL_APP_PASSWORD || 'qhhb idgx qkmd mlil';
 
-// Resend configuration (for production - works on Render)
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
-
-// Gmail transporter (for local development)
+// Gmail transporter
 const gmailTransporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -23,36 +18,16 @@ const gmailTransporter = nodemailer.createTransport({
 });
 
 // Default from email
-const FROM_EMAIL = process.env.EMAIL_FROM || 'Social X <noreply@resend.dev>';
+const FROM_EMAIL = process.env.EMAIL_FROM || EMAIL_USER;
 
 /**
- * Universal email sender - works with both Gmail and Resend
+ * Universal email sender - uses Nodemailer (Gmail)
  */
 async function sendEmail({ to, subject, html, attachments = [] }) {
   try {
-    // Try Resend first if available (for production)
-    if (EMAIL_PROVIDER === 'resend' && resend) {
-      console.log('📧 Sending email via Resend...');
-      const { data, error } = await resend.emails.send({
-        from: FROM_EMAIL,
-        to: to,
-        subject: subject,
-        html: html,
-      });
-
-      if (error) {
-        console.error('❌ Resend error:', error);
-        throw new Error(error.message || 'Resend email failed');
-      }
-
-      console.log('✅ Email sent via Resend:', data?.id);
-      return { success: true, messageId: data?.id, provider: 'resend' };
-    }
-
-    // Fallback to Gmail (for local development)
-    console.log('📧 Sending email via Gmail...');
+    console.log('📧 Sending email via Gmail (Nodemailer)...');
     const mailOptions = {
-      from: EMAIL_USER,
+      from: FROM_EMAIL,
       to: to,
       subject: subject,
       html: html,

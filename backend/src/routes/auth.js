@@ -4,9 +4,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import User from '../models/User.js';
 import PendingUser from '../models/PendingUser.js';
-import VerificationCode from '../models/VerificationCode.js';
-import PasswordReset from '../models/PasswordReset.js';
-import { sendVerificationEmail, sendPasswordResetEmail, sendOtpEmail } from '../services/emailService.js';
+import { sendPasswordResetEmail } from '../services/emailService.js';
 import Client from '../models/Client.js';
 import mongoose from 'mongoose';
 import { refreshLongLivedToken } from '../services/instagramTokenService.js';
@@ -18,43 +16,25 @@ function isValidEmail(email) {
   return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email);
 }
 
-function signToken(user, sessionId) {
+function generateTokens(user) {
   const secret = process.env.JWT_SECRET || 'dev-secret';
-  const payload = { sub: user.id, email: user.email, role: user.role, name: user.name };
-  if (sessionId) payload.sessionId = sessionId;
-  return jwt.sign(payload, secret, { expiresIn: '12h' });
-}
+  // Use a different secret for refresh tokens, or append a string to the main secret
+  // In production, these should be separate env vars. For now, we'll derive it or use a fallback.
+  const refreshSecret = process.env.JWT_REFRESH_SECRET || secret + '_refresh';
 
-async function trackUserDevice(user, req) {
-  try {
-    const userAgent = req.headers['user-agent'] || 'Unknown';
-    const ip = req.ip || req.connection.remoteAddress || 'Unknown';
+  const accessToken = jwt.sign(
+    { sub: user.id, email: user.email, role: user.role, name: user.name, type: 'access' },
+    secret,
+    { expiresIn: '1d' }
+  );
 
-    // Ensure devices array exists
-    if (!user.devices) {
-      user.devices = [];
-    }
+  const refreshToken = jwt.sign(
+    { sub: user.id, type: 'refresh' },
+    refreshSecret,
+    { expiresIn: '2d' }
+  );
 
-    const existingDevice = user.devices.find(d => d.userAgent === userAgent);
-
-    if (existingDevice) {
-      existingDevice.loginCount = (existingDevice.loginCount || 0) + 1;
-      existingDevice.lastLogin = new Date();
-      existingDevice.ip = ip;
-    } else {
-      user.devices.push({
-        userAgent,
-        ip,
-        lastLogin: new Date(),
-        loginCount: 1
-      });
-    }
-
-    // Don't save here - let caller save once to avoid redundant writes
-  } catch (error) {
-    console.error('Error tracking device:', error);
-    // Fallback: don't fail auth just because tracking failed
-  }
+  return { accessToken, refreshToken };
 }
 
 async function createSession(user, req) {
@@ -69,10 +49,8 @@ async function createSession(user, req) {
 
   if (!user.sessions) user.sessions = [];
 
-  // Prune expired sessions (only if there are more than 50 sessions)
-  if (user.sessions.length > 50) {
-    user.sessions = user.sessions.filter(s => s.expiresAt > new Date());
-  }
+  // Prune expired sessions
+  user.sessions = user.sessions.filter(s => s.expiresAt > new Date());
 
   user.sessions.push({
     _id: sessionId,
@@ -84,9 +62,8 @@ async function createSession(user, req) {
     ip
   });
 
-  // Track device history as well (and save user)
-  await trackUserDevice(user, req);
-  await user.save(); // Single save for both session + device tracking
+  // Save user with new session
+  await user.save();
 
   return sessionId;
 }
@@ -98,125 +75,42 @@ router.post('/signup', async (req, res) => {
     if (!email || !isValidEmail(email)) return res.status(400).json({ error: 'Valid email is required' });
     if (!password || password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
 
-    // 1. Check if user already exists in MAIN database
+    // 1. Check if user already exists
     const existingUser = await User.findOne({ email: email.toLowerCase() }).lean();
     if (existingUser) return res.status(409).json({ error: 'Email already in use' });
 
-    // 2. Generate 6-digit verification code
-    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 10); // 10 minutes expiry
-
-    const passwordHash = await bcrypt.hash(password, 8); // Reduced from 10 for performance
+    const passwordHash = await bcrypt.hash(password, 10);
     const userRole = 'social media manager';
 
-    // 3. Store in PendingUser (Overwrite existing pending request if any)
-    await PendingUser.deleteMany({ email: email.toLowerCase() }); // Clear old pending
-
-    const pendingUser = await PendingUser.create({
+    // 2. Create User Directly
+    const user = await User.create({
       name: name.trim(),
       email: email.toLowerCase(),
       passwordHash,
       avatar: avatar || '',
       gender: gender || '',
       role: userRole,
-      verificationCode,
-      expiresAt
+      isVerified: true
     });
 
-    // 4. Send verification email
-    try {
-      await sendOtpEmail(email, verificationCode, 'signup');
-      res.status(201).json({
-        requiresVerification: true,
-        message: 'Verification code sent to your email',
-        email: email
-      });
-    } catch (emailError) {
-      console.error('Error sending signup verification email:', emailError);
-      // If email fails, we might want to delete pending user or just let it expire?
-      // For now, return success but warn, allowing resend (if we implement resend for pending).
-      // Actually, if email fails, user can't verify. But we returned 201.
-      // Ideally we should fail if email fails, but let's keep consistency with previous code.
-      res.status(201).json({
-        requiresVerification: true,
-        message: 'Account info saved but failed to send verification email. Please try signing up again or wait.',
-        email: email,
-        emailError: true
-      });
-    }
+    // 3. Track device & Generate Token
+    await trackUserDevice(user, req);
+
+    const tokens = generateTokens(user);
+    res.status(201).json({
+      token: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      message: 'Account created successfully!'
+    });
   } catch (err) {
     console.error('Signup error', err);
     res.status(500).json({ error: 'Internal server error', details: err.message });
   }
 });
 
-// POST /api/auth/verify-signup - Verify signup OTP
-// POST /api/auth/verify-signup - Verify signup OTP and CREATE ACCOUNT
-router.post('/verify-signup', async (req, res) => {
-  try {
-    const { email, code } = req.body || {};
-    if (!email || !isValidEmail(email)) return res.status(400).json({ error: 'Valid email is required' });
-    if (!code || code.length !== 6) return res.status(400).json({ error: 'Valid 6-digit code is required' });
 
-    // 1. Find in PendingUser
-    const pendingUser = await PendingUser.findOne({ email: email.toLowerCase() });
 
-    if (!pendingUser) {
-      return res.status(401).json({ error: 'Verification session not found. Please sign up again.' });
-    }
-
-    if (pendingUser.verificationCode !== code.trim()) {
-      return res.status(401).json({ error: 'Invalid verification code' });
-    }
-
-    if (new Date() > new Date(pendingUser.expiresAt)) {
-      return res.status(401).json({ error: 'Verification code expired' });
-    }
-
-    // 2. Check if user already exists (double check race condition)
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
-    if (existingUser) {
-      // Logic if user somehow exists now? Maybe just login?
-      // Or error out. Let's error out for safety.
-      return res.status(409).json({ error: 'User already exists' });
-    }
-
-    // 3. Create Real User
-    const user = await User.create({
-      name: pendingUser.name,
-      email: pendingUser.email,
-      passwordHash: pendingUser.passwordHash,
-      avatar: pendingUser.avatar || '',
-      gender: pendingUser.gender || '',
-      role: pendingUser.role,
-      isVerified: true
-    });
-
-    // 4. Delete PendingUser record
-    await PendingUser.deleteOne({ _id: pendingUser._id });
-
-    // 5. Track device & Generate Token
-    const sessionId = await createSession(user, req);
-    const token = signToken(user, sessionId);
-
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        avatar: user.avatar
-      },
-      message: 'Account created successfully!'
-    });
-
-  } catch (err) {
-    console.error('Verify signup error', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
 
 router.post('/login', async (req, res) => {
   try {
@@ -248,94 +142,25 @@ router.post('/login', async (req, res) => {
       await user.save();
     }
 
-    // If user is admin, send verification email instead of logging in
-    if (user.role === 'admin') {
-      // Generate 6-digit verification code
-      const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
 
-      // Set expiration to 10 minutes from now
-      const expiresAt = new Date();
-      expiresAt.setMinutes(expiresAt.getMinutes() + 10);
-
-      // Delete any existing verification codes for this user
-      await VerificationCode.deleteMany({ email: user.email.toLowerCase(), used: false });
-
-      // Save verification code
-      await VerificationCode.create({
-        email: user.email.toLowerCase(),
-        code: verificationCode,
-        expiresAt: expiresAt,
-        userId: user._id
-      });
-
-      // Send verification email
-      try {
-        await sendVerificationEmail(user.email, verificationCode);
-        return res.status(200).json({
-          requiresVerification: true,
-          message: 'Verification code sent to your email',
-          email: user.email
-        });
-      } catch (emailError) {
-        console.error('Error sending verification email:', emailError);
-        return res.status(500).json({ error: 'Failed to send verification email. Please try again.' });
-      }
-    }
 
     // For non-admin users, proceed with normal login
-    const sessionId = await createSession(user, req);
-    const token = signToken(user, sessionId);
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar } });
+    // 5. Track device
+    await trackUserDevice(user, req);
+
+    const tokens = generateTokens(user);
+    res.json({
+      token: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: { id: user.id, name: user.name, email: user.email, role: user.role }
+    });
   } catch (err) {
     console.error('Login error', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// POST /api/auth/login-otp-init - Initialize Login with OTP
-router.post('/login-otp-init', async (req, res) => {
-  try {
-    const { email } = req.body || {};
-    if (!email || !isValidEmail(email)) return res.status(400).json({ error: 'Valid email is required' });
 
-    const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user) {
-      return res.status(400).json({ error: 'Account does not exist' });
-    }
-
-    // Generate 6-digit verification code
-    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
-
-    // Invalidate old unused codes for this purpose
-    await VerificationCode.updateMany(
-      { email: email.toLowerCase(), purpose: 'login', used: false },
-      { used: true }
-    );
-
-    // Save verification code
-    await VerificationCode.create({
-      email: user.email.toLowerCase(),
-      code: verificationCode,
-      expiresAt: expiresAt,
-      purpose: 'login',
-      userId: user._id
-    });
-
-    // Send email
-    try {
-      await sendOtpEmail(user.email, verificationCode, 'login');
-      res.json({ success: true, message: 'Verification code sent to your email.' });
-    } catch (emailError) {
-      console.error('Error sending login OTP:', emailError);
-      res.status(500).json({ error: 'Failed to send verification code. Please try again.' });
-    }
-  } catch (err) {
-    console.error('Login OTP Init error', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
 
 // POST /api/auth/verify-login-otp - Verify Login OTP
 router.post('/verify-login-otp', async (req, res) => {
@@ -374,9 +199,16 @@ router.post('/verify-login-otp', async (req, res) => {
     }
 
     // Generate token and return user
-    const sessionId = await createSession(user, req);
-    const token = signToken(user, sessionId);
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar } });
+
+    // Track device
+    await trackUserDevice(user, req);
+
+    const tokens = generateTokens(user);
+    res.json({
+      token: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: { id: user.id, name: user.name, email: user.email, role: user.role }
+    });
   } catch (err) {
     console.error('Verify Login OTP error', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -412,9 +244,16 @@ router.post('/verify-code', async (req, res) => {
     await verification.save();
 
     // Generate token and return user
-    const sessionId = await createSession(user, req);
-    const token = signToken(user, sessionId);
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar } });
+
+    // Track device
+    await trackUserDevice(user, req);
+
+    const tokens = generateTokens(user);
+    res.json({
+      token: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: { id: user.id, name: user.name, email: user.email, role: user.role }
+    });
   } catch (err) {
     console.error('Verification error', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -510,7 +349,7 @@ router.post('/reset-password', async (req, res) => {
     }
 
     // Hash new password
-    const passwordHash = await bcrypt.hash(password, 8); // Reduced from 10 for performance
+    const passwordHash = await bcrypt.hash(password, 10);
 
     // Update user password
     user.passwordHash = passwordHash;
@@ -530,71 +369,7 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
-// POST /api/auth/resend-otp - Resend OTP
-// POST /api/auth/resend-otp - Resend OTP
-router.post('/resend-otp', async (req, res) => {
-  try {
-    const { email, purpose } = req.body || {};
-    if (!email || !isValidEmail(email)) return res.status(400).json({ error: 'Valid email is required' });
-    if (!['signup', 'reset', 'login'].includes(purpose)) return res.status(400).json({ error: 'Valid purpose is required' });
 
-    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
-
-    // Special handling for signup (uses PendingUser)
-    if (purpose === 'signup') {
-      const pendingUser = await PendingUser.findOne({ email: email.toLowerCase() });
-
-      if (!pendingUser) {
-        // Maybe they are already signed up?
-        const existingUser = await User.findOne({ email: email.toLowerCase() });
-        if (existingUser) {
-          return res.status(400).json({ error: 'User already registered. Please login.' });
-        }
-        return res.status(404).json({ error: 'Signup session expired. Please sign up again.' });
-      }
-
-      // Update code
-      pendingUser.verificationCode = verificationCode;
-      pendingUser.expiresAt = expiresAt;
-      await pendingUser.save();
-
-      await sendOtpEmail(email, verificationCode, 'signup');
-      return res.json({ success: true, message: 'Verification code resent.' });
-    }
-
-    // Normal handling for login/reset (uses User + VerificationCode)
-    const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user) {
-      // Security: Don't reveal user existence
-      return res.json({ success: true, message: 'If account exists, code sent.' });
-    }
-
-    // Invalidate old unused codes for this purpose
-    await VerificationCode.updateMany(
-      { email: email.toLowerCase(), purpose: purpose, used: false },
-      { used: true }
-    );
-
-    // Save new code
-    await VerificationCode.create({
-      email: user.email.toLowerCase(),
-      code: verificationCode,
-      expiresAt: expiresAt,
-      purpose: purpose,
-      userId: user._id
-    });
-
-    // Send email
-    await sendOtpEmail(user.email, verificationCode, purpose);
-
-    res.json({ success: true, message: 'Verification code resent.' });
-  } catch (err) {
-    console.error('Resend OTP error', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
 
 // GET /api/auth/token-status/:clientId - Get token status
 router.get('/token-status/:clientId', async (req, res) => {
@@ -817,6 +592,52 @@ router.get('/token/check/:clientId', async (req, res) => {
     res.status(500).json({ error: 'Failed to check token status' });
   }
 });
+
+// POST /api/auth/refresh-token - Refresh Access Token
+router.post('/refresh-token', async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+      return res.status(401).json({ error: 'Refresh Token Required' });
+    }
+
+    const secret = process.env.JWT_SECRET || 'dev-secret';
+    const refreshSecret = process.env.JWT_REFRESH_SECRET || secret + '_refresh';
+
+    // Verify Refresh Token
+    let payload;
+    try {
+      payload = jwt.verify(refreshToken, refreshSecret);
+    } catch (e) {
+      console.error('RefreshToken verification failed:', e.message);
+      return res.status(401).json({ error: 'Invalid or Expired Refresh Token', code: 'REFRESH_EXPIRED' });
+    }
+
+    if (payload.type !== 'refresh') {
+      return res.status(401).json({ error: 'Invalid Token Type', code: 'INVALID_TOKEN' });
+    }
+
+    const user = await User.findById(payload.sub);
+    if (!user) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    // Generate new tokens
+    const tokens = generateTokens(user);
+    res.json({
+      token: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: { id: user.id, name: user.name, email: user.email, role: user.role }
+    });
+  } catch (err) {
+    console.error('Refresh token error', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+async function trackUserDevice(user, req) {
+  await createSession(user, req);
+}
 
 export default router;
 

@@ -1,0 +1,11 @@
+{
+    "css.validate": false,
+    "css.lint.validProperties": [],
+    "html.validate.styles": false,
+    "files.associations": {
+        "**/templates/*.html": "html"
+    },
+    "[html]": {
+        "editor.suggest.insertMode": "replace"
+    }
+}

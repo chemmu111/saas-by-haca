@@ -9,9 +9,8 @@ import { sendMonthlyReportEmail, sendReportToClient } from '../services/emailSer
 export const initReportScheduler = () => {
     console.log('📅 Initializing Report Scheduler...');
 
-    // Run every hour to check for due reports
-    // You might want to run this more frequently depending on requirements
-    cron.schedule('0 * * * *', async () => {
+    // Run every minute to check for due reports
+    cron.schedule('* * * * *', async () => {
         console.log('⏰ Running Report Scheduler check...');
         try {
             const now = new Date();
@@ -34,7 +33,7 @@ export const initReportScheduler = () => {
     });
 };
 
-async function processSchedule(schedule) {
+export async function processSchedule(schedule) {
     try {
         console.log(`Processing schedule for client ${schedule.client?.name || schedule.client} (${schedule._id})`);
 
@@ -84,7 +83,7 @@ async function processSchedule(schedule) {
                 const reportWithHtml = await generateReportWithTemplate(userId, posts, [client], {
                     startDate,
                     endDate,
-                    templateName: templateId,
+                    templateName: templateId || 'professional-modern.html',
                     format: 'html'
                 });
                 pdfBuffer = await generatePDFFromHTML(reportWithHtml.html);
@@ -101,8 +100,17 @@ async function processSchedule(schedule) {
             });
         }
 
+        // Prepare recipients list
+        const recipients = [...emailRecipients];
+        if (schedule.sendToClient && client.email) {
+            recipients.push(client.email);
+        }
+
+        // Deduplicate
+        const uniqueRecipients = [...new Set(recipients)];
+
         // Send Emails
-        for (const email of emailRecipients) {
+        for (const email of uniqueRecipients) {
             if (format === 'pdf') {
                 // Send with attachment
                 // We might need a specific email service function for this
