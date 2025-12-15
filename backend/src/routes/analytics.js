@@ -51,8 +51,17 @@ router.get('/', async (req, res) => {
       }
     }
 
-    // Get all clients for the user
-    const clients = await Client.find({ createdBy: userId });
+    // Get clients based on filter
+    let clients;
+    if (clientId && clientId !== 'all') {
+      // Fetch only the specific client
+      clients = await Client.find({ _id: clientId, createdBy: userId });
+      console.log(`📊 Filtering analytics for specific client: ${clientId}`);
+    } else {
+      // Fetch all clients
+      clients = await Client.find({ createdBy: userId });
+      console.log(`📊 Fetching analytics for all clients (${clients.length} total)`);
+    }
     const clientIds = clients.map(c => c._id);
 
     // Get analytics for all posts (handle case when there are no clients)
