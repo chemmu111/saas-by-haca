@@ -231,7 +231,7 @@ router.post('/change-password', async (req, res) => {
     }
 
     // Hash new password
-    const salt = await bcrypt.genSalt(10);
+    const salt = await bcrypt.genSalt(8); // Reduced from 10 for performance
     const passwordHash = await bcrypt.hash(newPassword, salt);
 
     // Update password
