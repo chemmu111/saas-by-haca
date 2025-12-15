@@ -2,18 +2,19 @@ import axios from "axios";
 
 // Helper function to get backend URL
 const getBackendUrl = () => {
-    // Check for environment variable first (production)
+    //Check for environment variable first (production)
     if (import.meta.env.VITE_API_URL) {
         const url = import.meta.env.VITE_API_URL;
         return url.endsWith('/api') ? url : `${url}/api`;
     }
-    // Development mode
-    if (window.location.port === '3000') {
+    // Development mode - check port
+    if (window.location.port === '3000' || window.location.port === '5173') {
         const savedPort = localStorage.getItem('backend_port');
         return savedPort ? `http://localhost:${savedPort}/api` : 'http://localhost:5000/api';
     }
-    // Fallback to same origin
-    return '/api';
+    // Production fallback - use the actual backend URL
+    // This handles cases where VITE_API_URL isn't set during build
+    return 'https://haca-social-x-backend.onrender.com/api';
 };
 
 const api = axios.create({

@@ -9,7 +9,7 @@ export const getBackendUrl = () => {
     }
 
     // Development mode - Vite dev server
-    if (window.location.port === '3000') {
+    if (window.location.port === '3000' || window.location.port === '5173') {
         // Check localStorage for saved port, otherwise default to 5000
         const savedPort = localStorage.getItem('backend_port');
         if (savedPort) {
@@ -19,8 +19,9 @@ export const getBackendUrl = () => {
         return 'http://localhost:5000';
     }
 
-    // Fallback to same origin
-    return window.location.origin;
+    // Production fallback - use the actual backend URL
+    // This handles cases where VITE_API_URL isn't set during build
+    return 'https://haca-social-x-backend.onrender.com';
 };
 
 /**
