@@ -119,7 +119,8 @@ const Layout = ({ children }) => {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user_info');
     setShowLogoutConfirm(false);
-    navigate('/login');
+    // Use window.location.href instead of navigate to avoid Router context issues
+    window.location.href = '/login';
   };
 
   const menuItems = [
