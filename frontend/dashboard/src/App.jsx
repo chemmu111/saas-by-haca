@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import ErrorBoundary from './ErrorBoundary.jsx';
 import Dashboard from './Dashboard.jsx';
 import Clients from './Clients.jsx';
@@ -79,38 +79,30 @@ const AuthGuard = ({ children }) => {
 };
 
 const App = () => {
-  console.log('🚀 BUILD v4.0 – Router context fix verified');
   console.log('App component rendering, current path:', window.location.pathname);
 
   return (
-    <BrowserRouter
-      future={{
-        v7_startTransition: true,
-        v7_relativeSplatPath: true,
-      }}
-    >
-      <ErrorBoundary>
-        <AuthGuard>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/dashboard/clients" element={<Clients />} />
-            <Route path="/dashboard/clients/:clientId" element={<ClientDashboard />} />
-            <Route path="/dashboard/posts" element={<Posts />} />
-            <Route path="/dashboard/calendar" element={<Calendar />} />
-            <Route path="/dashboard/analytics" element={<Analytics />} />
-            <Route path="/dashboard/reports" element={<Reports />} />
-            <Route path="/dashboard/settings" element={<Settings />} />
-            <Route path="/dashboard/admin/tokens" element={<AdminTokenMonitor />} />
-            <Route path="/clients" element={<Clients />} />
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            {/* Catch-all route - show custom 404 page */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </AuthGuard>
-      </ErrorBoundary>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <AuthGuard>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard/clients" element={<Clients />} />
+          <Route path="/dashboard/clients/:clientId" element={<ClientDashboard />} />
+          <Route path="/dashboard/posts" element={<Posts />} />
+          <Route path="/dashboard/calendar" element={<Calendar />} />
+          <Route path="/dashboard/analytics" element={<Analytics />} />
+          <Route path="/dashboard/reports" element={<Reports />} />
+          <Route path="/dashboard/settings" element={<Settings />} />
+          <Route path="/dashboard/admin/tokens" element={<AdminTokenMonitor />} />
+          <Route path="/clients" element={<Clients />} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          {/* Catch-all route - show custom 404 page */}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </AuthGuard>
+    </ErrorBoundary>
   );
 };
 

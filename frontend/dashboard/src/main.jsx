@@ -1,5 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import App from './App.jsx'
 import './index.css'
@@ -12,11 +13,19 @@ const root = ReactDOM.createRoot(rootElement);
 try {
   root.render(
     <React.StrictMode>
-      <HelmetProvider>
-        <App />
-      </HelmetProvider>
+      <BrowserRouter
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
+        <HelmetProvider>
+          <App />
+        </HelmetProvider>
+      </BrowserRouter>
     </React.StrictMode>
   );
+  console.log('✅ BUILD v5.0 - Router initialized at ROOT level');
   console.log('React app rendered successfully');
 } catch (error) {
   console.error('Error rendering React app:', error);
