@@ -12,7 +12,6 @@ const Posts = () => {
   const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
-  const [clientFilter, setClientFilter] = useState('all');
   const [deletingId, setDeletingId] = useState(null);
   const [editingPost, setEditingPost] = useState(null);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
@@ -113,9 +112,6 @@ const Posts = () => {
       if (statusFilter !== 'all') {
         queryParams.append('status', statusFilter);
       }
-      if (clientFilter !== 'all') {
-        queryParams.append('clientId', clientFilter);
-      }
 
       const response = await fetch(`${backendUrl}/api/posts?${queryParams.toString()}`, {
         headers: {
@@ -156,7 +152,7 @@ const Posts = () => {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, clientFilter]);
+  }, [statusFilter]);
 
   const fetchClients = useCallback(async () => {
     try {
@@ -367,84 +363,59 @@ const Posts = () => {
           }}
         />
 
-        {/* Filters */}
+        {/* Status Filter */}
         <div className="mb-8 bg-white rounded-2xl shadow-sm border border-gray-200 p-4">
-          <div className="flex flex-col gap-6">
-            {/* Client Filter */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-              <div className="flex items-center gap-2 text-gray-700 font-medium min-w-[120px]">
-                <Filter size={18} />
-                <span>Filter by Client</span>
-              </div>
-              <div className="flex-1">
-                <select
-                  value={clientFilter}
-                  onChange={(e) => setClientFilter(e.target.value)}
-                  className="w-full sm:w-64 px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-white text-gray-700 font-medium focus:outline-none focus:border-blue-500 transition-colors"
-                >
-                  <option value="all">All Clients</option>
-                  {clients.map(client => (
-                    <option key={client._id} value={client._id}>
-                      {client.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-center gap-2 text-gray-700 font-medium">
+              <Filter size={18} />
+              <span>Filter by Status</span>
             </div>
-
-            {/* Status Filter */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-              <div className="flex items-center gap-2 text-gray-700 font-medium min-w-[120px]">
-                <Filter size={18} />
-                <span>Filter by Status</span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setStatusFilter('all')}
-                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'all'
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                >
-                  All
-                </button>
-                <button
-                  onClick={() => setStatusFilter('draft')}
-                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'draft'
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                >
-                  Draft
-                </button>
-                <button
-                  onClick={() => setStatusFilter('scheduled')}
-                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'scheduled'
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                >
-                  Scheduled
-                </button>
-                <button
-                  onClick={() => setStatusFilter('published')}
-                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'published'
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                >
-                  Published
-                </button>
-                <button
-                  onClick={() => setStatusFilter('processing')}
-                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'processing'
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                >
-                  Processing
-                </button>
-              </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setStatusFilter('all')}
+                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'all'
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setStatusFilter('draft')}
+                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'draft'
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+              >
+                Draft
+              </button>
+              <button
+                onClick={() => setStatusFilter('scheduled')}
+                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'scheduled'
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+              >
+                Scheduled
+              </button>
+              <button
+                onClick={() => setStatusFilter('published')}
+                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'published'
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+              >
+                Published
+              </button>
+              <button
+                onClick={() => setStatusFilter('processing')}
+                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'processing'
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+              >
+                Processing
+              </button>
             </div>
           </div>
         </div>
