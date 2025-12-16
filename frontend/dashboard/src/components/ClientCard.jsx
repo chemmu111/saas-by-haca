@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-const ClientCard = ({ client, onEdit, onDelete, onConnectInstagram, onViewDetails }) => {
+const ClientCard = ({ client, onEdit, onDelete, onConnectInstagram, onViewDetails, onSync }) => {
     const navigate = useNavigate();
     const [showMenu, setShowMenu] = useState(false);
 
