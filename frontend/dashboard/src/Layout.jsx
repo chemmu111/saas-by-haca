@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { Menu, X, LogOut, LayoutDashboard, Users, FileText, TrendingUp, FileCheck, Calendar, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
 import logoWhite from './assets/social_x_logo_white.svg';
 import ConfirmationModal from './components/ConfirmationModal.jsx';
@@ -14,7 +14,6 @@ const Layout = ({ children }) => {
   });
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
@@ -119,8 +118,8 @@ const Layout = ({ children }) => {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user_info');
     setShowLogoutConfirm(false);
-    // Use window.location.href instead of navigate to avoid Router context issues
-    window.location.href = '/login';
+    // Use window.location.replace to avoid Router context issues and prevent back button
+    window.location.replace('/login');
   };
 
   const menuItems = [
