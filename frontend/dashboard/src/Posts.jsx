@@ -446,39 +446,6 @@ const Posts = () => {
                 </button>
               </div>
             </div>
-
-            {/* Client Filter */}
-            {clients.length > 0 && (
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4 pt-4 border-t border-gray-200">
-                <div className="flex items-center gap-2 text-gray-700 font-medium">
-                  <Filter size={18} />
-                  <span>Filter by Client</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => setClientFilter('all')}
-                    className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${clientFilter === 'all'
-                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                  >
-                    All Clients
-                  </button>
-                  {clients.map((client) => (
-                    <button
-                      key={client._id}
-                      onClick={() => setClientFilter(client._id)}
-                      className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${clientFilter === client._id
-                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                    >
-                      {client.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
