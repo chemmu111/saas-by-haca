@@ -161,8 +161,8 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
     try {
       setLoading(true);
       const token = localStorage.getItem('auth_token');
-      // Use relative URL to leverage Vite proxy or same-origin in production
-      const url = '/api/clients';
+      const backendUrl = getBackendUrl();
+      const url = `${backendUrl}/api/clients`;
 
       console.log('Fetching clients from:', url);
 
