@@ -22,14 +22,15 @@ const Posts = () => {
   const [retryingMediaUrls, setRetryingMediaUrls] = useState(new Set());
 
   const getBackendUrl = () => {
-    if (window.location.port === '3000') {
+    if (window.location.port === '3000' || window.location.port === '5173') {
       const savedPort = localStorage.getItem('backend_port');
       if (savedPort) {
         return `http://localhost:${savedPort}`;
       }
       return 'http://localhost:5000';
     }
-    return window.location.origin;
+    // Production fallback - use actual backend URL
+    return 'https://haca-social-x-backend.onrender.com';
   };
 
   const normalizeMediaUrl = (url) => {
