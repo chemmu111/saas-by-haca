@@ -54,7 +54,7 @@ const AnalyticsHeader = ({
                         >
                             <option value="all">All Clients</option>
                             {clientOptions.map((option, index) => (
-                                <option key={option.id || index} value={option.id}>
+                                <option key={option._id || index} value={option._id}>
                                     {option.name}
                                 </option>
                             ))}

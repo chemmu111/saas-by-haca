@@ -79,9 +79,7 @@ const Layout = ({ children }) => {
         const token = localStorage.getItem('auth_token');
         if (!token) return;
 
-        const backendUrl = window.location.port === '3000'
-          ? `http://localhost:${localStorage.getItem('backend_port') || '5000'}`
-          : window.location.origin;
+        const backendUrl = getBackendUrl();
 
         const response = await fetch(`${backendUrl}/api/settings/preferences`, {
           headers: {

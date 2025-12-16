@@ -69,11 +69,11 @@ const Dashboard = () => {
         if (!token) return;
 
         const getBackendUrl = () => {
-          if (window.location.port === '3000') {
+          if (window.location.port === '3000' || window.location.port === '5173') {
             const savedPort = localStorage.getItem('backend_port');
             return savedPort ? `http://localhost:${savedPort}` : 'http://localhost:5000';
           }
-          return window.location.origin;
+          return 'https://haca-social-x-backend.onrender.com';
         };
 
         const backendUrl = getBackendUrl();
@@ -105,14 +105,14 @@ const Dashboard = () => {
         if (!token) return;
 
         const getBackendUrl = () => {
-          if (window.location.port === '3000') {
+          if (window.location.port === '3000' || window.location.port === '5173') {
             const savedPort = localStorage.getItem('backend_port');
             if (savedPort) {
               return `http://localhost:${savedPort}`;
             }
             return 'http://localhost:5000';
           }
-          return window.location.origin;
+          return 'https://haca-social-x-backend.onrender.com';
         };
 
         const backendUrl = getBackendUrl();
