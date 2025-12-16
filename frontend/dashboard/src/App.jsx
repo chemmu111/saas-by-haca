@@ -82,13 +82,13 @@ const App = () => {
   console.log('App component rendering, current path:', window.location.pathname);
 
   return (
-    <ErrorBoundary>
-      <BrowserRouter
-        future={{
-          v7_startTransition: true,
-          v7_relativeSplatPath: true,
-        }}
-      >
+    <BrowserRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
+      <ErrorBoundary>
         <AuthGuard>
           <Routes>
             <Route path="/login" element={<Login />} />
@@ -108,8 +108,8 @@ const App = () => {
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthGuard>
-      </BrowserRouter>
-    </ErrorBoundary>
+      </ErrorBoundary>
+    </BrowserRouter>
   );
 };
 
