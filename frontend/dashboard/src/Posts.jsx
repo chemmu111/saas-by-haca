@@ -12,7 +12,7 @@ const Posts = () => {
   const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
-  const [clientFilter, setClientFilter] = useState('all'); // New client filter state
+  const [clientFilter, setClientFilter] = useState('all');
   const [deletingId, setDeletingId] = useState(null);
   const [editingPost, setEditingPost] = useState(null);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
@@ -366,12 +366,34 @@ const Posts = () => {
           }}
         />
 
-        {/* Status Filter */}
+        {/* Filters */}
         <div className="mb-8 bg-white rounded-2xl shadow-sm border border-gray-200 p-4">
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-6">
+            {/* Client Filter */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="flex items-center gap-2 text-gray-700 font-medium min-w-[120px]">
+                <Filter size={18} />
+                <span>Filter by Client</span>
+              </div>
+              <div className="flex-1">
+                <select
+                  value={clientFilter}
+                  onChange={(e) => setClientFilter(e.target.value)}
+                  className="w-full sm:w-64 px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-white text-gray-700 font-medium focus:outline-none focus:border-blue-500 transition-colors"
+                >
+                  <option value="all">All Clients</option>
+                  {clients.map(client => (
+                    <option key={client._id} value={client._id}>
+                      {client.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             {/* Status Filter */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-              <div className="flex items-center gap-2 text-gray-700 font-medium">
+              <div className="flex items-center gap-2 text-gray-700 font-medium min-w-[120px]">
                 <Filter size={18} />
                 <span>Filter by Status</span>
               </div>
