@@ -56,8 +56,8 @@ const AuthGuard = ({ children }) => {
     if (token && isTokenExpired(token)) {
       localStorage.removeItem('auth_token');
       localStorage.removeItem('user_info');
-      // Force reload to clear state and redirect
-      window.location.href = '/login';
+      // Use replace to prevent back button and cleanly destroy Router context
+      window.location.replace('/login');
     }
   }, [token, location]);
 
@@ -79,6 +79,7 @@ const AuthGuard = ({ children }) => {
 };
 
 const App = () => {
+  console.log('🚀 BUILD v4.0 – Router context fix verified');
   console.log('App component rendering, current path:', window.location.pathname);
 
   return (
