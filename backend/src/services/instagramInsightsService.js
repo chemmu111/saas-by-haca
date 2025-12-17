@@ -90,15 +90,20 @@ function createSuccessResponse(data) {
  * GET /{ig-user-id}?fields=followers_count
  * This works without insights requirements
  */
-async function fetchFollowerCountBasic(igUserId, pageAccessToken) {
+/**
+ * Fetch basic account info (followers, media count) from IG User endpoint
+ * GET /{ig-user-id}?fields=followers_count,media_count
+ * This works without insights requirements
+ */
+async function fetchBasicAccountInfo(igUserId, pageAccessToken) {
   try {
-    const url = `https://graph.facebook.com/v22.0/${igUserId}?fields=followers_count&access_token=${pageAccessToken}`;
-    console.log('   📡 Fetching from basic endpoint...');
+    const url = `https://graph.facebook.com/v22.0/${igUserId}?fields=followers_count,media_count&access_token=${pageAccessToken}`;
+    console.log('   📡 Fetching basic account info (followers, media_count)...');
     const response = await fetch(url);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.error('   ❌ Error fetching basic followers_count:', response.status);
+      console.error('   ❌ Error fetching basic account info:', response.status);
       if (errorData.error) {
         console.error('      Error:', errorData.error.message);
       }
@@ -107,15 +112,12 @@ async function fetchFollowerCountBasic(igUserId, pageAccessToken) {
 
     const data = await response.json();
     console.log('   ✅ Basic endpoint response:', data);
-    const count = data.followers_count || null;
-    if (count) {
-      console.log(`   ✅ Follower count from basic endpoint: ${count}`);
-    } else {
-      console.log('   ⚠️ No followers_count in basic endpoint response');
-    }
-    return count;
+    return {
+      followers_count: data.followers_count || 0,
+      media_count: data.media_count || 0
+    };
   } catch (error) {
-    console.error('   ❌ Error fetching basic followers_count:', error.message);
+    console.error('   ❌ Error fetching basic account info:', error.message);
     return null;
   }
 }
@@ -131,10 +133,15 @@ async function fetchFollowerCount(igUserId, pageAccessToken) {
 
     // 1. Try basic endpoint FIRST (Current real-time count)
     // This is more reliable for "Total Followers" display than insights metric
-    const basicCount = await fetchFollowerCountBasic(igUserId, pageAccessToken);
-    if (basicCount !== null) {
-      console.log(`   ✅ Used basic endpoint for follower count: ${basicCount}`);
-      return basicCount;
+    const basicInfo = await fetchBasicAccountInfo(igUserId, pageAccessToken);
+    if (basicInfo !== null) {
+      console.log(`   ✅ Used basic endpoint for follower count: ${basicInfo.followers_count}`);
+
+      // Cache basic info for later use (media_count)
+      const cacheKey = `basic_info_${igUserId}`;
+      setCache(cacheKey, basicInfo);
+
+      return basicInfo.followers_count;
     }
 
     // 2. Fallback to Insights if basic fails (unlikely)
@@ -357,6 +364,7 @@ export async function fetchAccountInsights(igUserId, pageAccessToken) {
 
     const result = {
       follower_count: followerCount || 0,
+      media_count: 0, // Default
       profile_views: profileViews || additionalData.profile_views || 0,
       reach: additionalData.reach || 0, // Daily reach (yesterday)
       reach_28d: reach28d || additionalData.reach || 0, // 28-day reach (fallback to daily)
@@ -367,6 +375,23 @@ export async function fetchAccountInsights(igUserId, pageAccessToken) {
       text_message_clicks: contactData.text_message_clicks || additionalData.text_message_clicks || 0,
       get_directions_clicks: contactData.get_directions_clicks || additionalData.get_directions_clicks || 0
     };
+
+    // Retrieve media_count from cache if available (populated by fetchFollowerCount -> fetchBasicAccountInfo)
+    const basicInfoCache = getCached(`basic_info_${igUserId}`);
+    if (basicInfoCache && basicInfoCache.media_count) {
+      result.media_count = basicInfoCache.media_count;
+      console.log(`   ✅ Added media_count to account insights: ${result.media_count}`);
+    } else {
+      // Fallback: Try to fetch it if missing
+      try {
+        const basic = await fetchBasicAccountInfo(igUserId, pageAccessToken);
+        if (basic) {
+          result.media_count = basic.media_count;
+          // Also update follower count if it was missing
+          if (!result.follower_count) result.follower_count = basic.followers_count;
+        }
+      } catch (e) { console.warn('Failed to fetch fallback media count', e); }
+    }
 
     setCache(cacheKey, result);
     return createSuccessResponse(result);
@@ -1152,6 +1177,7 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
     const result = {
       account: {
         follower_count: accountInsights.follower_count || 0,
+        media_count: accountInsights.media_count || 0,
         reach: latestReach,
         reach_28d: accountInsights.reach_28d || 0,
         profile_views: accountInsights.profile_views || 0,

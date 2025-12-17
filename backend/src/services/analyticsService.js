@@ -194,7 +194,7 @@ export async function updateClientStats(client) {
 
       return {
         followerCount: totalFollowers,
-        totalPosts: actualPostCount || 0, // Use database count instead of API limited results
+        totalPosts: igData.data?.account?.media_count || actualPostCount || totalPosts, // Use API media_count > Database Count > limited fetch
         engagementRate: engagementRate,
         statsLastUpdated: new Date()
       };
