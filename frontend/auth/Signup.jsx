@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { Eye, EyeOff, ArrowRight, User, Mail, Lock } from 'lucide-react';
 import AuthLayout from './AuthLayout';
 import PageTitle from '../dashboard/src/components/PageTitle';
 
 const Signup = () => {
-    const navigate = useNavigate();
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -16,6 +15,18 @@ const Signup = () => {
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+    const [redirectPath, setRedirectPath] = useState(null); // Declarative navigation
+
+    // Check if already logged in
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+        return <Navigate to="/dashboard" replace />;
+    }
+
+    // Declarative redirect after successful signup
+    if (redirectPath) {
+        return <Navigate to={redirectPath} replace />;
+    }
 
     const getBackendUrl = () => {
         if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
@@ -79,7 +90,7 @@ const Signup = () => {
                     localStorage.setItem('auth_token', data.token);
                     if (data.refreshToken) localStorage.setItem('refresh_token', data.refreshToken);
                     localStorage.setItem('user_info', JSON.stringify(data.user));
-                    navigate('/dashboard');
+                    setRedirectPath('/dashboard'); // Declarative navigation
                 } else {
                     setError(data.details || data.error || 'Signup failed. Please try again.');
                 }

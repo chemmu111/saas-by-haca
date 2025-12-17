@@ -1,21 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { Eye, EyeOff, ArrowRight, X, Check, Mail, Lock } from 'lucide-react';
 import AuthLayout from './AuthLayout';
 import PageTitle from '../dashboard/src/components/PageTitle';
 
 const Login = () => {
-    const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+    const [redirectPath, setRedirectPath] = useState(null); // Declarative navigation
     const [showForgotModal, setShowForgotModal] = useState(false);
     const [forgotEmail, setForgotEmail] = useState('');
     const [forgotCode, setForgotCode] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [forgotStatus, setForgotStatus] = useState({ step: 'email', type: '', message: '' }); // step: email, verify, success
+
+    // Check if already logged in
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+        return <Navigate to="/dashboard" replace />;
+    }
+
+    // Declarative redirect after successful login
+    if (redirectPath) {
+        return <Navigate to={redirectPath} replace />;
+    }
 
     const getBackendUrl = () => {
         // Check for environment variable first (production)
@@ -56,11 +67,11 @@ const Login = () => {
                     if (data.refreshToken) localStorage.setItem('refresh_token', data.refreshToken);
                     localStorage.setItem('user_info', JSON.stringify(data.user));
 
-                    // Redirect based on role
+                    // Declarative navigation - set redirect path
                     if (data.user.role === 'admin') {
-                        navigate('/dashboard/admin/tokens');
+                        setRedirectPath('/dashboard/admin/tokens');
                     } else {
-                        navigate('/dashboard');
+                        setRedirectPath('/dashboard');
                     }
                 } else {
                     setError(data.error || 'Login failed. Please check your credentials.');

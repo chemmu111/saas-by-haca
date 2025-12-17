@@ -23,7 +23,7 @@ try {
       </HelmetProvider>
     </BrowserRouter>
   );
-  console.log('✅ BUILD v7.0 - Lazy Auth Components + Router at ROOT');
+  console.log('✅ BUILD v8.0 - DECLARATIVE Navigation (NO useNavigate in Auth)');
   console.log('React app rendered successfully');
 } catch (error) {
   console.error('Error rendering React app:', error);
