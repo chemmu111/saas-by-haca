@@ -56,6 +56,7 @@ app.use((req, res, next) => {
 const allowedOrigins = [
   "https://haca-social-x.onrender.com", // Frontend URL
   "https://social-x-idsr.onrender.com", // New Frontend URL
+  "https://social-x-production-y82t.onrender.com", // Production frontend
   "https://haca-social-x-backend.onrender.com", // Backend URL (Render internal call)
   "http://localhost:3000", // Development frontend
   "http://localhost:5000", // Development backend
