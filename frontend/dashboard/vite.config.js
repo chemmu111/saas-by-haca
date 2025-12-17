@@ -1,3 +1,4 @@
+// Production build v1.0.1 - Router fix applied
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
