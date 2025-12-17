@@ -32,8 +32,8 @@ const getBackendUrl = () => {
   return window.location.origin;
 };
 
-import Login from '../../auth/Login.jsx';
-import Signup from '../../auth/Signup.jsx';
+import Login from './components/auth/Login.jsx';
+import Signup from './components/auth/Signup.jsx';
 
 // Helper to check if token is expired
 const isTokenExpired = (token) => {
