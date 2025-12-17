@@ -192,9 +192,17 @@ export async function updateClientStats(client) {
         status: 'published' // Only count published posts
       });
 
+      const apiMediaCount = igData.data?.account?.media_count;
+
+      console.log(`   📊 Post Count Debug for ${client.name}:`);
+      console.log(`      - API media_count: ${apiMediaCount}`);
+      console.log(`      - DB actualPostCount: ${actualPostCount}`);
+      console.log(`      - Legacy totalPosts: ${totalPosts}`);
+      console.log(`      - FAILSAFE used: ${apiMediaCount || actualPostCount || totalPosts}`);
+
       return {
         followerCount: totalFollowers,
-        totalPosts: igData.data?.account?.media_count || actualPostCount || totalPosts, // Use API media_count > Database Count > limited fetch
+        totalPosts: apiMediaCount || actualPostCount || totalPosts, // Use API media_count > Database Count > limited fetch
         engagementRate: engagementRate,
         statsLastUpdated: new Date()
       };
