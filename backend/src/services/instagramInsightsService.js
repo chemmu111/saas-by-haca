@@ -264,7 +264,7 @@ export async function fetchAccountInsights(igUserId, pageAccessToken) {
       return createErrorResponse('Missing required credentials (igUserId or pageAccessToken)', 'fetchAccountInsights');
     }
 
-    const cacheKey = `account_insights_${igUserId}_lifetime_v2`;
+    const cacheKey = `account_insights_${igUserId}_lifetime_v3`;
     const cached = getCached(cacheKey);
     if (cached) {
       return createSuccessResponse(cached);
@@ -851,7 +851,7 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
 
     console.log(`📡 Fetching Instagram analytics for user: ${igUserId}`);
 
-    const cacheKey = `instagram_analytics_${igUserId}_v4`;
+    const cacheKey = `instagram_analytics_${igUserId}_v5`;
     const cached = getCached(cacheKey);
     if (cached) {
       console.log(`✅ Using cached data for ${igUserId}`);
