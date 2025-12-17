@@ -364,7 +364,7 @@ export async function fetchAccountInsights(igUserId, pageAccessToken) {
 
     const result = {
       follower_count: followerCount || 0,
-      media_count: accountInsights.media_count || 0, // Ensure it exists
+      media_count: 0, // Will be populated by fallback logic below
       profile_views: profileViews || additionalData.profile_views || 0,
       reach: additionalData.reach || 0, // Daily reach (yesterday)
       reach_28d: reach28d || additionalData.reach || 0, // 28-day reach (fallback to daily)
