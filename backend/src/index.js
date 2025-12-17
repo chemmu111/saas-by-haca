@@ -32,6 +32,7 @@ import aiRouter from './routes/ai.js';
 import adminRouter from './routes/admin.js';
 import followerSnapshotsRouter from './routes/followerSnapshots.js';
 import mediaRouter from './routes/media.js';
+import liveStatsRouter from './routes/live-stats.js';
 
 // Create Express app
 const app = express();
@@ -374,6 +375,7 @@ app.use('/api/ai', aiRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/follower-snapshots', followerSnapshotsRouter);
 app.use('/api/media', mediaRouter);
+app.use('/api/live-stats', liveStatsRouter);
 
 // 404 handler for API routes - returns JSON instead of HTML
 app.use('/api/*', (req, res) => {

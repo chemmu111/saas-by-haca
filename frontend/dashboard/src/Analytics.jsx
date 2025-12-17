@@ -103,7 +103,12 @@ const Analytics = ({ embedded = false, clientId = null }) => {
         const response = await fetch(url, { headers });
         const data = await response.json();
         if (data.success) {
-          setClients(data.data);
+          // Map clients to ensure each has an 'id' property for dropdown compatibility
+          const mappedClients = data.data.map(client => ({
+            ...client,
+            id: client._id // Add id field for dropdown
+          }));
+          setClients(mappedClients);
         }
       } catch (err) {
         console.error('Error fetching clients:', err);

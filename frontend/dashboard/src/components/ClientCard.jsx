@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     MoreVertical,
     LayoutDashboard,
@@ -20,10 +20,14 @@ import {
     Clock
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import api from '../api';
 
 const ClientCard = ({ client, onEdit, onDelete, onConnectInstagram, onViewDetails }) => {
     const navigate = useNavigate();
     const [showMenu, setShowMenu] = useState(false);
+    const [liveStats, setLiveStats] = useState(null);
+    const [statsLoading, setStatsLoading] = useState(false);
+    const [statsError, setStatsError] = useState(null);
 
     const getStatusColor = (status) => {
         const state = typeof status === 'object' ? status.state : status;
@@ -77,6 +81,38 @@ const ClientCard = ({ client, onEdit, onDelete, onConnectInstagram, onViewDetail
             document.removeEventListener('click', handleClickOutside);
         };
     }, [showMenu]);
+
+    // Fetch live stats from Instagram API for connected clients
+    useEffect(() => {
+        const fetchLiveStats = async () => {
+            // Only fetch for Instagram clients with active tokens
+            if (client.platform !== 'instagram') return;
+
+            const tokenStatus = typeof client.tokenStatus === 'object'
+                ? client.tokenStatus.state
+                : client.tokenStatus;
+
+            if (tokenStatus !== 'active') return;
+
+            setStatsLoading(true);
+            setStatsError(null);
+
+            try {
+                const response = await api.get(`/live-stats/${client._id}`);
+                if (response.data.success) {
+                    setLiveStats(response.data.data);
+                }
+            } catch (error) {
+                console.error('Error fetching live stats:', error);
+                setStatsError(error.message);
+                // Fallback to database stats on error
+            } finally {
+                setStatsLoading(false);
+            }
+        };
+
+        fetchLiveStats();
+    }, [client._id, client.platform, client.tokenStatus]);
 
     return (
         <div
@@ -215,15 +251,33 @@ const ClientCard = ({ client, onEdit, onDelete, onConnectInstagram, onViewDetail
                 <div className="grid grid-cols-3 gap-2 mb-4">
                     <div className="bg-gray-50 rounded-lg p-2 text-center">
                         <p className="text-xs text-gray-500 mb-0.5">Followers</p>
-                        <p className="font-semibold text-gray-900">{client.followerCount?.toLocaleString() || 0}</p>
+                        {statsLoading ? (
+                            <div className="h-6 bg-gray-200 animate-pulse rounded"></div>
+                        ) : (
+                            <p className="font-semibold text-gray-900">
+                                {(liveStats?.followerCount ?? client.followerCount ?? 0).toLocaleString()}
+                            </p>
+                        )}
                     </div>
                     <div className="bg-gray-50 rounded-lg p-2 text-center">
                         <p className="text-xs text-gray-500 mb-0.5">Posts</p>
-                        <p className="font-semibold text-gray-900">{client.totalPosts || 0}</p>
+                        {statsLoading ? (
+                            <div className="h-6 bg-gray-200 animate-pulse rounded"></div>
+                        ) : (
+                            <p className="font-semibold text-gray-900">
+                                {liveStats?.totalPosts ?? client.totalPosts ?? 0}
+                            </p>
+                        )}
                     </div>
                     <div className="bg-gray-50 rounded-lg p-2 text-center">
                         <p className="text-xs text-gray-500 mb-0.5">Eng. Rate</p>
-                        <p className="font-semibold text-gray-900">{client.engagementRate || '0%'}</p>
+                        {statsLoading ? (
+                            <div className="h-6 bg-gray-200 animate-pulse rounded"></div>
+                        ) : (
+                            <p className="font-semibold text-gray-900">
+                                {liveStats?.engagementRate ?? client.engagementRate ?? '0%'}
+                            </p>
+                        )}
                     </div>
                 </div>
 

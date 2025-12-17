@@ -3,7 +3,7 @@ import PageTitle from './components/PageTitle';
 import Layout from './Layout.jsx';
 import DeleteConfirmModal from './DeleteConfirmModal.jsx';
 import CreatePostModal from './CreatePostModal.jsx';
-import { FileText, Calendar, Clock, CheckCircle, XCircle, Edit, Trash2, Filter, Plus, Instagram, Facebook, Image as ImageIcon, Send, AlertCircle, Video } from 'lucide-react';
+import { FileText, Calendar, Clock, CheckCircle, XCircle, Edit, Trash2, Filter, Plus, Instagram, Facebook, Image as ImageIcon, Send, AlertCircle, Video, Search, User } from 'lucide-react';
 
 const Posts = () => {
   const [posts, setPosts] = useState([]);
@@ -12,6 +12,8 @@ const Posts = () => {
   const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [clientFilter, setClientFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [deletingId, setDeletingId] = useState(null);
   const [editingPost, setEditingPost] = useState(null);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
@@ -362,9 +364,10 @@ const Posts = () => {
           }}
         />
 
-        {/* Status Filter */}
-        <div className="mb-8 bg-white rounded-2xl shadow-sm border border-gray-200 p-4">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+        {/* Filters Section */}
+        <div className="mb-8 bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          {/* Status Filter */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
             <div className="flex items-center gap-2 text-gray-700 font-medium">
               <Filter size={18} />
               <span>Filter by Status</span>
@@ -417,6 +420,47 @@ const Posts = () => {
               </button>
             </div>
           </div>
+
+          {/* Client Filter and Search */}
+          <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t border-gray-100">
+            {/* Client Dropdown Filter */}
+            <div className="flex-1">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                <User size={16} />
+                Filter by Client
+              </label>
+              <select
+                value={clientFilter}
+                onChange={(e) => setClientFilter(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              >
+                <option value="all">All Clients</option>
+                {clients.map((client) => (
+                  <option key={client._id} value={client._id}>
+                    {client.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Search Input */}
+            <div className="flex-1">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                <Search size={16} />
+                Search Posts
+              </label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <input
+                  type="text"
+                  placeholder="Search by caption, hashtags..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                />
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Posts Grid */}
@@ -447,7 +491,53 @@ const Posts = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {posts.map((post) => {
+              {/* Filter posts based on client filter and search query */}
+              {posts.filter(post => {
+                // Client filter
+                if (clientFilter !== 'all' && post.client?._id !== clientFilter) {
+                  return false;
+                }
+
+                // Search filter
+                if (searchQuery.trim()) {
+                  const query = searchQuery.toLowerCase();
+                  const caption = (post.caption || post.content || '').toLowerCase();
+                  const hashtags = (post.hashtags || []).join(' ').toLowerCase();
+                  const clientName = (post.client?.name || '').toLowerCase();
+
+                  return caption.includes(query) || hashtags.includes(query) || clientName.includes(query);
+                }
+
+                return true;
+              }).length === 0 ? (
+                <div className="col-span-full text-center py-16 bg-gradient-to-br from-gray-50 to-white rounded-2xl border-2 border-dashed border-gray-300">
+                  <div className="inline-flex p-4 bg-gradient-to-br from-blue-100 to-purple-100 rounded-2xl mb-4">
+                    <FileText className="text-gray-500" size={48} />
+                  </div>
+                  <h3 className="mt-4 text-xl font-bold text-gray-900">No posts found</h3>
+                  <p className="mt-2 text-gray-600 max-w-md mx-auto">
+                    {searchQuery || clientFilter !== 'all' ? 'No posts match your filters. Try adjusting your search or filters.' : 'No posts to display.'}
+                  </p>
+                </div>
+              ) : null}
+              {posts.filter(post => {
+                // Client filter
+                if (clientFilter !== 'all' && post.client?._id !== clientFilter) {
+                  return false;
+                }
+
+                // Search filter
+                if (searchQuery.trim()) {
+                  const query = searchQuery.toLowerCase();
+                  const caption = (post.caption || post.content || '').toLowerCase();
+                  const hashtags = (post.hashtags || []).join(' ').toLowerCase();
+                  const clientName = (post.client?.name || '').toLowerCase();
+
+                  return caption.includes(query) || hashtags.includes(query) || clientName.includes(query);
+                }
+
+                return true;
+              }).map((post) => {
                 const firstMediaUrl = post.mediaUrls && Array.isArray(post.mediaUrls) && post.mediaUrls.length > 0
                   ? post.mediaUrls[0]
                   : null;

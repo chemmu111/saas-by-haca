@@ -51,9 +51,18 @@ router.get('/', async (req, res) => {
       }
     }
 
-    // Get all clients for the user
-    const clients = await Client.find({ createdBy: userId });
+    // Filter clients if clientId is provided
+    let clientQuery = { createdBy: userId };
+    if (clientId) {
+      clientQuery._id = clientId;
+      console.log(`📊 Filtering analytics for specific client: ${clientId}`);
+    }
+
+    // Get all clients for the user (or specific client if filtered)
+    const clients = await Client.find(clientQuery);
     const clientIds = clients.map(c => c._id);
+
+    console.log(`📊 Fetching analytics for ${clients.length} client(s)`);
 
     // Get analytics for all posts (handle case when there are no clients)
     // IMPORTANT: Scheduled posts should be included regardless of date range
