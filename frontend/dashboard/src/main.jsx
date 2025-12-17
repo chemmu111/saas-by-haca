@@ -23,7 +23,7 @@ try {
       </HelmetProvider>
     </BrowserRouter>
   );
-  console.log('✅ BUILD v6.0 - Router at ROOT + StrictMode REMOVED');
+  console.log('✅ BUILD v7.0 - Lazy Auth Components + Router at ROOT');
   console.log('React app rendered successfully');
 } catch (error) {
   console.error('Error rendering React app:', error);

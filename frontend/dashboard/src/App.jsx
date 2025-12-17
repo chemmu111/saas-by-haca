@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import ErrorBoundary from './ErrorBoundary.jsx';
 import Dashboard from './Dashboard.jsx';
@@ -32,8 +32,9 @@ const getBackendUrl = () => {
   return window.location.origin;
 };
 
-import Login from '../../auth/Login.jsx';
-import Signup from '../../auth/Signup.jsx';
+// LAZY LOAD auth components to ensure Router is ready
+const Login = lazy(() => import('../../auth/Login.jsx'));
+const Signup = lazy(() => import('../../auth/Signup.jsx'));
 
 // Helper to check if token is expired
 const isTokenExpired = (token) => {
@@ -84,23 +85,25 @@ const App = () => {
   return (
     <ErrorBoundary>
       <AuthGuard>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/dashboard/clients" element={<Clients />} />
-          <Route path="/dashboard/clients/:clientId" element={<ClientDashboard />} />
-          <Route path="/dashboard/posts" element={<Posts />} />
-          <Route path="/dashboard/calendar" element={<Calendar />} />
-          <Route path="/dashboard/analytics" element={<Analytics />} />
-          <Route path="/dashboard/reports" element={<Reports />} />
-          <Route path="/dashboard/settings" element={<Settings />} />
-          <Route path="/dashboard/admin/tokens" element={<AdminTokenMonitor />} />
-          <Route path="/clients" element={<Clients />} />
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          {/* Catch-all route - show custom 404 page */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>Loading...</div>}>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/dashboard/clients" element={<Clients />} />
+            <Route path="/dashboard/clients/:clientId" element={<ClientDashboard />} />
+            <Route path="/dashboard/posts" element={<Posts />} />
+            <Route path="/dashboard/calendar" element={<Calendar />} />
+            <Route path="/dashboard/analytics" element={<Analytics />} />
+            <Route path="/dashboard/reports" element={<Reports />} />
+            <Route path="/dashboard/settings" element={<Settings />} />
+            <Route path="/dashboard/admin/tokens" element={<AdminTokenMonitor />} />
+            <Route path="/clients" element={<Clients />} />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            {/* Catch-all route - show custom 404 page */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Suspense>
       </AuthGuard>
     </ErrorBoundary>
   );
