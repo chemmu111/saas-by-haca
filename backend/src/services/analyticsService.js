@@ -185,9 +185,16 @@ export async function updateClientStats(client) {
         engagementRate = (((totalEngagements / totalPosts) / totalReach) * 100).toFixed(2) + '%';
       }
 
+      // Import Post model to count actual posts in database
+      const Post = (await import('../models/Post.js')).default;
+      const actualPostCount = await Post.countDocuments({
+        client: client._id,
+        status: 'published' // Only count published posts
+      });
+
       return {
         followerCount: totalFollowers,
-        totalPosts: data.media?.total || 0,
+        totalPosts: actualPostCount || 0, // Use database count instead of API limited results
         engagementRate: engagementRate,
         statsLastUpdated: new Date()
       };

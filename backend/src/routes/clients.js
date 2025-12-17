@@ -36,7 +36,7 @@ router.get('/', async (req, res) => {
     const totalClients = await Client.countDocuments();
     console.log(`Total clients in database: ${totalClients}`); // Debug log
 
-    // Check if any clients need stats update (older than 24h or never updated)
+    // Check if any clients need stats update (older than 1h or never updated)
     // Only for Instagram clients with active tokens
     const now = new Date();
     const clientsToUpdate = clients.filter(c => {
@@ -46,7 +46,7 @@ router.get('/', async (req, res) => {
 
       return c.platform === 'instagram' &&
         isTokenActive &&
-        (!c.statsLastUpdated || (now - new Date(c.statsLastUpdated)) > 24 * 60 * 60 * 1000);
+        (!c.statsLastUpdated || (now - new Date(c.statsLastUpdated)) > 60 * 60 * 1000); // 1 hour
     });
 
     // Trigger background update (don't wait for response)

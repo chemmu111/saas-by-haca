@@ -53,6 +53,30 @@ const Clients = () => {
     }
   }, []);
 
+  // Handle manual client sync
+  const handleSyncClient = async (client) => {
+    if (client.platform !== 'instagram' || !client._id) {
+      return;
+    }
+
+    try {
+      const response = await api.post(`/clients/${client._id}/sync`);
+      const result = response.data;
+
+      if (result.success) {
+        // Update the client in state
+        setClients(prev => prev.map(c =>
+          c._id === client._id ? result.data : c
+        ));
+      } else {
+        setError(result.error || 'Failed to sync client stats');
+      }
+    } catch (err) {
+      console.error('Error syncing client:', err);
+      setError('Failed to sync client stats');
+    }
+  };
+
   // Filtered & Sorted Clients
   const filteredClients = useMemo(() => {
     let result = [...clients];
@@ -283,6 +307,7 @@ const Clients = () => {
                 onDelete={handleDeleteClient}
                 onConnectInstagram={(c) => handleOAuthConnect({ ...c, platform: 'instagram' })}
                 onViewDetails={(c) => { setSelectedClient(c); setIsDrawerOpen(true); }}
+                onSync={handleSyncClient}
               />
             ))}
           </div>
