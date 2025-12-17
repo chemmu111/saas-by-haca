@@ -83,29 +83,26 @@ const App = () => {
   console.log('App component rendering, current path:', window.location.pathname);
 
   return (
-    <ErrorBoundary>
-      <AuthGuard>
-        <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>Loading...</div>}>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/dashboard/clients" element={<Clients />} />
-            <Route path="/dashboard/clients/:clientId" element={<ClientDashboard />} />
-            <Route path="/dashboard/posts" element={<Posts />} />
-            <Route path="/dashboard/calendar" element={<Calendar />} />
-            <Route path="/dashboard/analytics" element={<Analytics />} />
-            <Route path="/dashboard/reports" element={<Reports />} />
-            <Route path="/dashboard/settings" element={<Settings />} />
-            <Route path="/dashboard/admin/tokens" element={<AdminTokenMonitor />} />
-            <Route path="/clients" element={<Clients />} />
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            {/* Catch-all route - show custom 404 page */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </Suspense>
-      </AuthGuard>
-    </ErrorBoundary>
+    <AuthGuard>
+      <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>Loading...</div>}>
+        <Routes>
+          <Route path="/login" element={<ErrorBoundary><Login /></ErrorBoundary>} />
+          <Route path="/signup" element={<ErrorBoundary><Signup /></ErrorBoundary>} />
+          <Route path="/dashboard" element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
+          <Route path="/dashboard/clients" element={<ErrorBoundary><Clients /></ErrorBoundary>} />
+          <Route path="/dashboard/clients/:clientId" element={<ErrorBoundary><ClientDashboard /></ErrorBoundary>} />
+          <Route path="/dashboard/posts" element={<ErrorBoundary><Posts /></ErrorBoundary>} />
+          <Route path="/dashboard/calendar" element={<ErrorBoundary><Calendar /></ErrorBoundary>} />
+          <Route path="/dashboard/analytics" element={<ErrorBoundary><Analytics /></ErrorBoundary>} />
+          <Route path="/dashboard/reports" element={<ErrorBoundary><Reports /></ErrorBoundary>} />
+          <Route path="/dashboard/settings" element={<ErrorBoundary><Settings /></ErrorBoundary>} />
+          <Route path="/dashboard/admin/tokens" element={<ErrorBoundary><AdminTokenMonitor /></ErrorBoundary>} />
+          <Route path="/clients" element={<ErrorBoundary><Clients /></ErrorBoundary>} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<ErrorBoundary><NotFound /></ErrorBoundary>} />
+        </Routes>
+      </Suspense>
+    </AuthGuard>
   );
 };
 
