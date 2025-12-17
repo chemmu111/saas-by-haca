@@ -12,6 +12,11 @@ const Posts = () => {
   const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [clientFilter, setClientFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
+  const [sortOrder, setSortOrder] = useState('newest');
   const [deletingId, setDeletingId] = useState(null);
   const [editingPost, setEditingPost] = useState(null);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
@@ -112,6 +117,18 @@ const Posts = () => {
       if (statusFilter !== 'all') {
         queryParams.append('status', statusFilter);
       }
+      if (clientFilter !== 'all') {
+        queryParams.append('clientId', clientFilter);
+      }
+      if (searchQuery) {
+        queryParams.append('search', searchQuery);
+      }
+      if (sortOrder) {
+        // Assuming backend handles sort, otherwise we might need to sort client-side or add backend support
+        // Backend currently sorts by createdAt -1 (newest). 
+        // We can leave this for now or add explicit sort param if backend updates.
+        // For now, let's just stick to default newest.
+      }
 
       const response = await fetch(`${backendUrl}/api/posts?${queryParams.toString()}`, {
         headers: {
@@ -152,7 +169,7 @@ const Posts = () => {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, clientFilter, searchQuery]); // Added searchQuery dependency
 
   const fetchClients = useCallback(async () => {
     try {
@@ -363,60 +380,180 @@ const Posts = () => {
           }}
         />
 
-        {/* Status Filter */}
-        <div className="mb-8 bg-white rounded-2xl shadow-sm border border-gray-200 p-4">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            <div className="flex items-center gap-2 text-gray-700 font-medium">
-              <Filter size={18} />
-              <span>Filter by Status</span>
+        {/* Search and Filters Toolbar */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 mb-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            {/* Search */}
+            <div className="relative flex-1 max-w-md">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <div className="text-gray-400">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                </div>
+              </div>
+              <input
+                type="text"
+                placeholder="Search posts..."
+                className="block w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl leading-5 bg-gray-50 text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setStatusFilter('all')}
-                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'all'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setStatusFilter('draft')}
-                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'draft'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-              >
-                Draft
-              </button>
-              <button
-                onClick={() => setStatusFilter('scheduled')}
-                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'scheduled'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-              >
-                Scheduled
-              </button>
-              <button
-                onClick={() => setStatusFilter('published')}
-                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'published'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-              >
-                Published
-              </button>
-              <button
-                onClick={() => setStatusFilter('processing')}
-                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'processing'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-              >
-                Processing
-              </button>
+
+            {/* Filters Group */}
+            <div className="flex items-center gap-3">
+              {/* Client Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowClientDropdown(!showClientDropdown)}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl text-gray-700 font-medium transition-colors min-w-[160px] justify-between"
+                >
+                  <div className="flex items-center gap-2">
+                    <Filter size={16} className="text-gray-500" />
+                    <span className="truncate max-w-[120px]">
+                      {clientFilter === 'all'
+                        ? 'All Clients'
+                        : clients.find(c => c._id === clientFilter)?.name || 'All Clients'}
+                    </span>
+                  </div>
+                  <svg className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${showClientDropdown ? 'transform rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {showClientDropdown && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setShowClientDropdown(false)}
+                    ></div>
+                    <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-gray-100 z-20 py-2 max-h-80 overflow-y-auto">
+                      <button
+                        onClick={() => {
+                          setClientFilter('all');
+                          setShowClientDropdown(false);
+                        }}
+                        className={`w-full text-left px-4 py-2 hover:bg-gray-50 transition-colors flex items-center justify-between ${clientFilter === 'all' ? 'text-blue-600 bg-blue-50' : 'text-gray-700'}`}
+                      >
+                        <span>All Clients</span>
+                        {clientFilter === 'all' && <CheckCircle size={16} />}
+                      </button>
+
+                      <div className="my-1 border-t border-gray-100"></div>
+
+                      {clients.length > 0 ? (
+                        clients.map(client => (
+                          <button
+                            key={client._id}
+                            onClick={() => {
+                              setClientFilter(client._id);
+                              setShowClientDropdown(false);
+                            }}
+                            className={`w-full text-left px-4 py-2 hover:bg-gray-50 transition-colors flex items-center justify-between ${clientFilter === client._id ? 'text-blue-600 bg-blue-50' : 'text-gray-700'}`}
+                          >
+                            <span className="truncate">{client.name}</span>
+                            {clientFilter === client._id && <CheckCircle size={16} />}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-4 py-2 text-gray-500 text-sm italic">No clients found</div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Sort Dropdown (Visual Only for now as requested style match) */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowSortDropdown(!showSortDropdown)}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl text-gray-700 font-medium transition-colors min-w-[140px] justify-between"
+                >
+                  <div className="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
+                    <span>{sortOrder === 'newest' ? 'Newest First' : 'Oldest First'}</span>
+                  </div>
+                  <svg className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${showSortDropdown ? 'transform rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {showSortDropdown && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setShowSortDropdown(false)}
+                    ></div>
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-100 z-20 py-2">
+                      <button
+                        onClick={() => {
+                          setSortOrder('newest');
+                          setShowSortDropdown(false);
+                        }}
+                        className={`w-full text-left px-4 py-2 hover:bg-gray-50 transition-colors ${sortOrder === 'newest' ? 'text-blue-600 bg-blue-50' : 'text-gray-700'}`}
+                      >
+                        Newest First
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSortOrder('oldest');
+                          setShowSortDropdown(false);
+                        }}
+                        className={`w-full text-left px-4 py-2 hover:bg-gray-50 transition-colors ${sortOrder === 'oldest' ? 'text-blue-600 bg-blue-50' : 'text-gray-700'}`}
+                      >
+                        Oldest First
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-gray-100 flex flex-wrap gap-2">
+            <button
+              onClick={() => setStatusFilter('all')}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${statusFilter === 'all'
+                ? 'bg-gray-900 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setStatusFilter('draft')}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${statusFilter === 'draft'
+                ? 'bg-gray-100 text-gray-900 border-gray-300 ring-2 ring-gray-100'
+                : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                }`}
+            >
+              Draft
+            </button>
+            <button
+              onClick={() => setStatusFilter('scheduled')}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${statusFilter === 'scheduled'
+                ? 'bg-yellow-50 text-yellow-700 border-yellow-200 ring-1 ring-yellow-200'
+                : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                }`}
+            >
+              Scheduled
+            </button>
+            <button
+              onClick={() => setStatusFilter('published')}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${statusFilter === 'published'
+                ? 'bg-green-50 text-green-700 border-green-200 ring-1 ring-green-200'
+                : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                }`}
+            >
+              Published
+            </button>
+            <button
+              onClick={() => setStatusFilter('processing')}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${statusFilter === 'processing'
+                ? 'bg-blue-50 text-blue-700 border-blue-200 ring-1 ring-blue-200'
+                : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                }`}
+            >
+              Processing
+            </button>
           </div>
         </div>
 
@@ -434,9 +571,9 @@ const Posts = () => {
               </div>
               <h3 className="mt-4 text-xl font-bold text-gray-900">No posts found</h3>
               <p className="mt-2 text-gray-600 max-w-md mx-auto">
-                {statusFilter === 'all'
+                {statusFilter === 'all' && clientFilter === 'all'
                   ? 'Get started by creating your first post to engage with your audience'
-                  : `No ${statusFilter} posts found. Try a different filter or create a new post.`}
+                  : `No ${statusFilter !== 'all' ? statusFilter : ''} posts found ${clientFilter !== 'all' ? `for this client` : ''}. Try a different filter or create a new post.`}
               </p>
               <button
                 onClick={() => setShowModal(true)}
