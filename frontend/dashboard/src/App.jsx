@@ -89,29 +89,35 @@ const App = () => {
           v7_relativeSplatPath: true,
         }}
       >
-        <AuthGuard>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/dashboard/clients" element={<Clients />} />
-            <Route path="/dashboard/clients/:clientId" element={<ClientDashboard />} />
-            <Route path="/dashboard/posts" element={<Posts />} />
-            <Route path="/dashboard/calendar" element={<Calendar />} />
-            <Route path="/dashboard/analytics" element={<Analytics />} />
-            <Route path="/dashboard/reports" element={<Reports />} />
-            <Route path="/dashboard/settings" element={<Settings />} />
-            <Route path="/dashboard/admin/tokens" element={<AdminTokenMonitor />} />
-            <Route path="/clients" element={<Clients />} />
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            {/* Catch-all route - show custom 404 page */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </AuthGuard>
+        <AppRoutes />
       </BrowserRouter>
     </ErrorBoundary>
   );
 };
 
-export default App;
+// Separate component to use router hooks - MUST be inside BrowserRouter
+const AppRoutes = () => {
+  return (
+    <AuthGuard>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/dashboard/clients" element={<Clients />} />
+        <Route path="/dashboard/clients/:clientId" element={<ClientDashboard />} />
+        <Route path="/dashboard/posts" element={<Posts />} />
+        <Route path="/dashboard/calendar" element={<Calendar />} />
+        <Route path="/dashboard/analytics" element={<Analytics />} />
+        <Route path="/dashboard/reports" element={<Reports />} />
+        <Route path="/dashboard/settings" element={<Settings />} />
+        <Route path="/dashboard/admin/tokens" element={<AdminTokenMonitor />} />
+        <Route path="/clients" element={<Clients />} />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        {/* Catch-all route - show custom 404 page */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </AuthGuard>
+  );
+};
 
+export default App;
