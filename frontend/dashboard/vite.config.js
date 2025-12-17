@@ -10,7 +10,8 @@ export default defineConfig({
             'haca-social-x.onrender.com',
             'localhost',
             '.ngrok-free.dev',
-            '.ngrok.io'
+            '.ngrok.io',
+            'social-x-production-y82t.onrender.com'
         ]
     },
     server: {
