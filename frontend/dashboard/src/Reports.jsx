@@ -10,6 +10,7 @@ import {
   AreaChart, Area, PieChart, Pie, Cell, Legend
 } from 'recharts';
 import PageTitle from './components/PageTitle';
+import api from './api';  // Import centralized API instance
 
 import Layout from './Layout.jsx';
 import LiveReportPreview from './components/reports/LiveReportPreview.jsx';
@@ -79,34 +80,9 @@ const Reports = () => {
 
   // --- API Helpers ---
 
-  const getBackendUrl = () => {
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      return 'http://localhost:5000';
-    }
-    return window.location.origin;
-  };
+  // --- API Helpers ---
+  // Replaced local fetchWithAuth with imported api instance for consistent base URL handling
 
-  const fetchWithAuth = async (endpoint, options = {}) => {
-    const token = localStorage.getItem('auth_token');
-    if (!token) throw new Error('No auth token found');
-
-    const backendUrl = getBackendUrl();
-    const response = await fetch(`${backendUrl}${endpoint}`, {
-      ...options,
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
-    }
-
-    return response.json();
-  };
 
   // --- Data Fetching ---
 
@@ -119,9 +95,9 @@ const Reports = () => {
       }
 
       // Fetch saved schedules from backend
-      const result = await fetchWithAuth('/api/reports/schedules');
-      if (result.success) {
-        setSavedSchedules(result.data || []);
+      const response = await api.get('/reports/schedules');
+      if (response.data.success) {
+        setSavedSchedules(response.data.data || []);
       }
     } catch (error) {
       console.error('Error fetching report schedule:', error);
@@ -130,9 +106,9 @@ const Reports = () => {
 
   const fetchTemplates = async () => {
     try {
-      const result = await fetchWithAuth('/api/reports/templates');
-      if (result.success) {
-        setTemplates(result.data || []);
+      const response = await api.get('/reports/templates');
+      if (response.data.success) {
+        setTemplates(response.data.data || []);
       }
     } catch (error) {
       console.error('Error fetching templates:', error);
@@ -141,9 +117,9 @@ const Reports = () => {
 
   const fetchClients = async () => {
     try {
-      const result = await fetchWithAuth('/api/clients');
-      if (result.success) {
-        setClients(result.data || []);
+      const response = await api.get('/clients');
+      if (response.data.success) {
+        setClients(response.data.data || []);
       }
     } catch (error) {
       console.error('Error fetching clients:', error);
@@ -167,12 +143,12 @@ const Reports = () => {
       });
 
       // Re-use the analytics API
-      const result = await fetchWithAuth(`/api/analytics?${params.toString()}`);
+      const response = await api.get(`/analytics?${params.toString()}`);
 
-      if (result.success) {
-        setPreviewData(result.data);
+      if (response.data.success) {
+        setPreviewData(response.data.data);
       } else {
-        setPreviewError(result.error || 'Failed to load preview data');
+        setPreviewError(response.data.error || 'Failed to load preview data');
       }
     } catch (error) {
       console.error('Error fetching preview:', error);
@@ -190,23 +166,19 @@ const Reports = () => {
 
     try {
       setUploadingTemplate(true);
-      const token = localStorage.getItem('auth_token');
-      const backendUrl = getBackendUrl();
       const formData = new FormData();
       formData.append('template', file);
 
-      const response = await fetch(`${backendUrl}/api/reports/upload-template`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: formData
+      // Note: axios automatically handles Content-Type for FormData
+      const response = await api.post('/reports/upload-template', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
 
-      const result = await response.json();
-      if (result.success) {
+      if (response.data.success) {
         alert('Template uploaded successfully!');
         fetchTemplates();
       } else {
-        alert(result.error || 'Failed to upload template');
+        alert(response.data.error || 'Failed to upload template');
       }
     } catch (error) {
       alert('Failed to upload template: ' + error.message);
@@ -232,12 +204,12 @@ const Reports = () => {
         params.append('clientIds', selectedClients.join(','));
       }
 
-      const result = await fetchWithAuth(`/api/reports?${params.toString()}`);
+      const response = await api.get(`/reports?${params.toString()}`);
 
-      if (result.success) {
+      if (response.data.success) {
         alert('Report generated successfully! You can now download it.');
       } else {
-        alert(result.error || 'Failed to generate report');
+        alert(response.data.error || 'Failed to generate report');
       }
     } catch (error) {
       alert('Failed to generate report: ' + error.message);
@@ -249,28 +221,19 @@ const Reports = () => {
   const downloadReport = async (format) => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('auth_token');
-      const backendUrl = getBackendUrl();
-
       // Use the new export endpoint
-      const response = await fetch(`${backendUrl}/api/reports/export`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          dateRange: { startDate, endDate },
-          format: format === 'google-doc' ? 'pdf' : format, // Map google-doc to pdf for now or handle separately
-          templateId: selectedTemplate || null,
-          clients: selectedClients,
-          sendToClient: false // This is for download only
-        })
+      const response = await api.post('/reports/export', {
+        dateRange: { startDate, endDate },
+        format: format === 'google-doc' ? 'pdf' : format, // Map google-doc to pdf for now or handle separately
+        templateId: selectedTemplate || null,
+        clients: selectedClients,
+        sendToClient: false // This is for download only
+      }, {
+        responseType: 'blob' // Important for file downloads
       });
 
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
+      if (response.status === 200) {
+        const url = window.URL.createObjectURL(new Blob([response.data]));
         const a = document.createElement('a');
         a.href = url;
         a.download = `report-${startDate}-${endDate}.${format === 'google-doc' ? 'pdf' : format}`;
@@ -279,8 +242,7 @@ const Reports = () => {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
       } else {
-        const error = await response.json();
-        alert(error.error || 'Failed to download report');
+        alert('Failed to download report');
       }
     } catch (error) {
       alert('Failed to download report: ' + error.message);
