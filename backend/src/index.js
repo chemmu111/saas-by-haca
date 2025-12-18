@@ -300,6 +300,8 @@ app.get('/healthz', (req, res) => {
 app.use(express.static(publicDir));
 
 // Serve dashboard assets
+// Support both /assets (root base) and /dashboard/assets (legacy/specific)
+app.use('/assets', express.static(path.join(publicDir, 'dashboard', 'assets')));
 app.use('/dashboard/assets', express.static(path.join(publicDir, 'dashboard', 'assets')));
 
 // Root → React App (Login) - Only serve HTML if not an API route
@@ -385,6 +387,14 @@ app.use('/api/*', (req, res) => {
     error: 'API endpoint not found',
     path: req.path
   });
+});
+
+// Catch-all for non-API routes - Redirect to dashboard to avoid raw 404s
+app.get('*', (req, res) => {
+  if (req.accepts('html')) {
+    return res.redirect('/dashboard');
+  }
+  res.status(404).json({ success: false, error: 'Not found' });
 });
 
 // Global error handler - ensures all errors return JSON
