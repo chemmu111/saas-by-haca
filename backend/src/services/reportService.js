@@ -28,6 +28,15 @@ export async function generateReport(userId, posts, clients, options = {}) {
     throw new Error('No client selected for report generation.');
   }
 
+  // If multiple clients, return an array of reports
+  if (clients.length > 1) {
+    console.log(`📊 Generating Enterprise Reports for ${clients.length} clients`);
+    const reports = await Promise.all(clients.map(async (client) => {
+      return await generateReportData(client._id, startDate, endDate);
+    }));
+    return reports;
+  }
+
   const client = clients[0];
   console.log(`📊 Generating Enterprise Report for client: ${client.name} (${client._id})`);
 
@@ -43,6 +52,47 @@ export async function generateReport(userId, posts, clients, options = {}) {
 export async function generateReportWithTemplate(userId, posts, clients, options = {}) {
   const { startDate, endDate, templateName, format = 'html' } = options;
 
+  // Handle multiple clients
+  if (clients.length > 1) {
+    console.log(`📑 Generating combined report for ${clients.length} clients`);
+
+    // Generate individual reports
+    const individualReports = await Promise.all(clients.map(async (client) => {
+      // Recursive call for single client
+      const singleReport = await generateReportWithTemplate(userId, posts, [client], options);
+      return singleReport.html;
+    }));
+
+    // Combine HTMLs with page breaks
+    // We need to strip the <html><head><body> tags from subsequent reports to make a valid document?
+    // Or Puppeteer might handle concatenated full HTMLs poorly.
+    // Better strategy: Use the first report as the container, and append the body content of others.
+
+    // Actually, simply concatenating full HTMLs is invalid.
+    // We'll extract the <body> content from each.
+
+    let combinedBodyContent = '';
+    const styleBlock = individualReports[0].match(/<style>([\s\S]*?)<\/style>/)?.[0] || '';
+
+    individualReports.forEach((html, index) => {
+      const bodyContentMatch = html.match(/<body>([\s\S]*?)<\/body>/);
+      let bodyContent = bodyContentMatch ? bodyContentMatch[1] : html;
+
+      // Add page break before subsequent reports
+      if (index > 0) {
+        bodyContent = `<div style="page-break-before: always; height: 0; margin: 0; padding: 0;"></div>` + bodyContent;
+      }
+      combinedBodyContent += bodyContent;
+    });
+
+    // Construct final HTML using the structure of the first report but with combined body
+    const finalHtml = individualReports[0]
+      .replace(/<body>[\s\S]*?<\/body>/, `<body>${combinedBodyContent}</body>`);
+
+    return { html: finalHtml };
+  }
+
+  // Single Client Logic
   // Generate base report data using the new structure
   const report = await generateReport(userId, posts, clients, { startDate, endDate, format });
   const client = clients[0];

@@ -15,7 +15,9 @@ export default defineConfig({
             'localhost',
             '.ngrok-free.dev',
             '.ngrok.io',
-            'social-x-production-y82t.onrender.com'
+            'social-x-production-y82t.onrender.com',
+            'socialhac.com',
+            'www.socialhac.com'
         ]
     },
     server: {
