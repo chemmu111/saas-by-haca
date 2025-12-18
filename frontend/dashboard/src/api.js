@@ -2,6 +2,12 @@ import axios from "axios";
 
 // Helper function to get backend URL
 const getBackendUrl = () => {
+    // Force correct backend for custom domain (socialhac.com)
+    // This circumvents any misconfigured VITE_API_URL that might be set to '/' or relative paths
+    if (window.location.hostname.includes('socialhac.com')) {
+        return 'https://haca-social-x-backend.onrender.com/api';
+    }
+
     // Check for environment variable first (production)
     if (import.meta.env.VITE_API_URL) {
         const url = import.meta.env.VITE_API_URL;
