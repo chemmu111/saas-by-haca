@@ -61,6 +61,8 @@ const allowedOrigins = [
   "http://localhost:3000", // Development frontend
   "http://localhost:5000", // Development backend
   "http://localhost:5173", // Vite dev server
+  "https://socialhac.com",
+  "https://www.socialhac.com"
 ];
 
 // Add production frontend URL from environment
