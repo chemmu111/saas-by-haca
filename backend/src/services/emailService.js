@@ -1,10 +1,15 @@
 import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
 // Email provider configuration
-// We are now enforcing 'gmail' provider which uses Nodemailer
-const EMAIL_PROVIDER = 'gmail';
+// Default to 'resend' if API key is present, otherwise 'gmail'
+const validProviders = ['gmail', 'resend'];
+const EMAIL_PROVIDER = process.env.EMAIL_PROVIDER || (process.env.RESEND_API_KEY ? 'resend' : 'gmail');
 
-// Gmail configuration (used for all environments now)
+// Resend configuration
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+
+// Gmail configuration (fallback)
 const EMAIL_USER = process.env.EMAIL_USER || 'tech.haca@gmail.com';
 const EMAIL_PASS = process.env.EMAIL_APP_PASSWORD || 'qhhb idgx qkmd mlil';
 
@@ -17,25 +22,54 @@ const gmailTransporter = nodemailer.createTransport({
   }
 });
 
-// Default from email
-const FROM_EMAIL = process.env.EMAIL_FROM || EMAIL_USER;
+// Default from email: Resend requires a verified domain or uses onboarding@resend.dev for testing
+// Gmail uses the authenticated user
+const FROM_EMAIL = process.env.EMAIL_FROM || (EMAIL_PROVIDER === 'resend' ? 'onboarding@resend.dev' : EMAIL_USER);
 
 /**
- * Universal email sender - uses Nodemailer (Gmail)
+ * Universal email sender - supports Gmail and Resend
  */
 async function sendEmail({ to, subject, html, attachments = [] }) {
   try {
-    console.log('📧 Sending email via Gmail (Nodemailer)...');
-    const mailOptions = {
-      from: FROM_EMAIL,
-      to: to,
-      subject: subject,
-      html: html,
-      attachments: attachments
-    };
-    const info = await gmailTransporter.sendMail(mailOptions);
-    console.log('✅ Email sent via Gmail:', info.messageId);
-    return { success: true, messageId: info.messageId, provider: 'gmail' };
+    console.log(`📧 Sending email via ${EMAIL_PROVIDER.toUpperCase()}...`);
+
+    if (EMAIL_PROVIDER === 'resend') {
+      if (!resend) throw new Error('Resend API Key is missing');
+
+      const { data, error } = await resend.emails.send({
+        from: FROM_EMAIL,
+        to: to,
+        subject: subject,
+        html: html,
+        attachments: attachments.map(att => ({
+          filename: att.filename,
+          content: att.content
+        }))
+      });
+
+      if (error) {
+        console.error('❌ Resend Error:', error);
+        throw new Error(error.message);
+      }
+
+      console.log('✅ Email sent via Resend:', data.id);
+      return { success: true, messageId: data.id, provider: 'resend' };
+    }
+
+    // Fallback to Gmail
+    else {
+      const mailOptions = {
+        from: `Social X <${FROM_EMAIL}>`, // Enhance from field for Gmail
+        to: to,
+        subject: subject,
+        html: html,
+        attachments: attachments
+      };
+
+      const info = await gmailTransporter.sendMail(mailOptions);
+      console.log('✅ Email sent via Gmail:', info.messageId);
+      return { success: true, messageId: info.messageId, provider: 'gmail' };
+    }
   } catch (error) {
     console.error('❌ Error sending email:', error);
     throw new Error(`Failed to send email: ${error.message}`);
