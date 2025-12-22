@@ -42,7 +42,7 @@ const DayCell = ({ day, posts, isToday, isRecommended, onClick }) => {
 
   return (
     <div
-      className={`relative aspect-square border rounded-lg p-1.5 transition-all duration-200 hover:shadow-md hover:scale-[1.02] cursor-pointer group ${getDayClasses()}`}
+      className={`relative h-20 lg:h-24 border rounded-lg p-1 transition-all duration-200 hover:shadow-md hover:scale-[1.02] cursor-pointer group ${getDayClasses()}`}
       onClick={onClick}
     >
       <div className="flex flex-col h-full">
@@ -528,7 +528,7 @@ const Calendar = () => {
   return (
     <Layout>
       <PageTitle title="Scheduler" />
-      <div className="p-3 lg:p-6 bg-gradient-to-br from-slate-50 via-white to-blue-50/30 min-h-screen">
+      <div className="p-2 lg:p-4 bg-gradient-to-br from-slate-50 via-white to-blue-50/30 min-h-screen">
         <div className="max-w-7xl mx-auto space-y-4">
           {/* Header - Compact */}
           <div className="flex items-center justify-between flex-wrap gap-3">
@@ -599,37 +599,7 @@ const Calendar = () => {
             </div>
           </div>
 
-          {/* Monthly Summary - Compact */}
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
-            <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-sm border border-slate-200/60 p-2.5">
-              <p className="text-[10px] text-slate-600 mb-0.5">Total Posts</p>
-              <p className="text-lg font-bold text-slate-900">{stats.total}</p>
-            </div>
-            <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-sm border border-slate-200/60 p-2.5">
-              <p className="text-[10px] text-slate-600 mb-0.5">Scheduled</p>
-              <p className="text-lg font-bold text-purple-600">{stats.scheduled}</p>
-            </div>
-            <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-sm border border-slate-200/60 p-2.5">
-              <p className="text-[10px] text-slate-600 mb-0.5">Published</p>
-              <p className="text-lg font-bold text-green-600">{stats.published}</p>
-            </div>
-            <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-sm border border-slate-200/60 p-2.5">
-              <p className="text-[10px] text-slate-600 mb-0.5">Drafts</p>
-              <p className="text-lg font-bold text-slate-600">{stats.draft}</p>
-            </div>
-            <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-sm border border-slate-200/60 p-2.5">
-              <p className="text-[10px] text-slate-600 mb-0.5">Reels</p>
-              <p className="text-lg font-bold text-pink-600">{stats.reels}</p>
-            </div>
-            <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-sm border border-slate-200/60 p-2.5">
-              <p className="text-[10px] text-slate-600 mb-0.5">Photos</p>
-              <p className="text-lg font-bold text-blue-600">{stats.photos}</p>
-            </div>
-            <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-sm border border-slate-200/60 p-2.5">
-              <p className="text-[10px] text-slate-600 mb-0.5">Videos</p>
-              <p className="text-lg font-bold text-red-600">{stats.videos}</p>
-            </div>
-          </div>
+
 
           {/* Error Message */}
           {error && (
@@ -689,7 +659,7 @@ const Calendar = () => {
               ) : (
                 <div className={`transition-opacity duration-150 ${monthTransition ? 'opacity-50' : 'opacity-100'}`}>
                   {/* Day Headers */}
-                  <div className="grid grid-cols-7 gap-1.5 mb-1.5">
+                  <div className="grid grid-cols-7 gap-1 mb-1">
                     {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
                       <div key={day} className="text-center font-semibold text-slate-600 text-[10px] py-1">
                         {day}
@@ -698,10 +668,10 @@ const Calendar = () => {
                   </div>
 
                   {/* Calendar Days */}
-                  <div className="grid grid-cols-7 gap-1.5">
+                  <div className="grid grid-cols-7 gap-1">
                     {/* Empty cells for days before month starts */}
                     {Array.from({ length: startingDayOfWeek }).map((_, index) => (
-                      <div key={`empty-${index}`} className="aspect-square"></div>
+                      <div key={`empty-${index}`} className="h-20 lg:h-24 bg-slate-50/30 rounded-lg"></div>
                     ))}
 
                     {/* Days of the month */}

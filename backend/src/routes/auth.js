@@ -101,7 +101,7 @@ router.post('/signup', async (req, res) => {
     res.status(201).json({
       token: tokens.accessToken,
       refreshToken: tokens.refreshToken,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar || '' },
       message: 'Account created successfully!'
     });
   } catch (err) {
@@ -153,7 +153,7 @@ router.post('/login', async (req, res) => {
     res.json({
       token: tokens.accessToken,
       refreshToken: tokens.refreshToken,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role }
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar || '' }
     });
   } catch (err) {
     console.error('Login error', err);
@@ -208,7 +208,7 @@ router.post('/verify-login-otp', async (req, res) => {
     res.json({
       token: tokens.accessToken,
       refreshToken: tokens.refreshToken,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role }
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar || '' }
     });
   } catch (err) {
     console.error('Verify Login OTP error', err);
@@ -253,7 +253,7 @@ router.post('/verify-code', async (req, res) => {
     res.json({
       token: tokens.accessToken,
       refreshToken: tokens.refreshToken,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role }
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar || '' }
     });
   } catch (err) {
     console.error('Verification error', err);
@@ -628,7 +628,7 @@ router.post('/refresh-token', async (req, res) => {
     res.json({
       token: tokens.accessToken,
       refreshToken: tokens.refreshToken,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role }
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar || '' }
     });
   } catch (err) {
     console.error('Refresh token error', err);

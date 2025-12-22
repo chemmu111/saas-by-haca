@@ -287,6 +287,19 @@ export const generateReportData = async (clientId, startDate, endDate) => {
         reachChartData = fullAccountTrend;
     }
 
+    // 2b. Calculate Reach Breakdown (Specifically Reel Reach vs Others)
+    const postsSource = apiData?.allPosts || posts;
+    let reelsReach = 0;
+
+    postsSource.forEach(p => {
+        const isReel = p.media_type === 'REEL' || p.media_type === 'REELS' || (p.media_type === 'VIDEO' && p.permalink?.includes('/reel/'));
+        const reach = p.metrics?.reach || p.engagement?.reach || 0;
+
+        if (isReel) {
+            reelsReach += reach;
+        }
+    });
+
     const reachImpressions = {
         totalReach: apiData?.account?.reach || totalReach,
         totalImpressions: apiData?.account?.impressions || totalImpressions,
@@ -294,7 +307,7 @@ export const generateReportData = async (clientId, startDate, endDate) => {
         breakdown: {
             feed: 0,
             explore: 0,
-            reels: apiData?.media?.totalViews || totalReelViews,
+            reels: reelsReach, // Fixed: Uses actual Reel Reach, not Views
             profileVisits: apiData?.account?.profile_views || dailyAnalytics.reduce((sum, d) => sum + (d.profileViews || 0), 0),
             search: 0
         }
@@ -325,7 +338,7 @@ export const generateReportData = async (clientId, startDate, endDate) => {
     };
 
     // Section 5: Content Performance
-    const postsSource = apiData?.allPosts || posts;
+    // const postsSource = apiData?.allPosts || posts; // Removed duplicate declaration
     const contentPerformance = {
         totalPosts: apiData?.media?.total || postsSource.length,
         byFormat: {
