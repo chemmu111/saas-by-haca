@@ -40,7 +40,7 @@ router.get('/callback/:platform', async (req, res) => {
 
 
     // Get frontend URL for redirect (moved to top scope)
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const frontendUrl = process.env.FRONTEND_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://socialhac.com');
 
     // Check for OAuth errors from Facebook/Instagram
     if (error) {
@@ -859,8 +859,7 @@ router.get('/callback/:platform', async (req, res) => {
 
       // Redirect to clients page with success
       const action = existingClient ? 'client_updated' : 'client_added';
-      const frontendUrl = process.env.FRONTEND_URL ||
-        'http://localhost:3000';
+      const frontendUrl = process.env.FRONTEND_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://socialhac.com');
       return res.redirect(`${frontendUrl}/dashboard/clients/${client._id}?success=${action}&platform=${platform}`);
     } catch (dbError) {
       console.error('❌ Database error saving client:');
@@ -870,14 +869,14 @@ router.get('/callback/:platform', async (req, res) => {
       if (dbError.errors) {
         console.error('  Validation errors:', JSON.stringify(dbError.errors, null, 2));
       }
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const frontendUrl = process.env.FRONTEND_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://socialhac.com');
       return res.redirect(`${frontendUrl}/dashboard/clients?error=database_error`);
     }
   } catch (error) {
     console.error('❌ OAuth callback error:', error);
     console.error('  Error stack:', error.stack);
     // Always redirect, never return JSON error (to avoid "Unauthorized" JSON response)
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const frontendUrl = process.env.FRONTEND_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://socialhac.com');
     return res.redirect(`${frontendUrl}/dashboard/clients?error=oauth_failed`);
   }
 });
