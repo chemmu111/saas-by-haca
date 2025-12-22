@@ -11,7 +11,8 @@
     "create:admin": "node --env-file=.env src/scripts/createAdminUser.js",
     "update:token": "node --env-file=.env src/scripts/updateAccessTokenAndUrls.js",
     "update:instagram-token": "node --env-file=.env src/scripts/updateInstagramToken.js",
-    "check:missing-media": "node --env-file=.env src/scripts/cleanupMissingMedia.js"
+    "check:missing-media": "node --env-file=.env src/scripts/cleanupMissingMedia.js",
+    "postinstall": "puppeteer browsers install chrome"
   },
   "dependencies": {
     "axios": "^1.13.2",
