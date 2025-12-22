@@ -8,7 +8,7 @@ const AdminTokenMonitor = () => {
     const [error, setError] = useState(null);
 
     const getBackendUrl = () => {
-        return import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        return (import.meta.env.VITE_API_URL || 'https://haca-social-x-backend.onrender.com').replace(/\/$/, '');
     };
 
     // Fetch token data
@@ -246,9 +246,9 @@ const AdminTokenMonitor = () => {
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <div className={`text-sm font-medium ${token.expiresInDays === null ? 'text-gray-400' :
-                                            token.expiresInDays <= 0 ? 'text-red-600' :
-                                                token.expiresInDays <= 10 ? 'text-orange-600' :
-                                                    'text-green-600'
+                                        token.expiresInDays <= 0 ? 'text-red-600' :
+                                            token.expiresInDays <= 10 ? 'text-orange-600' :
+                                                'text-green-600'
                                         }`}>
                                         {token.expiresInDays === null ? 'N/A' : `${token.expiresInDays} days`}
                                     </div>

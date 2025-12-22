@@ -10,7 +10,7 @@ const getBackendUrl = () => {
 
     // Check for environment variable first (production)
     if (import.meta.env.VITE_API_URL) {
-        const url = import.meta.env.VITE_API_URL;
+        const url = import.meta.env.VITE_API_URL.replace(/\/$/, '');
 
         // Safeguard: If VITE_API_URL points to the frontend itself (e.g. user set it to frontend URL), ignore it
         // and fall back to the hardcoded backend URL.
@@ -28,7 +28,9 @@ const getBackendUrl = () => {
     }
     // Production fallback - use the actual backend URL
     // This handles cases where VITE_API_URL isn't set during build or is misconfigured
-    return 'https://haca-social-x-backend.onrender.com/api';
+    const fallbackUrl = 'https://haca-social-x-backend.onrender.com/api';
+    console.log('⚠️ using fallback URL (Axios):', fallbackUrl);
+    return fallbackUrl;
 };
 
 const api = axios.create({

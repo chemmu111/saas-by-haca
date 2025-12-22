@@ -16,7 +16,7 @@ import NotFound from './NotFound.jsx';
 const getBackendUrl = () => {
   // Check for environment variable first (production)
   if (import.meta.env.VITE_API_URL) {
-    return import.meta.env.VITE_API_URL;
+    return import.meta.env.VITE_API_URL.replace(/\/$/, '');
   }
   // Development mode - Vite dev server
   if (window.location.port === '3000') {

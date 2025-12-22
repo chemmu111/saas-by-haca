@@ -29,9 +29,8 @@ const Signup = () => {
     }
 
     const getBackendUrl = () => {
-        if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
-        // Use relative paths to let Vite proxy handle API forwarding (works for ngrok and localhost)
-        return '';
+        const url = import.meta.env.VITE_API_URL || 'https://haca-social-x-backend.onrender.com';
+        return url.replace(/\/$/, '');
     };
 
     const getPasswordStrength = (password) => {
