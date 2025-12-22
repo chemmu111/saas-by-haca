@@ -283,9 +283,9 @@ export async function sendReportToClient(email, clientName, report, templateName
       </html>
     `;
 
-    // Generate PDF attachment for Gmail only
+    // Generate PDF attachment for ALL providers
     let attachments = [];
-    if (EMAIL_PROVIDER === 'gmail' && format === 'pdf' && pdfBuffer) {
+    if (format === 'pdf' && pdfBuffer) {
       const buffer = Buffer.isBuffer(pdfBuffer) ? pdfBuffer : Buffer.from(pdfBuffer);
       if (buffer.length > 0) {
         attachments.push({
