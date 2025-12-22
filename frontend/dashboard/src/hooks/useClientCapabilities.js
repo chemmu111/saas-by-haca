@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import api from '../api';
 
 /**
  * Custom hook for checking client capabilities and permissions
@@ -14,6 +13,23 @@ export const useClientCapabilities = (selectedClientId, platform, postType) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Helper to get backend URL (robust version)
+  const getBackendUrl = () => {
+    // Force correct backend for custom domain
+    if (window.location.hostname.includes('socialhac.com')) {
+      return 'https://haca-social-x-backend.onrender.com/api';
+    }
+
+    // Development mode
+    if (window.location.port === '3000' || window.location.port === '5173') {
+      const savedPort = localStorage.getItem('backend_port');
+      return savedPort ? `http://localhost:${savedPort}/api` : 'http://localhost:5000/api';
+    }
+
+    // Default production fallback
+    return 'https://haca-social-x-backend.onrender.com/api';
+  };
+
   // Fetch client data and permissions when client changes
   useEffect(() => {
     if (!selectedClientId) {
@@ -27,11 +43,25 @@ export const useClientCapabilities = (selectedClientId, platform, postType) => {
       setError('');
 
       try {
+        const token = localStorage.getItem('auth_token');
+        const backendUrl = getBackendUrl();
+        const headers = {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        };
+
         // Fetch client data
         let clientResult;
         try {
-          const clientResponse = await api.get(`/clients/${selectedClientId}`);
-          clientResult = clientResponse.data;
+          const clientResponse = await fetch(`${backendUrl}/clients/${selectedClientId}`, { headers });
+
+          if (!clientResponse.ok) {
+            if (clientResponse.status === 404) {
+              throw new Error('Client 404'); // Handle specifically
+            }
+            throw new Error(`Client fetch failed: ${clientResponse.status}`);
+          }
+          clientResult = await clientResponse.json();
 
           if (clientResult.success) {
             setClientData(clientResult.data);
@@ -40,7 +70,7 @@ export const useClientCapabilities = (selectedClientId, platform, postType) => {
             setClientData(null);
           }
         } catch (clientErr) {
-          if (clientErr.response?.status === 404) {
+          if (clientErr.message === 'Client 404') {
             console.warn(`Client ${selectedClientId} not found`);
             setError('Client not found');
             setClientData(null);
@@ -49,21 +79,23 @@ export const useClientCapabilities = (selectedClientId, platform, postType) => {
             setError('Failed to fetch client data');
             setClientData(null);
           }
-          // If client fetch fails, we probably shouldn't fetch permissions, but let's see logic.
-          // The catch block below will catch this re-throw or we can just proceed.
-          // Let's propagate error to stop permissions fetch if client is missing
-          throw clientErr;
+          // Stop here if client fetch failed
+          return;
         }
 
         // Fetch client permissions
         try {
-          const permissionsResponse = await api.get(`/posts/clients/${selectedClientId}/permissions`);
-          const permissionsResult = permissionsResponse.data;
-
-          if (permissionsResult.success) {
-            setClientPermissions(permissionsResult.data);
+          const permissionsResponse = await fetch(`${backendUrl}/posts/clients/${selectedClientId}/permissions`, { headers });
+          if (permissionsResponse.ok) {
+            const permissionsResult = await permissionsResponse.json();
+            if (permissionsResult.success) {
+              setClientPermissions(permissionsResult.data);
+            } else {
+              setError(permissionsResult.error || 'Failed to fetch client permissions');
+              setClientPermissions(null);
+            }
           } else {
-            setError(permissionsResult.error || 'Failed to fetch client permissions');
+            console.error('Permissions fetch failed:', permissionsResponse.status);
             setClientPermissions(null);
           }
         } catch (permErr) {
@@ -73,15 +105,10 @@ export const useClientCapabilities = (selectedClientId, platform, postType) => {
         }
 
       } catch (err) {
-        // This catches the re-thrown client error
-        if (err.response?.status !== 404) {
-          console.error('Error checking client capabilities:', err);
-          // Don't overwrite error if it was already set to "Client not found"
-          if (error !== 'Client not found') {
-            setError('Failed to check client permissions');
-          }
+        console.error('Error checking client capabilities:', err);
+        if (error !== 'Client not found') {
+          setError('Failed to check client permissions');
         }
-        // If 404, we already set state above
       } finally {
         setLoading(false);
       }

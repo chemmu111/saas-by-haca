@@ -53,12 +53,27 @@ const AuthGuard = ({ children }) => {
   const publicPaths = ['/login', '/signup'];
 
   useEffect(() => {
+    // Initial check
     if (token && isTokenExpired(token)) {
       localStorage.removeItem('auth_token');
       localStorage.removeItem('user_info');
-      // Force reload to clear state and redirect
+      localStorage.removeItem('refresh_token');
       window.location.href = '/login';
     }
+
+    // Periodic check every minute
+    const intervalId = setInterval(() => {
+      const currentToken = localStorage.getItem('auth_token');
+      if (currentToken && isTokenExpired(currentToken)) {
+        console.log('Token expired, logging out...');
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('user_info');
+        localStorage.removeItem('refresh_token'); // Ensure refresh token is also cleared
+        window.location.href = '/login';
+      }
+    }, 60000); // Check every 1 minute
+
+    return () => clearInterval(intervalId);
   }, [token, location]);
 
   if (!token && !publicPaths.includes(location.pathname)) {
