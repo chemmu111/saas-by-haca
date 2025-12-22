@@ -852,20 +852,18 @@ const Reports = () => {
 
     try {
       setLoading(true);
-      const result = await fetchWithAuth('/api/reports/schedule', {
-        method: 'POST',
-        body: JSON.stringify({
-          clientIds: selectedClients,
-          enabled: reportSchedule.enabled,
-          dayOfMonth: reportSchedule.dayOfMonth,
-          time: reportSchedule.time,
-          interval: 'monthly',
-          templateId: selectedTemplate || null,
-          format: 'pdf',
-          emailRecipients: reportSchedule.emailRecipients || [],
-          sendToClient: reportSchedule.sendToClient || false
-        })
+      const response = await api.post('/reports/schedule', {
+        clientIds: selectedClients,
+        enabled: reportSchedule.enabled,
+        dayOfMonth: reportSchedule.dayOfMonth,
+        time: reportSchedule.time,
+        interval: 'monthly',
+        templateId: selectedTemplate || null,
+        format: 'pdf',
+        emailRecipients: reportSchedule.emailRecipients || [],
+        sendToClient: reportSchedule.sendToClient || false
       });
+      const result = response.data;
 
       if (result.success) {
         alert('Report schedule saved successfully!');
@@ -884,9 +882,8 @@ const Reports = () => {
     if (!confirm('Are you sure you want to delete this schedule?')) return;
 
     try {
-      const result = await fetchWithAuth(`/api/reports/schedules/${scheduleId}`, {
-        method: 'DELETE'
-      });
+      const response = await api.delete(`/reports/schedules/${scheduleId}`);
+      const result = response.data;
 
       if (result.success) {
         fetchReportSchedule();
@@ -902,9 +899,8 @@ const Reports = () => {
     if (!confirm('Run this schedule immediately?')) return;
 
     try {
-      const result = await fetchWithAuth(`/api/reports/schedules/${scheduleId}/run`, {
-        method: 'POST'
-      });
+      const response = await api.post(`/reports/schedules/${scheduleId}/run`);
+      const result = response.data;
 
       if (result.success) {
         alert('Schedule triggered successfully!');
@@ -925,16 +921,14 @@ const Reports = () => {
 
     try {
       setSendingToClients(true);
-      const result = await fetchWithAuth('/api/reports/send-to-clients', {
-        method: 'POST',
-        body: JSON.stringify({
-          startDate,
-          endDate,
-          templateName: selectedTemplate || null,
-          format: 'pdf',
-          clientIds: selectedClients
-        })
+      const response = await api.post('/reports/send-to-clients', {
+        startDate,
+        endDate,
+        templateName: selectedTemplate || null,
+        format: 'pdf',
+        clientIds: selectedClients
       });
+      const result = response.data;
 
       if (result.success) {
         alert(result.message || 'Reports sent successfully!');
