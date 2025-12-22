@@ -53,7 +53,7 @@ const AuthGuard = ({ children }) => {
   const publicPaths = ['/login', '/signup'];
 
   useEffect(() => {
-    // Initial check
+    // Initial check (only runs once on mount)
     if (token && isTokenExpired(token)) {
       localStorage.removeItem('auth_token');
       localStorage.removeItem('user_info');
@@ -64,17 +64,18 @@ const AuthGuard = ({ children }) => {
     // Periodic check every minute
     const intervalId = setInterval(() => {
       const currentToken = localStorage.getItem('auth_token');
+      // If token exists and is expired (and we're not already on login page)
       if (currentToken && isTokenExpired(currentToken)) {
         console.log('Token expired, logging out...');
         localStorage.removeItem('auth_token');
         localStorage.removeItem('user_info');
-        localStorage.removeItem('refresh_token'); // Ensure refresh token is also cleared
+        localStorage.removeItem('refresh_token');
         window.location.href = '/login';
       }
     }, 60000); // Check every 1 minute
 
     return () => clearInterval(intervalId);
-  }, [token, location]);
+  }, [token]); // dependency on token is enough, location not needed for interval
 
   if (!token && !publicPaths.includes(location.pathname)) {
     return <Navigate to="/login" replace />;
@@ -82,7 +83,7 @@ const AuthGuard = ({ children }) => {
 
   // If we have a token but it's expired (and useEffect hasn't fired yet), don't render children
   if (token && isTokenExpired(token)) {
-    return null; // or loading spinner
+    return null;
   }
 
   // If authenticated and trying to access login/signup, redirect to dashboard
@@ -98,14 +99,7 @@ const App = () => {
 
   return (
     <ErrorBoundary>
-      <BrowserRouter
-        future={{
-          v7_startTransition: true,
-          v7_relativeSplatPath: true,
-        }}
-      >
-        <AppRoutes />
-      </BrowserRouter>
+      <AppRoutes />
     </ErrorBoundary>
   );
 };
