@@ -31,7 +31,7 @@ const Login = () => {
     const getBackendUrl = () => {
         // Check for environment variable first (production)
         if (import.meta.env.VITE_API_URL) {
-            return import.meta.env.VITE_API_URL;
+            return import.meta.env.VITE_API_URL.replace(/\/$/, '');
         }
 
         // If accessed via ngrok, use relative path (Vite proxy will forward)
