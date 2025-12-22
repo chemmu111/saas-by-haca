@@ -23,7 +23,7 @@ try {
       </HelmetProvider>
     </BrowserRouter>
   );
-  console.log('✅ BUILD v9.4 - ErrorBoundary PER ROUTE (Production-Safe Pattern)');
+  console.log('✅ BUILD v9.5 - ErrorBoundary PER ROUTE (Production-Safe Pattern)');
   console.log('React app rendered successfully');
 } catch (error) {
   console.error('Error rendering React app:', error);

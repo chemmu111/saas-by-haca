@@ -946,9 +946,24 @@ const Reports = () => {
       const result = response.data;
 
       if (result.success) {
-        alert(result.message || 'Reports sent successfully!');
-        setShowSendModal(false);
-        setAdditionalEmail('');
+        const sentCount = result.data.filter(r => r.status === 'sent').length;
+        const failedCount = result.data.filter(r => r.status === 'failed').length;
+
+        if (sentCount === 0 && failedCount > 0) {
+          // All failed - show the first error
+          const firstError = result.data.find(r => r.status === 'failed').error;
+          alert(`Failed to send report: ${firstError}`);
+        } else if (failedCount > 0) {
+          // Partial success
+          alert(`Reports sent to ${sentCount} client(s). Failed for ${failedCount} client(s).`);
+          setShowSendModal(false);
+          setAdditionalEmail('');
+        } else {
+          // All success
+          alert(result.message || 'Reports sent successfully!');
+          setShowSendModal(false);
+          setAdditionalEmail('');
+        }
       } else {
         alert(result.error || 'Failed to send reports');
       }

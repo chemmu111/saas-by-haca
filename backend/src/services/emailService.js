@@ -287,8 +287,12 @@ export async function sendReportToClient(email, clientName, report, templateName
       }
     }
 
-    // Combine primary email with additional recipients
-    const to = [email, ...(additionalRecipients || [])];
+    // Combine primary email with additional recipients and filter out falsy values
+    const to = [email, ...(additionalRecipients || [])].filter(e => e && e.trim());
+
+    if (to.length === 0) {
+      throw new Error('No valid recipients provided');
+    }
 
     const result = await sendEmail({
       to: to,
