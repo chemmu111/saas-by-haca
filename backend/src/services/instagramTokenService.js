@@ -207,23 +207,21 @@ export async function validateToken(client) {
     if (client.igUserId) {
       const testUrl = `https://graph.facebook.com/v18.0/${client.igUserId}?fields=id,username&access_token=${client.pageAccessToken}`;
       const response = await fetch(testUrl);
+      const data = await response.json(); // Read once
 
       if (!response.ok) {
-        const errorData = await response.json();
-
         // Token is invalid
-        if (errorData.error?.code === 190 || errorData.error?.type === 'OAuthException') {
-          console.log(`❌ Token validation failed for ${client.name}: ${errorData.error.message}`);
+        if (data.error?.code === 190 || data.error?.type === 'OAuthException') {
+          console.log(`❌ Token validation failed for ${client.name}: ${data.error.message}`);
           return {
             valid: false,
             needReLogin: true,
-            reason: errorData.error.message,
-            errorCode: errorData.error.code
+            reason: data.error.message,
+            errorCode: data.error.code
           };
         }
       }
 
-      const data = await response.json();
       console.log(`✅ Token valid for ${client.name} (username: ${data.username})`);
     }
 

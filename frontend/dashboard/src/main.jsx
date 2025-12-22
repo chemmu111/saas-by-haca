@@ -12,20 +12,18 @@ const root = ReactDOM.createRoot(rootElement);
 
 try {
   root.render(
-    <React.StrictMode>
-      <BrowserRouter
-        future={{
-          v7_startTransition: true,
-          v7_relativeSplatPath: true,
-        }}
-      >
-        <HelmetProvider>
-          <App />
-        </HelmetProvider>
-      </BrowserRouter>
-    </React.StrictMode>
+    <BrowserRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
+      <HelmetProvider>
+        <App />
+      </HelmetProvider>
+    </BrowserRouter>
   );
-  console.log('✅ BUILD v5.0 - Router initialized at ROOT level');
+  console.log('✅ BUILD v9.14 - ErrorBoundary PER ROUTE (Production-Safe Pattern)');
   console.log('React app rendered successfully');
 } catch (error) {
   console.error('Error rendering React app:', error);

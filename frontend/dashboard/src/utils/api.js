@@ -5,7 +5,7 @@
 export const getBackendUrl = () => {
     // Check for environment variable first (production)
     if (import.meta.env.VITE_API_URL) {
-        return import.meta.env.VITE_API_URL;
+        return import.meta.env.VITE_API_URL.replace(/\/$/, '');
     }
 
     // Development mode - Vite dev server
@@ -20,8 +20,9 @@ export const getBackendUrl = () => {
     }
 
     // Production fallback - use the actual backend URL
-    // This handles cases where VITE_API_URL isn't set during build
-    return 'https://haca-social-x-backend.onrender.com';
+    const fallbackUrl = 'https://haca-social-x-backend.onrender.com';
+    console.log('⚠️ using fallback URL:', fallbackUrl);
+    return fallbackUrl;
 };
 
 /**

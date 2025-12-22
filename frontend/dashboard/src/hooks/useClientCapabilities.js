@@ -13,16 +13,21 @@ export const useClientCapabilities = (selectedClientId, platform, postType) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Get backend URL helper
+  // Helper to get backend URL (robust version)
   const getBackendUrl = () => {
-    if (window.location.port === '3000') {
-      const savedPort = localStorage.getItem('backend_port');
-      if (savedPort) {
-        return `http://localhost:${savedPort}`;
-      }
-      return 'http://localhost:5000';
+    // Force correct backend for custom domain
+    if (window.location.hostname.includes('socialhac.com')) {
+      return 'https://haca-social-x-backend.onrender.com/api';
     }
-    return window.location.origin;
+
+    // Development mode
+    if (window.location.port === '3000' || window.location.port === '5173') {
+      const savedPort = localStorage.getItem('backend_port');
+      return savedPort ? `http://localhost:${savedPort}/api` : 'http://localhost:5000/api';
+    }
+
+    // Default production fallback
+    return 'https://haca-social-x-backend.onrender.com/api';
   };
 
   // Fetch client data and permissions when client changes
@@ -40,56 +45,70 @@ export const useClientCapabilities = (selectedClientId, platform, postType) => {
       try {
         const token = localStorage.getItem('auth_token');
         const backendUrl = getBackendUrl();
+        const headers = {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        };
 
         // Fetch client data
-        const clientResponse = await fetch(`${backendUrl}/api/clients/${selectedClientId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
+        let clientResult;
+        try {
+          const clientResponse = await fetch(`${backendUrl}/clients/${selectedClientId}`, { headers });
 
-        if (!clientResponse.ok) {
-          if (clientResponse.status === 404) {
-            console.warn(`Client ${selectedClientId} not found`);
-            setError('Client not found');
-            setClientData(null);
-          } else {
-            const errorText = await clientResponse.text();
-            console.error('Error fetching client:', clientResponse.status, errorText);
-            setError('Failed to fetch client data');
-            setClientData(null);
+          if (!clientResponse.ok) {
+            if (clientResponse.status === 404) {
+              throw new Error('Client 404'); // Handle specifically
+            }
+            throw new Error(`Client fetch failed: ${clientResponse.status}`);
           }
-        } else {
-          const clientResult = await clientResponse.json();
+          clientResult = await clientResponse.json();
+
           if (clientResult.success) {
             setClientData(clientResult.data);
           } else {
             setError(clientResult.error || 'Failed to fetch client data');
             setClientData(null);
           }
+        } catch (clientErr) {
+          if (clientErr.message === 'Client 404') {
+            console.warn(`Client ${selectedClientId} not found`);
+            setError('Client not found');
+            setClientData(null);
+          } else {
+            console.error('Error fetching client:', clientErr);
+            setError('Failed to fetch client data');
+            setClientData(null);
+          }
+          // Stop here if client fetch failed
+          return;
         }
 
         // Fetch client permissions
-        const permissionsResponse = await fetch(`${backendUrl}/api/posts/clients/${selectedClientId}/permissions`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
+        try {
+          const permissionsResponse = await fetch(`${backendUrl}/posts/clients/${selectedClientId}/permissions`, { headers });
+          if (permissionsResponse.ok) {
+            const permissionsResult = await permissionsResponse.json();
+            if (permissionsResult.success) {
+              setClientPermissions(permissionsResult.data);
+            } else {
+              setError(permissionsResult.error || 'Failed to fetch client permissions');
+              setClientPermissions(null);
+            }
+          } else {
+            console.error('Permissions fetch failed:', permissionsResponse.status);
+            setClientPermissions(null);
           }
-        });
-
-        const permissionsResult = await permissionsResponse.json();
-
-        if (permissionsResult.success) {
-          setClientPermissions(permissionsResult.data);
-        } else {
-          setError(permissionsResult.error || 'Failed to fetch client permissions');
+        } catch (permErr) {
+          console.error('Error fetching client permissions:', permErr);
+          setError('Failed to fetch client permissions');
           setClientPermissions(null);
         }
+
       } catch (err) {
-        console.error('Error fetching client data:', err);
-        setError('Failed to check client permissions');
-        setClientPermissions(null);
+        console.error('Error checking client capabilities:', err);
+        if (error !== 'Client not found') {
+          setError('Failed to check client permissions');
+        }
       } finally {
         setLoading(false);
       }

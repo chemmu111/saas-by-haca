@@ -86,7 +86,7 @@ const PostsPerformanceTable = ({ posts }) => {
 
     // Get thumbnail URL - prioritize cover photo for videos
     const getThumbnailUrl = (post) => {
-        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const API_URL = (import.meta.env.VITE_API_URL || 'https://haca-social-x-backend.onrender.com').replace(/\/$/, '');
         const mediaType = post.media_type || post.postType || '';
         const isVideo = ['REELS', 'reel', 'VIDEO', 'video'].includes(mediaType.toUpperCase ? mediaType : String(mediaType).toUpperCase());
 

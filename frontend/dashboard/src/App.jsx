@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import ErrorBoundary from './ErrorBoundary.jsx';
 import Dashboard from './Dashboard.jsx';
 import Clients from './Clients.jsx';
@@ -32,8 +32,8 @@ const getBackendUrl = () => {
   return window.location.origin;
 };
 
-import Login from '../../auth/Login.jsx';
-import Signup from '../../auth/Signup.jsx';
+import Login from './components/auth/Login.jsx';
+import Signup from './components/auth/Signup.jsx';
 
 // Helper to check if token is expired
 const isTokenExpired = (token) => {
@@ -53,13 +53,29 @@ const AuthGuard = ({ children }) => {
   const publicPaths = ['/login', '/signup'];
 
   useEffect(() => {
+    // Initial check (only runs once on mount)
     if (token && isTokenExpired(token)) {
       localStorage.removeItem('auth_token');
       localStorage.removeItem('user_info');
-      // Use replace to prevent back button and cleanly destroy Router context
-      window.location.replace('/login');
+      localStorage.removeItem('refresh_token');
+      window.location.href = '/login';
     }
-  }, [token, location]);
+
+    // Periodic check every minute
+    const intervalId = setInterval(() => {
+      const currentToken = localStorage.getItem('auth_token');
+      // If token exists and is expired (and we're not already on login page)
+      if (currentToken && isTokenExpired(currentToken)) {
+        console.log('Token expired, logging out...');
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('user_info');
+        localStorage.removeItem('refresh_token');
+        window.location.href = '/login';
+      }
+    }, 60000); // Check every 1 minute
+
+    return () => clearInterval(intervalId);
+  }, [token]); // dependency on token is enough, location not needed for interval
 
   if (!token && !publicPaths.includes(location.pathname)) {
     return <Navigate to="/login" replace />;
@@ -67,7 +83,7 @@ const AuthGuard = ({ children }) => {
 
   // If we have a token but it's expired (and useEffect hasn't fired yet), don't render children
   if (token && isTokenExpired(token)) {
-    return null; // or loading spinner
+    return null;
   }
 
   // If authenticated and trying to access login/signup, redirect to dashboard
@@ -83,28 +99,34 @@ const App = () => {
 
   return (
     <ErrorBoundary>
-      <AuthGuard>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/dashboard/clients" element={<Clients />} />
-          <Route path="/dashboard/clients/:clientId" element={<ClientDashboard />} />
-          <Route path="/dashboard/posts" element={<Posts />} />
-          <Route path="/dashboard/calendar" element={<Calendar />} />
-          <Route path="/dashboard/analytics" element={<Analytics />} />
-          <Route path="/dashboard/reports" element={<Reports />} />
-          <Route path="/dashboard/settings" element={<Settings />} />
-          <Route path="/dashboard/admin/tokens" element={<AdminTokenMonitor />} />
-          <Route path="/clients" element={<Clients />} />
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          {/* Catch-all route - show custom 404 page */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </AuthGuard>
+      <AppRoutes />
     </ErrorBoundary>
   );
 };
 
-export default App;
+// Separate component to use router hooks - MUST be inside BrowserRouter
+const AppRoutes = () => {
+  return (
+    <AuthGuard>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/dashboard/clients" element={<Clients />} />
+        <Route path="/dashboard/clients/:clientId" element={<ClientDashboard />} />
+        <Route path="/dashboard/posts" element={<Posts />} />
+        <Route path="/dashboard/calendar" element={<Calendar />} />
+        <Route path="/dashboard/analytics" element={<Analytics />} />
+        <Route path="/dashboard/reports" element={<Reports />} />
+        <Route path="/dashboard/settings" element={<Settings />} />
+        <Route path="/dashboard/admin/tokens" element={<AdminTokenMonitor />} />
+        <Route path="/clients" element={<Clients />} />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        {/* Catch-all route - show custom 404 page */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </AuthGuard>
+  );
+};
 
+export default App;

@@ -2,16 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png?v=4" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon.png?v=4" />
-    <link rel="shortcut icon" href="/favicon.png?v=4" />
-    <link rel="apple-touch-icon" href="/favicon.png?v=4" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' font-family='sans-serif' font-weight='bold'>X</text></svg>" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Permissions-Policy" content="unload=*" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <title>HarisandCo - Social Media Manager</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <title>Social X - Social Media Manager</title>
     
     <style>
       * {
@@ -23,6 +20,7 @@
       body {
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         overflow: hidden;
+        background: #ffffff;
       }
 
       #loading-screen {
@@ -31,37 +29,28 @@
         left: 0;
         width: 100vw;
         height: 100vh;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
-        background-size: 400% 400%;
-        animation: gradientShift 15s ease infinite;
+        background: #ffffff;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
         z-index: 9999;
-        transition: opacity 0.6s ease, transform 0.6s ease;
+        transition: opacity 0.5s ease;
       }
 
       #loading-screen.fade-out {
         opacity: 0;
-        transform: scale(1.05);
-      }
-
-      @keyframes gradientShift {
-        0% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-        100% { background-position: 0% 50%; }
       }
 
       .loading-container {
         text-align: center;
-        animation: fadeInUp 0.8s ease-out;
+        animation: fadeIn 0.6s ease-out;
       }
 
-      @keyframes fadeInUp {
+      @keyframes fadeIn {
         from {
           opacity: 0;
-          transform: translateY(30px);
+          transform: translateY(10px);
         }
         to {
           opacity: 1;
@@ -70,311 +59,202 @@
       }
 
       .logo-wrapper {
-        margin-bottom: 40px;
-        position: relative;
+        margin-bottom: 48px;
       }
 
-      .logo-circle {
-        width: 120px;
-        height: 120px;
-        background: rgba(255, 255, 255, 0.15);
-        backdrop-filter: blur(10px);
-        border-radius: 50%;
+      .logo-square {
+        width: 80px;
+        height: 80px;
+        background: #000000;
+        margin: 0 auto;
         display: flex;
         align-items: center;
         justify-content: center;
-        margin: 0 auto;
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        animation: pulse 2s ease-in-out infinite;
-        border: 3px solid rgba(255, 255, 255, 0.3);
+        position: relative;
+        animation: subtlePulse 3s ease-in-out infinite;
       }
 
-      @keyframes pulse {
+      @keyframes subtlePulse {
         0%, 100% {
           transform: scale(1);
-          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
         }
         50% {
-          transform: scale(1.05);
-          box-shadow: 0 25px 80px rgba(0, 0, 0, 0.4);
+          transform: scale(1.02);
         }
       }
 
       .logo-text {
-        font-family: 'Outfit', sans-serif;
-        font-size: 36px;
-        font-weight: 800;
-        color: white;
-        text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-        letter-spacing: -1px;
+        font-family: 'Inter', sans-serif;
+        font-size: 28px;
+        font-weight: 600;
+        color: #ffffff;
+        letter-spacing: 1px;
       }
 
       .brand-name {
-        font-family: 'Outfit', sans-serif;
-        font-size: 42px;
-        font-weight: 700;
-        color: white;
-        margin-bottom: 12px;
-        text-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+        font-family: 'Inter', sans-serif;
+        font-size: 32px;
+        font-weight: 600;
+        color: #000000;
+        margin-bottom: 8px;
         letter-spacing: -0.5px;
       }
 
       .tagline {
-        font-size: 16px;
-        color: rgba(255, 255, 255, 0.9);
-        font-weight: 500;
-        margin-bottom: 50px;
-        letter-spacing: 0.5px;
+        font-size: 14px;
+        color: #666666;
+        font-weight: 400;
+        margin-bottom: 64px;
+        letter-spacing: 0.3px;
       }
 
       .spinner-container {
         position: relative;
-        width: 80px;
-        height: 80px;
-        margin: 0 auto 30px;
+        width: 40px;
+        height: 40px;
+        margin: 0 auto 40px;
       }
 
       .spinner {
-        width: 80px;
-        height: 80px;
-        border: 4px solid rgba(255, 255, 255, 0.2);
-        border-top-color: white;
+        width: 40px;
+        height: 40px;
+        border: 2px solid #f0f0f0;
+        border-top-color: #000000;
         border-radius: 50%;
-        animation: spin 1s linear infinite;
+        animation: spin 0.8s linear infinite;
       }
 
       @keyframes spin {
         to { transform: rotate(360deg); }
       }
 
-      .spinner-inner {
-        position: absolute;
-        top: 10px;
-        left: 10px;
-        width: 60px;
-        height: 60px;
-        border: 4px solid rgba(255, 255, 255, 0.1);
-        border-bottom-color: rgba(255, 255, 255, 0.8);
-        border-radius: 50%;
-        animation: spin 1.5s linear infinite reverse;
-      }
-
       .loading-text {
-        font-size: 18px;
-        color: white;
-        font-weight: 600;
-        margin-bottom: 15px;
+        font-size: 13px;
+        color: #999999;
+        font-weight: 400;
+        letter-spacing: 0.5px;
         animation: fadeInOut 2s ease-in-out infinite;
       }
 
       @keyframes fadeInOut {
-        0%, 100% { opacity: 0.6; }
+        0%, 100% { opacity: 0.4; }
         50% { opacity: 1; }
       }
 
-      .loading-dots {
-        display: inline-flex;
-        gap: 6px;
-      }
-
-      .dot {
-        width: 8px;
-        height: 8px;
-        background: white;
-        border-radius: 50%;
-        animation: bounce 1.4s ease-in-out infinite;
-      }
-
-      .dot:nth-child(1) { animation-delay: 0s; }
-      .dot:nth-child(2) { animation-delay: 0.2s; }
-      .dot:nth-child(3) { animation-delay: 0.4s; }
-
-      @keyframes bounce {
-        0%, 80%, 100% {
-          transform: translateY(0);
-          opacity: 0.6;
-        }
-        40% {
-          transform: translateY(-12px);
-          opacity: 1;
-        }
-      }
-
-      .progress-bar-container {
-        width: 300px;
-        height: 4px;
-        background: rgba(255, 255, 255, 0.2);
-        border-radius: 10px;
+      .progress-line {
+        width: 200px;
+        height: 1px;
+        background: #f0f0f0;
+        margin: 32px auto 0;
+        position: relative;
         overflow: hidden;
-        margin: 30px auto 0;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
       }
 
-      .progress-bar {
+      .progress-fill {
+        position: absolute;
+        left: 0;
+        top: 0;
         height: 100%;
-        background: linear-gradient(90deg, rgba(255, 255, 255, 0.8), white);
-        border-radius: 10px;
-        animation: progress 2s ease-in-out infinite;
-        box-shadow: 0 0 15px rgba(255, 255, 255, 0.6);
+        width: 0%;
+        background: #000000;
+        animation: progressMove 2s ease-in-out infinite;
       }
 
-      @keyframes progress {
+      @keyframes progressMove {
         0% {
           width: 0%;
-          opacity: 0.5;
+          left: 0%;
         }
         50% {
-          width: 70%;
-          opacity: 1;
+          width: 40%;
+          left: 30%;
         }
         100% {
-          width: 100%;
-          opacity: 0.8;
+          width: 0%;
+          left: 100%;
         }
       }
-
-      .particles {
-        position: absolute;
-        width: 100%;
-        height: 100%;
-        overflow: hidden;
-        pointer-events: none;
-      }
-
-      .particle {
-        position: absolute;
-        width: 4px;
-        height: 4px;
-        background: rgba(255, 255, 255, 0.6);
-        border-radius: 50%;
-        animation: float 6s ease-in-out infinite;
-      }
-
-      @keyframes float {
-        0%, 100% {
-          transform: translateY(0) translateX(0);
-          opacity: 0;
-        }
-        10% {
-          opacity: 1;
-        }
-        90% {
-          opacity: 1;
-        }
-        100% {
-          transform: translateY(-100vh) translateX(50px);
-          opacity: 0;
-        }
-      }
-
-      .particle:nth-child(1) { left: 10%; animation-delay: 0s; animation-duration: 8s; }
-      .particle:nth-child(2) { left: 20%; animation-delay: 1s; animation-duration: 7s; }
-      .particle:nth-child(3) { left: 30%; animation-delay: 2s; animation-duration: 9s; }
-      .particle:nth-child(4) { left: 40%; animation-delay: 0.5s; animation-duration: 6s; }
-      .particle:nth-child(5) { left: 50%; animation-delay: 1.5s; animation-duration: 8s; }
-      .particle:nth-child(6) { left: 60%; animation-delay: 2.5s; animation-duration: 7s; }
-      .particle:nth-child(7) { left: 70%; animation-delay: 0.8s; animation-duration: 9s; }
-      .particle:nth-child(8) { left: 80%; animation-delay: 1.8s; animation-duration: 6s; }
-      .particle:nth-child(9) { left: 90%; animation-delay: 2.8s; animation-duration: 8s; }
 
       .error-message {
         display: none;
-        margin-top: 30px;
-        padding: 15px 25px;
-        background: rgba(255, 255, 255, 0.15);
-        backdrop-filter: blur(10px);
-        border-radius: 12px;
-        color: white;
-        font-size: 14px;
-        max-width: 400px;
-        border: 1px solid rgba(255, 255, 255, 0.3);
+        margin-top: 40px;
+        padding: 12px 20px;
+        background: #f5f5f5;
+        border: 1px solid #e0e0e0;
+        color: #666666;
+        font-size: 12px;
+        max-width: 320px;
       }
 
       .error-message.show {
         display: block;
-        animation: fadeInUp 0.5s ease-out;
+        animation: fadeIn 0.4s ease-out;
       }
     </style>
+    <script type="module" crossorigin src="/dashboard/assets/index-BoMWUm4e.js"></script>
+    <link rel="stylesheet" crossorigin href="/dashboard/assets/index-DowXW1Fk.css">
   </head>
   <body>
     <div id="loading-screen">
-      <!-- Floating particles -->
-      <div class="particles">
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-      </div>
-
       <div class="loading-container">
         <div class="logo-wrapper">
-          <div class="logo-circle">
-            <div class="logo-text">H&C</div>
+          <div class="logo-square">
+            <div class="logo-text">SX</div>
           </div>
         </div>
 
-        <h1 class="brand-name">HarisandCo</h1>
+        <h1 class="brand-name">Social X</h1>
         <p class="tagline">Social Media Manager</p>
 
         <div class="spinner-container">
           <div class="spinner"></div>
-          <div class="spinner-inner"></div>
         </div>
 
         <div class="loading-text">
-          Loading Dashboard
-          <span class="loading-dots">
-            <span class="dot"></span>
-            <span class="dot"></span>
-            <span class="dot"></span>
-          </span>
+          LOADING
         </div>
 
-        <div class="progress-bar-container">
-          <div class="progress-bar"></div>
+        <div class="progress-line">
+          <div class="progress-fill"></div>
         </div>
 
         <div class="error-message" id="error-message">
-          ⚠️ Taking longer than expected. Check the browser console for errors.
+          Taking longer than expected. Check console for errors.
         </div>
       </div>
     </div>
 
     <div id="root"></div>
 
-    <script type="module" crossorigin src="/dashboard/assets/index-CytHUh-3.js"></script>
-    <link rel="stylesheet" crossorigin href="/dashboard/assets/index-xVtaLux5.css">
-
     <script>
-      // Test if JavaScript is running
       console.log('Dashboard HTML loaded');
 
-      // Show error message if loading takes too long (30 seconds)
       setTimeout(function() {
         const loadingScreen = document.getElementById('loading-screen');
         if (loadingScreen && loadingScreen.style.display !== 'none') {
           document.getElementById('error-message').classList.add('show');
         }
-      }, 30000);
+      }, 10000);
 
-      // Hide loading screen when React app mounts
-      window.addEventListener('load', function() {
-        setTimeout(function() {
+      const observer = new MutationObserver(function(mutations) {
+        const root = document.getElementById('root');
+        if (root && root.children.length > 0) {
           const loadingScreen = document.getElementById('loading-screen');
           if (loadingScreen) {
             loadingScreen.classList.add('fade-out');
             setTimeout(function() {
               loadingScreen.style.display = 'none';
-            }, 600);
+            }, 500);
           }
-        }, 500); // Small delay to ensure smooth transition
+          observer.disconnect();
+        }
       });
-    </script>
+
+      observer.observe(document.getElementById('root'), {
+        childList: true,
+        subtree: true
+      });
+    </script>
   </body>
 </html>
 

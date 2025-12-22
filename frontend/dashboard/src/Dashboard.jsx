@@ -206,7 +206,7 @@ const Dashboard = () => {
       onClick: () => navigate('/dashboard/posts')
     },
     {
-      label: 'Monthly Views',
+      label: 'Total Views',
       value: stats.totalViews.toLocaleString(),
       subtext: loading ? '-' : (stats.totalReach > 0 ? `+${stats.totalReach.toLocaleString()} Reach` : '0 Reach'),
       icon: Activity,

@@ -27,7 +27,7 @@ const TopContent = ({ posts }) => {
         { id: 'shares', label: 'Shares', icon: Share2 },
     ];
 
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    const API_URL = (import.meta.env.VITE_API_URL || 'https://haca-social-x-backend.onrender.com').replace(/\/$/, '');
 
     const getMediaUrl = (url) => {
         if (!url) return null;

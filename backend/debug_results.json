@@ -1,0 +1,153 @@
+[
+  {
+    "msg": "Found client: MUHAMMAD NIDHIL"
+  },
+  {
+    "msg": "TEST 1 Request",
+    "data": "https://graph.facebook.com/v22.0/17841477797074422/insights?metric=reach&period=day&access_token=***"
+  },
+  {
+    "msg": "TEST 1 Reach Result",
+    "data": {
+      "data": [
+        {
+          "name": "reach",
+          "period": "day",
+          "values": [
+            {
+              "value": 3,
+              "end_time": "2025-12-16T08:00:00+0000"
+            },
+            {
+              "value": 2,
+              "end_time": "2025-12-17T08:00:00+0000"
+            }
+          ],
+          "title": "Reach",
+          "description": "The total number of times that the business account's media objects have been uniquely viewed.",
+          "id": "17841477797074422/insights/reach/day"
+        }
+      ],
+      "paging": {
+        "previous": "https://graph.facebook.com/v24.0/17841477797074422/insights?access_token=EAAf0p4LmEfQBQEGUrZAP9TZCwlpylpC06lcnhvniX9DGhfEnlZARNKkz8S6SLyx0x5PyIBZAZAaRX8lKVGHhd3ZA4XFWffd9EDkz1N77590VQdG4hQiYyJ00RoPSbZAl6eLeEljCo2tL5F08o7TeXMpgMTYBPnnayyGbkhuZBpTChayZCUb80U6Fb0YOM9FBfJllNZCZAdJ&metric=reach&period=day&since=1765643729&until=1765816529",
+        "next": "https://graph.facebook.com/v24.0/17841477797074422/insights?access_token=EAAf0p4LmEfQBQEGUrZAP9TZCwlpylpC06lcnhvniX9DGhfEnlZARNKkz8S6SLyx0x5PyIBZAZAaRX8lKVGHhd3ZA4XFWffd9EDkz1N77590VQdG4hQiYyJ00RoPSbZAl6eLeEljCo2tL5F08o7TeXMpgMTYBPnnayyGbkhuZBpTChayZCUb80U6Fb0YOM9FBfJllNZCZAdJ&metric=reach&period=day&since=1765989331&until=1766162131"
+      }
+    }
+  },
+  {
+    "msg": "TEST 2 Account Trend Request",
+    "data": "https://graph.facebook.com/v22.0/17841477797074422/insights?metric=reach,follower_count&period=day&access_token=***"
+  },
+  {
+    "msg": "TEST 2 Account Trend Result",
+    "data": {
+      "data": [
+        {
+          "name": "reach",
+          "period": "day",
+          "values": [
+            {
+              "value": 3,
+              "end_time": "2025-12-16T08:00:00+0000"
+            },
+            {
+              "value": 2,
+              "end_time": "2025-12-17T08:00:00+0000"
+            }
+          ],
+          "title": "Reach",
+          "description": "The total number of times that the business account's media objects have been uniquely viewed.",
+          "id": "17841477797074422/insights/reach/day"
+        }
+      ],
+      "paging": {
+        "previous": "https://graph.facebook.com/v24.0/17841477797074422/insights?access_token=EAAf0p4LmEfQBQEGUrZAP9TZCwlpylpC06lcnhvniX9DGhfEnlZARNKkz8S6SLyx0x5PyIBZAZAaRX8lKVGHhd3ZA4XFWffd9EDkz1N77590VQdG4hQiYyJ00RoPSbZAl6eLeEljCo2tL5F08o7TeXMpgMTYBPnnayyGbkhuZBpTChayZCUb80U6Fb0YOM9FBfJllNZCZAdJ&metric=reach%2Cfollower_count&period=day&since=1765643729&until=1765816529",
+        "next": "https://graph.facebook.com/v24.0/17841477797074422/insights?access_token=EAAf0p4LmEfQBQEGUrZAP9TZCwlpylpC06lcnhvniX9DGhfEnlZARNKkz8S6SLyx0x5PyIBZAZAaRX8lKVGHhd3ZA4XFWffd9EDkz1N77590VQdG4hQiYyJ00RoPSbZAl6eLeEljCo2tL5F08o7TeXMpgMTYBPnnayyGbkhuZBpTChayZCUb80U6Fb0YOM9FBfJllNZCZAdJ&metric=reach%2Cfollower_count&period=day&since=1765989331&until=1766162131"
+      }
+    }
+  },
+  {
+    "msg": "TEST 3 Media List",
+    "data": {
+      "data": [
+        {
+          "id": "17872224627469199"
+        }
+      ],
+      "paging": {
+        "cursors": {
+          "before": "QVFIU00ydTNZAUDhXb2ZAhZAG5ETlpaVlJ1djNMZA3lzS0JiYlB5QTFRT3lCZA1daYlhXUDNGUUwxVnRqVnZATcUdBeXgzbHhZAR29rdGstUDhUdGxXeFU4TzNpZAUJR",
+          "after": "QVFIU00ydTNZAUDhXb2ZAhZAG5ETlpaVlJ1djNMZA3lzS0JiYlB5QTFRT3lCZA1daYlhXUDNGUUwxVnRqVnZATcUdBeXgzbHhZAR29rdGstUDhUdGxXeFU4TzNpZAUJR"
+        },
+        "next": "https://graph.facebook.com/v24.0/17841477797074422/media?limit=1&access_token=EAAf0p4LmEfQBQEGUrZAP9TZCwlpylpC06lcnhvniX9DGhfEnlZARNKkz8S6SLyx0x5PyIBZAZAaRX8lKVGHhd3ZA4XFWffd9EDkz1N77590VQdG4hQiYyJ00RoPSbZAl6eLeEljCo2tL5F08o7TeXMpgMTYBPnnayyGbkhuZBpTChayZCUb80U6Fb0YOM9FBfJllNZCZAdJ&after=QVFIU00ydTNZAUDhXb2ZAhZAG5ETlpaVlJ1djNMZA3lzS0JiYlB5QTFRT3lCZA1daYlhXUDNGUUwxVnRqVnZATcUdBeXgzbHhZAR29rdGstUDhUdGxXeFU4TzNpZAUJR"
+      }
+    }
+  },
+  {
+    "msg": "TEST 4 Media Insights",
+    "data": {
+      "data": [
+        {
+          "name": "reach",
+          "period": "lifetime",
+          "values": [
+            {
+              "value": 33
+            }
+          ],
+          "title": "Accounts reached",
+          "description": "The number of unique accounts that have seen this reel at least once. Reach is different from impressions, which may include multiple views of your reel by the same accounts. This metric is estimated.",
+          "id": "17872224627469199/insights/reach/lifetime"
+        },
+        {
+          "name": "total_interactions",
+          "period": "lifetime",
+          "values": [
+            {
+              "value": 0
+            }
+          ],
+          "title": "Reels interactions",
+          "description": "The number of likes, saves, comments and shares on your reels minus the number of unlikes, unsaves and deleted comments.",
+          "id": "17872224627469199/insights/total_interactions/lifetime"
+        },
+        {
+          "name": "saved",
+          "period": "lifetime",
+          "values": [
+            {
+              "value": 0
+            }
+          ],
+          "title": "Saved",
+          "description": "The number of saves of your reel.",
+          "id": "17872224627469199/insights/saved/lifetime"
+        },
+        {
+          "name": "shares",
+          "period": "lifetime",
+          "values": [
+            {
+              "value": 0
+            }
+          ],
+          "title": "Shares",
+          "description": "The number of shares of your reel.",
+          "id": "17872224627469199/insights/shares/lifetime"
+        },
+        {
+          "name": "views",
+          "period": "lifetime",
+          "values": [
+            {
+              "value": 44
+            }
+          ],
+          "title": "Views",
+          "description": "The number of times that your reel was played or displayed",
+          "id": "17872224627469199/insights/views/lifetime"
+        }
+      ]
+    }
+  }
+]

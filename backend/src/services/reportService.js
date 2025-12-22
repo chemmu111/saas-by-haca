@@ -28,6 +28,15 @@ export async function generateReport(userId, posts, clients, options = {}) {
     throw new Error('No client selected for report generation.');
   }
 
+  // If multiple clients, return an array of reports
+  if (clients.length > 1) {
+    console.log(`📊 Generating Enterprise Reports for ${clients.length} clients`);
+    const reports = await Promise.all(clients.map(async (client) => {
+      return await generateReportData(client._id, startDate, endDate);
+    }));
+    return reports;
+  }
+
   const client = clients[0];
   console.log(`📊 Generating Enterprise Report for client: ${client.name} (${client._id})`);
 
@@ -43,6 +52,47 @@ export async function generateReport(userId, posts, clients, options = {}) {
 export async function generateReportWithTemplate(userId, posts, clients, options = {}) {
   const { startDate, endDate, templateName, format = 'html' } = options;
 
+  // Handle multiple clients
+  if (clients.length > 1) {
+    console.log(`📑 Generating combined report for ${clients.length} clients`);
+
+    // Generate individual reports
+    const individualReports = await Promise.all(clients.map(async (client) => {
+      // Recursive call for single client
+      const singleReport = await generateReportWithTemplate(userId, posts, [client], options);
+      return singleReport.html;
+    }));
+
+    // Combine HTMLs with page breaks
+    // We need to strip the <html><head><body> tags from subsequent reports to make a valid document?
+    // Or Puppeteer might handle concatenated full HTMLs poorly.
+    // Better strategy: Use the first report as the container, and append the body content of others.
+
+    // Actually, simply concatenating full HTMLs is invalid.
+    // We'll extract the <body> content from each.
+
+    let combinedBodyContent = '';
+    const styleBlock = individualReports[0].match(/<style>([\s\S]*?)<\/style>/)?.[0] || '';
+
+    individualReports.forEach((html, index) => {
+      const bodyContentMatch = html.match(/<body>([\s\S]*?)<\/body>/);
+      let bodyContent = bodyContentMatch ? bodyContentMatch[1] : html;
+
+      // Add page break before subsequent reports
+      if (index > 0) {
+        bodyContent = `<div style="page-break-before: always; height: 0; margin: 0; padding: 0;"></div>` + bodyContent;
+      }
+      combinedBodyContent += bodyContent;
+    });
+
+    // Construct final HTML using the structure of the first report but with combined body
+    const finalHtml = individualReports[0]
+      .replace(/<body>[\s\S]*?<\/body>/, `<body>${combinedBodyContent}</body>`);
+
+    return { html: finalHtml };
+  }
+
+  // Single Client Logic
   // Generate base report data using the new structure
   const report = await generateReport(userId, posts, clients, { startDate, endDate, format });
   const client = clients[0];
@@ -983,26 +1033,31 @@ export async function generatePDFFromTemplate(userId, posts, clients, options = 
   return pdfBytes;
 }
 
+import { getBrowser } from './puppeteerService.js';
+
 /**
- * Generate PDF from HTML content using Puppeteer
+ * Generate PDF from HTML content using Puppeteer (Shared Instance)
  */
 export async function generatePDFFromHTML(htmlContent) {
-  let browser;
+  let page = null;
   try {
-    console.log('Launching Puppeteer...');
-    browser = await puppeteer.launch({
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage']
-    });
-    console.log('Puppeteer launched, creating new page...');
-    const page = await browser.newPage();
+    // console.log('Getting shared Puppeteer browser...');
+    const browser = await getBrowser();
 
-    console.log('Setting page content...');
+    // console.log('Creating new page...');
+    page = await browser.newPage();
+
+    // console.log('Setting page content...');
     await page.setViewport({ width: 1280, height: 1600 });
     await page.emulateMediaType('screen');
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0', timeout: 30000 });
 
-    console.log('Generating PDF...');
+    // Optimization: 'domcontentloaded' is faster than 'networkidle0' for static HTML
+    await page.setContent(htmlContent, {
+      waitUntil: 'networkidle0',
+      timeout: 30000
+    });
+
+    // console.log('Generating PDF...');
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
@@ -1014,7 +1069,7 @@ export async function generatePDFFromHTML(htmlContent) {
       }
     });
 
-    console.log('PDF generated successfully, buffer length:', pdfBuffer.length);
+    // console.log('PDF generated successfully, buffer length:', pdfBuffer.length);
 
     // Ensure we return a proper Buffer
     return Buffer.from(pdfBuffer);
@@ -1022,8 +1077,9 @@ export async function generatePDFFromHTML(htmlContent) {
     console.error('Error generating PDF from HTML:', error);
     throw error;
   } finally {
-    if (browser) {
-      await browser.close();
+    if (page) {
+      // Only close the page, NOT the browser
+      await page.close().catch(e => console.error('Error closing page:', e.message));
     }
   }
 }

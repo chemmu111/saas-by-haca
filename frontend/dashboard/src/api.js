@@ -2,10 +2,24 @@ import axios from "axios";
 
 // Helper function to get backend URL
 const getBackendUrl = () => {
-    //Check for environment variable first (production)
+    // Force correct backend for custom domain (socialhac.com)
+    // This circumvents any misconfigured VITE_API_URL that might be set to '/' or relative paths
+    if (window.location.hostname.includes('socialhac.com')) {
+        return 'https://haca-social-x-backend.onrender.com/api';
+    }
+
+    // Check for environment variable first (production)
     if (import.meta.env.VITE_API_URL) {
-        const url = import.meta.env.VITE_API_URL;
-        return url.endsWith('/api') ? url : `${url}/api`;
+        const url = import.meta.env.VITE_API_URL.replace(/\/$/, '');
+
+        // Safeguard: If VITE_API_URL points to the frontend itself (e.g. user set it to frontend URL), ignore it
+        // and fall back to the hardcoded backend URL.
+        const isSelfReferential = url.includes(window.location.host) && !url.includes('localhost');
+
+        if (!isSelfReferential) {
+            return url.endsWith('/api') ? url : `${url}/api`;
+        }
+        console.warn('VITE_API_URL appears to point to the frontend host. Falling back to default backend URL.');
     }
     // Development mode - check port
     if (window.location.port === '3000' || window.location.port === '5173') {
@@ -13,8 +27,10 @@ const getBackendUrl = () => {
         return savedPort ? `http://localhost:${savedPort}/api` : 'http://localhost:5000/api';
     }
     // Production fallback - use the actual backend URL
-    // This handles cases where VITE_API_URL isn't set during build
-    return 'https://haca-social-x-backend.onrender.com/api';
+    // This handles cases where VITE_API_URL isn't set during build or is misconfigured
+    const fallbackUrl = 'https://haca-social-x-backend.onrender.com/api';
+    console.log('⚠️ using fallback URL (Axios):', fallbackUrl);
+    return fallbackUrl;
 };
 
 const api = axios.create({

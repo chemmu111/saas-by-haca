@@ -11,6 +11,8 @@ import {
   fetchInstagramFollowerCount as fetchIGFollowerCount
 } from './instagramPostMetricsService.js';
 import { fetchInstagramAnalytics } from './instagramInsightsService.js';
+import Post from '../models/Post.js';
+import Client from '../models/Client.js';
 
 /**
  * Fetch engagement metrics for a post from Instagram Graph API
@@ -169,35 +171,49 @@ export async function updateClientStats(client) {
     if (igData && igData.success && igData.data) {
       const data = igData.data;
 
-      // Calculate engagement rate
-      const totalEngagements = data.media?.totalEngagements || 0;
+
+      // Use engagement rate directly from service (which calculates it correctly based on fetched items)
+      // instead of re-calculating with potentially mismatched denominators
+      const engagementRate = data.media?.engagementRate || '0%';
+      const totalEngagement = data.media?.totalEngagements || 0;
+
       const totalFollowers = data.account?.follower_count || 0;
-      const totalReach = data.account?.reach || 0;
-
-      let engagementRate = '0%';
-      const totalPosts = data.media?.total || 1;
-
-      if (totalFollowers > 0) {
-        // Average Engagement Rate per Post: ((Total Engagements / Total Posts) / Followers) * 100
-        engagementRate = (((totalEngagements / totalPosts) / totalFollowers) * 100).toFixed(2) + '%';
-      } else if (totalReach > 0) {
-        // Fallback to reach if no followers (unlikely for active accounts)
-        engagementRate = (((totalEngagements / totalPosts) / totalReach) * 100).toFixed(2) + '%';
-      }
-
-      // Import Post model to count actual posts in database
-      const Post = (await import('../models/Post.js')).default;
+      const apiMediaCount = data.media?.total; // This is now the REAL count from User API (e.g. 53)
       const actualPostCount = await Post.countDocuments({
         client: client._id,
-        status: 'published' // Only count published posts
+        status: 'published'
       });
 
-      return {
+      const totalPosts = apiMediaCount || actualPostCount || 1;
+
+      console.log(`   📊 Stats Calculated for ${client.name}: Followers: ${totalFollowers}, Posts: ${totalPosts}, Eng: ${totalEngagement}`);
+
+      const stats = {
         followerCount: totalFollowers,
-        totalPosts: actualPostCount || 0, // Use database count instead of API limited results
-        engagementRate: engagementRate,
+        totalPosts: totalPosts,
+        engagementRate: engagementRate, // Keep for backward compatibility or dual display
+        totalEngagement: totalEngagement,
         statsLastUpdated: new Date()
       };
+
+      // PERSIST TO DB: Update Client document with real API stats
+      // This ensures that even if live-fetch fails later, the DB has the latest real numbers
+      try {
+        await Client.findByIdAndUpdate(client._id, {
+          $set: {
+            followerCount: stats.followerCount,
+            totalPosts: stats.totalPosts,
+            engagementRate: stats.engagementRate,
+            totalEngagement: stats.totalEngagement,
+            statsLastUpdated: stats.statsLastUpdated
+          }
+        });
+        console.log(`   💾 Persisted real API stats to Client DB for ${client.name}`);
+      } catch (dbErr) {
+        console.error('   ⚠️ Failed to persist stats to Client DB:', dbErr.message);
+      }
+
+      return stats;
     }
 
     return null;

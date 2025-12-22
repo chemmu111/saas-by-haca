@@ -66,7 +66,7 @@ const Analytics = ({ embedded = false, clientId = null }) => {
   const [analytics, setAnalytics] = useState(null);
   const [clients, setClients] = useState([]);
   const [clientFilter, setClientFilter] = useState(clientId || 'all');
-  const [dateRange, setDateRange] = useState('last30');
+  const [dateRange, setDateRange] = useState('all_time');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -79,7 +79,8 @@ const Analytics = ({ embedded = false, clientId = null }) => {
 
   const dashboardRef = useRef(null);
   const autoRefreshTimerRef = useRef(null);
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const API_URL = (import.meta.env.VITE_API_URL || 'https://haca-social-x-backend.onrender.com').replace(/\/$/, '');
+  console.log('📊 Analytics API URL:', API_URL);
 
   // Update client filter if prop changes
   useEffect(() => {
@@ -103,7 +104,12 @@ const Analytics = ({ embedded = false, clientId = null }) => {
         const response = await fetch(url, { headers });
         const data = await response.json();
         if (data.success) {
-          setClients(data.data);
+          // Map clients to ensure each has an 'id' property for dropdown compatibility
+          const mappedClients = data.data.map(client => ({
+            ...client,
+            id: client._id // Add id field for dropdown
+          }));
+          setClients(mappedClients);
         }
       } catch (err) {
         console.error('Error fetching clients:', err);
@@ -131,6 +137,10 @@ const Analytics = ({ embedded = false, clientId = null }) => {
         break;
       case 'last90':
         startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString();
+        break;
+      case 'all_time':
+        // Set to 1 year ago or null? API needs a range usually, or we can just send null to get everything available
+        startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString();
         break;
       case 'custom':
         if (customStartDate) startDate = new Date(customStartDate).toISOString();
@@ -302,6 +312,9 @@ const Analytics = ({ embedded = false, clientId = null }) => {
         break;
       case 'last90':
         startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        break;
+      case 'all_time':
+        startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
         break;
       case 'custom':
         if (customStartDate) startDate = new Date(customStartDate);

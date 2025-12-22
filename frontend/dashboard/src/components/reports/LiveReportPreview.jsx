@@ -173,7 +173,7 @@ const LiveReportPreview = ({ analytics, client, dateRange }) => {
                                             <Cell key={`cell-${index}`} fill={entry.color} />
                                         ))}
                                     </Pie>
-                                    <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f8fafc' }} />
+                                    <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#ffffff' }} itemStyle={{ color: '#ffffff' }} />
                                     <Legend wrapperStyle={{ color: '#94a3b8' }} />
                                 </PieChart>
                             </ResponsiveContainer>
@@ -361,11 +361,14 @@ const LiveReportPreview = ({ analytics, client, dateRange }) => {
                 <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                     <MousePointer className="text-cyan-400" size={24} /> Traffic & CTA
                 </h3>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <MetricCard title="Website Clicks" value={traffic.websiteClicks} icon={MousePointer} color="text-cyan-400" bg="bg-cyan-500/10" />
-                    <MetricCard title="Email Clicks" value={traffic.emailClicks} icon={Mail} color="text-indigo-400" bg="bg-indigo-500/10" />
-                    <MetricCard title="Call Clicks" value={traffic.callClicks} icon={Phone} color="text-green-400" bg="bg-green-500/10" />
-                    <MetricCard title="Directions" value={traffic.directionClicks} icon={MapPin} color="text-red-400" bg="bg-red-500/10" />
+                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-8 text-center">
+                    <div className="inline-flex items-center justify-center p-3 bg-slate-800 rounded-full mb-4">
+                        <Clock className="text-slate-400" size={24} />
+                    </div>
+                    <h4 className="text-lg font-semibold text-white mb-2">Coming Soon</h4>
+                    <p className="text-slate-400 max-w-md mx-auto">
+                        Advanced traffic analytics and CTA tracking will be available in the next update.
+                    </p>
                 </div>
             </section>
 

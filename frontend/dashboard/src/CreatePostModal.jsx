@@ -575,6 +575,7 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
           setPublishProgress({ step: 'complete', message: 'Post saved successfully!' });
         }
 
+
         const successMessage = editingPost
           ? 'Post updated successfully'
           : (postData.publishImmediately ? 'Post published successfully' : 'Post scheduled successfully');
@@ -794,6 +795,7 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
         if (result.success) {
           setPublishResult(result.data);
           setShowInsights(true);
+
           showToast('Post published successfully', 'success');
           if (onSuccess) onSuccess();
         } else {

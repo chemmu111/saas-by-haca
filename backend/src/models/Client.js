@@ -44,6 +44,7 @@ const clientSchema = new mongoose.Schema(
     followerCount: { type: Number, default: 0 }, // Current follower count
     followerCountLastUpdated: { type: Date }, // When follower count was last fetched
     totalPosts: { type: Number, default: 0 }, // Total posts count
+    totalEngagement: { type: Number, default: 0 }, // Total absolute interactions (likes+comments+shares+saves)
     engagementRate: { type: String, default: '0%' }, // Engagement rate percentage
     statsLastUpdated: { type: Date }, // When stats were last updated
     // Contact & Brand Info

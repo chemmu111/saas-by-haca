@@ -3,7 +3,7 @@ import PageTitle from './components/PageTitle';
 import Layout from './Layout.jsx';
 import DeleteConfirmModal from './DeleteConfirmModal.jsx';
 import CreatePostModal from './CreatePostModal.jsx';
-import { FileText, Calendar, Clock, CheckCircle, XCircle, Edit, Trash2, Filter, Plus, Instagram, Facebook, Image as ImageIcon, Send, AlertCircle, Video } from 'lucide-react';
+import { FileText, Calendar, Clock, CheckCircle, XCircle, Edit, Trash2, Filter, Plus, Instagram, Facebook, Image as ImageIcon, Send, AlertCircle, Video, Search } from 'lucide-react';
 
 const Posts = () => {
   const [posts, setPosts] = useState([]);
@@ -12,6 +12,8 @@ const Posts = () => {
   const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [clientFilter, setClientFilter] = useState('all'); // Backend filter
+  const [searchTerm, setSearchTerm] = useState(''); // New client-side search filter
   const [deletingId, setDeletingId] = useState(null);
   const [editingPost, setEditingPost] = useState(null);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
@@ -21,16 +23,23 @@ const Posts = () => {
   const [retryingMediaUrls, setRetryingMediaUrls] = useState(new Set());
 
   const getBackendUrl = () => {
-    if (window.location.port === '3000' || window.location.port === '5173') {
+    if (window.location.port === '3000') {
       const savedPort = localStorage.getItem('backend_port');
       if (savedPort) {
         return `http://localhost:${savedPort}`;
       }
       return 'http://localhost:5000';
     }
-    // Production fallback - use actual backend URL
-    return 'https://haca-social-x-backend.onrender.com';
+    return window.location.origin;
   };
+  // Client-side filtering logic
+  const filteredPosts = posts.filter(post => {
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    const caption = (post.caption || post.content || '').toLowerCase();
+    const clientName = (post.client?.name || '').toLowerCase();
+    return caption.includes(term) || clientName.includes(term);
+  });
 
   const normalizeMediaUrl = (url) => {
     if (!url || typeof url !== 'string') return null;
@@ -112,6 +121,9 @@ const Posts = () => {
       if (statusFilter !== 'all') {
         queryParams.append('status', statusFilter);
       }
+      if (clientFilter !== 'all') {
+        queryParams.append('clientId', clientFilter);
+      }
 
       const response = await fetch(`${backendUrl}/api/posts?${queryParams.toString()}`, {
         headers: {
@@ -122,7 +134,7 @@ const Posts = () => {
 
       if (response.status === 401) {
         localStorage.removeItem('auth_token');
-        window.location.href = '/login';
+        window.location.href = '/login.html';
         return;
       }
 
@@ -152,7 +164,7 @@ const Posts = () => {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, clientFilter]);
 
   const fetchClients = useCallback(async () => {
     try {
@@ -365,57 +377,101 @@ const Posts = () => {
 
         {/* Status Filter */}
         <div className="mb-8 bg-white rounded-2xl shadow-sm border border-gray-200 p-4">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            <div className="flex items-center gap-2 text-gray-700 font-medium">
-              <Filter size={18} />
-              <span>Filter by Status</span>
+          <div className="flex flex-col gap-4">
+            {/* Status Filter */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="flex items-center gap-2 text-gray-700 font-medium">
+                <Filter size={18} />
+                <span>Filter by Status</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setStatusFilter('all')}
+                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'all'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                >
+                  All
+                </button>
+                <button
+                  onClick={() => setStatusFilter('draft')}
+                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'draft'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                >
+                  Draft
+                </button>
+                <button
+                  onClick={() => setStatusFilter('scheduled')}
+                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'scheduled'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                >
+                  Scheduled
+                </button>
+                <button
+                  onClick={() => setStatusFilter('published')}
+                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'published'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                >
+                  Published
+                </button>
+                <button
+                  onClick={() => setStatusFilter('processing')}
+                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'processing'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                >
+                  Processing
+                </button>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setStatusFilter('all')}
-                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'all'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setStatusFilter('draft')}
-                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'draft'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-              >
-                Draft
-              </button>
-              <button
-                onClick={() => setStatusFilter('scheduled')}
-                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'scheduled'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-              >
-                Scheduled
-              </button>
-              <button
-                onClick={() => setStatusFilter('published')}
-                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'published'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-              >
-                Published
-              </button>
-              <button
-                onClick={() => setStatusFilter('processing')}
-                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${statusFilter === 'processing'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-              >
-                Processing
-              </button>
+
+            {/* Search & Client Filter Toolbar */}
+            <div className="flex flex-col md:flex-row gap-4 pt-4 border-t border-gray-200">
+              {/* Search Bar */}
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <input
+                  type="text"
+                  placeholder="Search posts or clients..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                />
+              </div>
+
+              {/* Client Dropdown */}
+              {clients.length > 0 && (
+                <div className="relative min-w-[200px]">
+                  <div className="relative">
+                    <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 z-10" size={18} />
+                    <select
+                      value={clientFilter}
+                      onChange={(e) => setClientFilter(e.target.value)}
+                      className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-gray-700 font-medium cursor-pointer"
+                    >
+                      <option value="all">All Clients</option>
+                      {clients.map((client) => (
+                        <option key={client._id} value={client._id}>
+                          {client.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -427,28 +483,48 @@ const Posts = () => {
               <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
               <p className="mt-4 text-gray-600">Loading posts...</p>
             </div>
-          ) : posts.length === 0 ? (
-            <div className="text-center py-16 bg-gradient-to-br from-gray-50 to-white rounded-2xl border-2 border-dashed border-gray-300">
-              <div className="inline-flex p-4 bg-gradient-to-br from-blue-100 to-purple-100 rounded-2xl mb-4">
-                <FileText className="text-gray-500" size={48} />
+          ) : filteredPosts.length === 0 ? (
+            searchTerm ? (
+              // Search returned no results
+              <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
+                <div className="inline-flex p-4 bg-gray-50 rounded-full mb-4">
+                  <Search className="text-gray-400" size={32} />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900">No posts found</h3>
+                <p className="text-gray-500 mt-1 max-w-sm mx-auto">
+                  We couldn't find any posts matching "{searchTerm}". Try adjusting your search term or filters.
+                </p>
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="mt-4 text-blue-600 font-medium hover:text-blue-700 hover:underline"
+                >
+                  Clear search
+                </button>
               </div>
-              <h3 className="mt-4 text-xl font-bold text-gray-900">No posts found</h3>
-              <p className="mt-2 text-gray-600 max-w-md mx-auto">
-                {statusFilter === 'all'
-                  ? 'Get started by creating your first post to engage with your audience'
-                  : `No ${statusFilter} posts found. Try a different filter or create a new post.`}
-              </p>
-              <button
-                onClick={() => setShowModal(true)}
-                className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-semibold"
-              >
-                <Plus size={20} />
-                Create Your First Post
-              </button>
-            </div>
+            ) : (
+              // No posts at all (empty state)
+              <div className="text-center py-16 bg-gradient-to-br from-gray-50 to-white rounded-2xl border-2 border-dashed border-gray-300">
+                <div className="inline-flex p-4 bg-gradient-to-br from-blue-100 to-purple-100 rounded-2xl mb-4">
+                  <FileText className="text-gray-500" size={48} />
+                </div>
+                <h3 className="mt-4 text-xl font-bold text-gray-900">No posts found</h3>
+                <p className="mt-2 text-gray-600 max-w-md mx-auto">
+                  {statusFilter === 'all'
+                    ? 'Get started by creating your first post to engage with your audience'
+                    : `No ${statusFilter} posts found. Try a different filter or create a new post.`}
+                </p>
+                <button
+                  onClick={() => setShowModal(true)}
+                  className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-semibold"
+                >
+                  <Plus size={20} />
+                  Create Your First Post
+                </button>
+              </div>
+            )
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {posts.map((post) => {
+              {filteredPosts.map((post) => {
                 const firstMediaUrl = post.mediaUrls && Array.isArray(post.mediaUrls) && post.mediaUrls.length > 0
                   ? post.mediaUrls[0]
                   : null;
