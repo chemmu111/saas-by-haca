@@ -79,7 +79,8 @@ const Analytics = ({ embedded = false, clientId = null }) => {
 
   const dashboardRef = useRef(null);
   const autoRefreshTimerRef = useRef(null);
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const API_URL = (import.meta.env.VITE_API_URL || 'https://haca-social-x-backend.onrender.com').replace(/\/$/, '');
+  console.log('📊 Analytics API URL:', API_URL);
 
   // Update client filter if prop changes
   useEffect(() => {

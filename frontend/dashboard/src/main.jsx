@@ -1,5 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import App from './App.jsx'
 import './index.css'
@@ -11,12 +12,18 @@ const root = ReactDOM.createRoot(rootElement);
 
 try {
   root.render(
-    <React.StrictMode>
+    <BrowserRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
       <HelmetProvider>
         <App />
       </HelmetProvider>
-    </React.StrictMode>
+    </BrowserRouter>
   );
+  console.log('✅ BUILD v9.14 - ErrorBoundary PER ROUTE (Production-Safe Pattern)');
   console.log('React app rendered successfully');
 } catch (error) {
   console.error('Error rendering React app:', error);

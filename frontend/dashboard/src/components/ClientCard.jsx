@@ -22,7 +22,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
 
-const ClientCard = ({ client, onEdit, onDelete, onConnectInstagram, onViewDetails }) => {
+const ClientCard = ({ client, onEdit, onDelete, onConnectInstagram, onViewDetails, onSync }) => {
     const navigate = useNavigate();
     const [showMenu, setShowMenu] = useState(false);
     const [liveStats, setLiveStats] = useState(null);
@@ -206,6 +206,23 @@ const ClientCard = ({ client, onEdit, onDelete, onConnectInstagram, onViewDetail
                                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                                 >
                                     <Edit size={16} /> Edit Details
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        // Trigger manual sync for Instagram clients
+                                        if (client.platform === 'instagram' && client._id) {
+                                            const token = localStorage.getItem('auth_token');
+                                            fetch(`${window.location.origin}/api/clients/${client._id}/sync`, {
+                                                method: 'POST',
+                                                headers: { 'Authorization': `Bearer ${token}` }
+                                            }).then(() => window.location.reload());
+                                        }
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                    disabled={client.platform !== 'instagram'}
+                                >
+                                    <BarChart2 size={16} /> Refresh Stats
                                 </button>
                                 <button
                                     onClick={(e) => { e.stopPropagation(); onConnectInstagram(client); }}

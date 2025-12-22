@@ -185,9 +185,24 @@ export async function updateClientStats(client) {
         engagementRate = (((totalEngagements / totalPosts) / totalReach) * 100).toFixed(2) + '%';
       }
 
+      // Import Post model to count actual posts in database
+      const Post = (await import('../models/Post.js')).default;
+      const actualPostCount = await Post.countDocuments({
+        client: client._id,
+        status: 'published' // Only count published posts
+      });
+
+      const apiMediaCount = igData.data?.account?.media_count;
+
+      console.log(`   📊 Post Count Debug for ${client.name}:`);
+      console.log(`      - API media_count: ${apiMediaCount}`);
+      console.log(`      - DB actualPostCount: ${actualPostCount}`);
+      console.log(`      - Legacy totalPosts: ${totalPosts}`);
+      console.log(`      - FAILSAFE used: ${apiMediaCount || actualPostCount || totalPosts}`);
+
       return {
         followerCount: totalFollowers,
-        totalPosts: data.media?.total || 0,
+        totalPosts: apiMediaCount || actualPostCount || totalPosts, // Use API media_count > Database Count > limited fetch
         engagementRate: engagementRate,
         statsLastUpdated: new Date()
       };
