@@ -265,8 +265,27 @@ export async function fetchAccountInsights(igUserId, pageAccessToken) {
       return createSuccessResponse(cached);
     }
 
-    // Fetch follower count (latest daily value)
-    const followerCount = await fetchFollowerCount(igUserId, pageAccessToken);
+    // 1. Fetch Basic User Metrics (Followers, Media Count) - API v22+
+    // This is the source of truth for "Total Posts" and "Total Followers"
+    let mediaCount = 0;
+    let basicFollowers = 0;
+    try {
+      const userUrl = `https://graph.facebook.com/v22.0/${igUserId}?fields=followers_count,media_count&access_token=${pageAccessToken}`;
+      const userRes = await fetch(userUrl);
+      if (userRes.ok) {
+        const userData = await userRes.json();
+        console.log('   ✅ User Node Metrics:', userData);
+        basicFollowers = userData.followers_count || 0;
+        mediaCount = userData.media_count || 0;
+      } else {
+        console.warn('   ⚠️ Failed to fetch User Node metrics:', userRes.status);
+      }
+    } catch (e) {
+      console.error('Error fetching User Node metrics:', e);
+    }
+
+    // Fetch follower count (Daily trend fallback if basic failed, but basic is preferred)
+    const followerCount = basicFollowers || await fetchFollowerCount(igUserId, pageAccessToken);
 
     // Fetch profile views (daily total)
     const profileViews = await fetchProfileViews(igUserId, pageAccessToken);
@@ -356,6 +375,7 @@ export async function fetchAccountInsights(igUserId, pageAccessToken) {
 
     const result = {
       follower_count: followerCount || 0,
+      media_count: mediaCount || 0,
       profile_views: profileViews || additionalData.profile_views || 0,
       reach: additionalData.reach || 0, // Daily reach (yesterday)
       reach_28d: reach28d || additionalData.reach || 0, // 28-day reach (fallback to daily)
@@ -1235,7 +1255,7 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
         get_directions_clicks: accountInsights.get_directions_clicks || 0
       },
       media: {
-        total: media.length,
+        total: accountInsights.media_count || media.length,
         totalViews,
         totalEngagements,
         totalLikes,

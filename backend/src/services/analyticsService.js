@@ -202,10 +202,29 @@ export async function updateClientStats(client) {
 
       return {
         followerCount: totalFollowers,
-        totalPosts: apiMediaCount || actualPostCount || totalPosts, // Use API media_count > Database Count > limited fetch
+        totalPosts: apiMediaCount || totalPosts || actualPostCount, // Use API media_count > API Total > Database Count
         engagementRate: engagementRate,
         statsLastUpdated: new Date()
       };
+
+      // PERSIST TO DB: Update Client document with real API stats
+      // This ensures that even if live-fetch fails later, the DB has the latest real numbers
+      try {
+        const Client = (await import('../models/Client.js')).default;
+        await Client.findByIdAndUpdate(client._id, {
+          $set: {
+            followerCount: stats.followerCount,
+            totalPosts: stats.totalPosts,
+            engagementRate: stats.engagementRate,
+            statsLastUpdated: stats.statsLastUpdated
+          }
+        });
+        console.log(`   💾 Persisted real API stats to Client DB for ${client.name}`);
+      } catch (dbErr) {
+        console.error('   ⚠️ Failed to persist stats to Client DB:', dbErr.message);
+      }
+
+      return stats;
     }
 
     return null;
