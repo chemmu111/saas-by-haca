@@ -54,19 +54,23 @@ const Layout = ({ children }) => {
 
   // Helper function to get backend URL
   const getBackendUrl = () => {
-    // In production, use the same origin
-    // In development, try to detect the backend port
-    if (window.location.port === '3000' || window.location.port === '5173') {
-      // Vite dev server - try backend ports 5001 (common fallback) or 5000
-      // Check localStorage for saved port, otherwise default to 5001
-      const savedPort = localStorage.getItem('backend_port');
-      if (savedPort) {
-        return `http://localhost:${savedPort}`;
-      }
-      // Default to 5001 (common when 5000 is busy)
-      return 'http://localhost:5000';
+    // Development mode - check port or localhost
+    const isLocal = window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1' ||
+      window.location.port === '3000' ||
+      window.location.port === '5173';
+
+    if (isLocal) {
+      const savedPort = localStorage.getItem('backend_port') || '5000';
+      return `http://localhost:${savedPort}`;
     }
-    // Production fallback - use actual backend URL
+
+    // Force correct backend for custom domain (socialhac.com)
+    if (window.location.hostname.includes('socialhac.com')) {
+      return 'https://haca-social-x-backend.onrender.com';
+    }
+
+    // Production fallback
     return 'https://haca-social-x-backend.onrender.com';
   };
 
