@@ -55,6 +55,8 @@ function setCache(key, data) {
   });
 }
 
+
+
 /**
  * Error response wrapper - ensures all routes return JSON on error
  * @param {Error|string} error - Error object or message
@@ -279,7 +281,10 @@ export async function fetchAccountInsights(igUserId, pageAccessToken) {
 
     if (response.ok) {
       const data = await response.json();
-      console.log('   📊 Account Insights Response (Daily):', JSON.stringify(data));
+      console.log('   📊 Account Insights Response (Daily Metrics):');
+      console.log('      URL:', url.replace(/access_token=[^&]+/, 'access_token=***'));
+      console.log('      Status:', response.status);
+      console.log('      Data:', JSON.stringify(data, null, 2));
       if (data.data && Array.isArray(data.data)) {
         data.data.forEach(metric => {
           if (metric.values && metric.values.length > 0) {
@@ -332,22 +337,16 @@ export async function fetchAccountInsights(igUserId, pageAccessToken) {
     let reach28d = 0;
     try {
       const reachUrl = `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=reach&period=days_28&access_token=${pageAccessToken}`;
-      console.log(`   📡 Fetching 28-day reach...`);
-      const reachRes = await fetch(reachUrl);
-      const reachDebug = await reachRes.json(); // Read body once
 
+      const reachRes = await fetch(reachUrl);
       if (reachRes.ok) {
+        const reachDebug = await reachRes.json();
         if (reachDebug.data && reachDebug.data.length > 0 && reachDebug.data[0].values && reachDebug.data[0].values.length > 0) {
-          // Find the latest NON-ZERO value (iterate backwards)
           const values = reachDebug.data[0].values;
-          let latestValue = 0;
-          for (let i = values.length - 1; i >= 0; i--) {
-            if (values[i].value > 0) {
-              latestValue = values[i].value;
-              break;
-            }
-          }
-          reach28d = latestValue;
+          // 28-day reach is a single value usually, or daily rolling 28-day
+          // Take the latest one
+          const latest = values[values.length - 1];
+          reach28d = latest.value;
           console.log(`   ✅ Extracted 28-day reach: ${reach28d}`);
         }
       }
@@ -558,9 +557,19 @@ export async function fetchMediaInsights(mediaId, pageAccessToken, mediaType = '
 
     const response = await fetch(url);
 
-    // 3. Handle API Errors with Fallback
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorText = await response.text();
+      let errorData = {};
+      try {
+        errorData = JSON.parse(errorText);
+      } catch (e) {
+        errorData = { error: { message: errorText } };
+      }
+
+      console.error(`❌ API Error in fetchMediaInsights for ${mediaId} (${mediaType}):`);
+      console.error(`   Url: ${url.replace(/access_token=[^&]+/, 'access_token=***')}`);
+      console.error(`   Status: ${response.status}`);
+      console.error(`   Response: ${errorText}`);
 
       // Special case for Stories with <5 views
       if (mediaType === 'STORY' && errorData?.error?.code === 10) {
@@ -661,7 +670,7 @@ export async function fetchInstagramMedia(igUserId, pageAccessToken, limit = 25)
       return createErrorResponse('Missing required credentials (igUserId or pageAccessToken)', 'fetchInstagramMedia');
     }
 
-    const cacheKey = `instagram_media_${igUserId}_${limit}_v2`;
+    const cacheKey = `instagram_media_${igUserId}_${limit}_v4`;
     const cached = getCached(cacheKey);
     if (cached) {
       return createSuccessResponse(cached);
@@ -670,19 +679,42 @@ export async function fetchInstagramMedia(igUserId, pageAccessToken, limit = 25)
     // Added video_play_count and media_product_type to fields
     // media_product_type is CRITICAL for detecting Reels (will be "REELS" for reels, "FEED" for regular videos)
     const fields = 'id,media_type,media_product_type,media_url,thumbnail_url,caption,permalink,timestamp,like_count,comments_count,video_play_count';
-    const url = `https://graph.facebook.com/v22.0/${igUserId}/media?fields=${fields}&limit=${limit}&access_token=${pageAccessToken}`;
+    let url = `https://graph.facebook.com/v22.0/${igUserId}/media?fields=${fields}&limit=25&access_token=${pageAccessToken}`;
 
-    const response = await fetch(url);
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      return createErrorResponse(
-        `Instagram API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`,
-        'fetchInstagramMedia'
-      );
+    let allMedia = [];
+    let pageCount = 0;
+    const maxPages = 4; // Fetch up to 4 pages (approx 100 posts)
+
+    while (url && allMedia.length < limit && pageCount < maxPages) {
+      console.log(`   📡 Fetching media page ${pageCount + 1}...`);
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error(`   ⚠️ Error fetching page ${pageCount + 1}:`, errorData);
+        if (pageCount === 0) { // Only return error if first page fails
+          return createErrorResponse(
+            `Instagram API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`,
+            'fetchInstagramMedia'
+          );
+        }
+        break; // Stop fetching on error but return what we have
+      }
+
+      const data = await response.json();
+      const pageMedia = data.data || [];
+      allMedia = [...allMedia, ...pageMedia];
+
+      if (data.paging && data.paging.next) {
+        url = data.paging.next;
+        pageCount++;
+      } else {
+        url = null;
+      }
     }
 
-    const data = await response.json();
-    const media = data.data || [];
+    const media = allMedia.slice(0, limit); // Enforce limit
+    console.log(`   ✅ Fetched total ${media.length} media items from ${pageCount + 1} pages.`);
 
     // Fetch insights for each media item (with error handling per item)
     const mediaWithInsights = await Promise.all(
@@ -826,7 +858,7 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
 
     console.log(`📡 Fetching Instagram analytics for user: ${igUserId}`);
 
-    const cacheKey = `instagram_analytics_${igUserId}_v4`;
+    const cacheKey = `instagram_analytics_${igUserId}_v5`;
     const cached = getCached(cacheKey);
     if (cached) {
       console.log(`✅ Using cached data for ${igUserId}`);
@@ -1048,17 +1080,22 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
 
       const dailyData = {
         client: client?._id, // We need client ID here. If not passed, we can't save.
+        id: igUserId,
+        username: username,
+        followers_count: accountInsights.data.follower_count,
+        follows_count: 0,
+        media_count: accountInsights.data.media_count,
         date: today,
         platform: 'instagram',
-        followers: accountInsights.follower_count,
-        impressions: accountInsights.impressions,
-        reach: accountInsights.reach,
-        profileViews: accountInsights.profile_views,
-        websiteClicks: accountInsights.website_clicks,
-        emailContacts: accountInsights.email_contacts,
-        phoneCallClicks: accountInsights.phone_call_clicks,
-        textMessageClicks: accountInsights.text_message_clicks,
-        getDirectionsClicks: accountInsights.get_directions_clicks,
+        followers: accountInsights.data.follower_count,
+        impressions: accountInsights.data.impressions,
+        reach: accountInsights.data.reach_28d || accountInsights.data.reach, // User 28-day reach if available
+        profileViews: accountInsights.data.profile_views,
+        websiteClicks: accountInsights.data.website_clicks,
+        emailContacts: accountInsights.data.email_contacts,
+        phoneCallClicks: accountInsights.data.phone_call_clicks,
+        textMessageClicks: accountInsights.data.text_message_clicks,
+        getDirectionsClicks: accountInsights.data.get_directions_clicks,
         // Messaging (placeholder for now as API requires specific permissions)
         messaging: {
           sent: 0,
@@ -1152,10 +1189,11 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
     const result = {
       account: {
         follower_count: accountInsights.follower_count || 0,
-        reach: latestReach,
+        reach: accountInsights.reach_28d || latestReach || accountInsights.reach || 0, // Prioritize 28-day reach
         reach_28d: accountInsights.reach_28d || 0,
         profile_views: accountInsights.profile_views || 0,
-        impressions: accountInsights.impressions || 0,
+        // Impressions removed in v22 - fallback to reach if 0 to show *some* visibility data
+        impressions: accountInsights.impressions || (accountInsights.reach_28d || latestReach || 0),
         website_clicks: accountInsights.website_clicks || 0,
         email_contacts: accountInsights.email_contacts || 0,
         phone_call_clicks: accountInsights.phone_call_clicks || 0,
@@ -1578,8 +1616,8 @@ export async function importHistoricalPosts(igUserId, pageAccessToken, clientId)
     let allPosts = [];
     let pageCount = 0;
     let nextCursor = null;
-    const POSTS_PER_PAGE = 25;
-    const MAX_POSTS = 100;
+    const POSTS_PER_PAGE = 50; // Increased page size
+    const MAX_POSTS = 2000; // Increased from 100 to 2000 to cover "all time" for most users
 
     // Fetch posts with pagination
     do {
@@ -1612,7 +1650,7 @@ export async function importHistoricalPosts(igUserId, pageAccessToken, clientId)
       if (allPosts.length >= MAX_POSTS || !nextCursor) {
         break;
       }
-    } while (nextCursor && pageCount < 10); // Max 10 pages as safety
+    } while (nextCursor && pageCount < 50); // Increased max pages safety
 
     // Limit to MAX_POSTS
     allPosts = allPosts.slice(0, MAX_POSTS);

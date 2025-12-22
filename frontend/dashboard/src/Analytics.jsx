@@ -66,7 +66,7 @@ const Analytics = ({ embedded = false, clientId = null }) => {
   const [analytics, setAnalytics] = useState(null);
   const [clients, setClients] = useState([]);
   const [clientFilter, setClientFilter] = useState(clientId || 'all');
-  const [dateRange, setDateRange] = useState('last30');
+  const [dateRange, setDateRange] = useState('all_time');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -136,6 +136,10 @@ const Analytics = ({ embedded = false, clientId = null }) => {
         break;
       case 'last90':
         startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString();
+        break;
+      case 'all_time':
+        // Set to 1 year ago or null? API needs a range usually, or we can just send null to get everything available
+        startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString();
         break;
       case 'custom':
         if (customStartDate) startDate = new Date(customStartDate).toISOString();
@@ -307,6 +311,9 @@ const Analytics = ({ embedded = false, clientId = null }) => {
         break;
       case 'last90':
         startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        break;
+      case 'all_time':
+        startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
         break;
       case 'custom':
         if (customStartDate) startDate = new Date(customStartDate);

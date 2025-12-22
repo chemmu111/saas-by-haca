@@ -73,6 +73,7 @@ const AnalyticsHeader = ({
                         <option value="last7">Last 7 days</option>
                         <option value="last30">Last 30 days</option>
                         <option value="last90">Last 90 days</option>
+                        <option value="all_time">All Time (365 days)</option>
                         <option value="custom">Custom Range</option>
                     </select>
                     <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />

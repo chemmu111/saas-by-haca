@@ -83,8 +83,8 @@ export async function fetchInstagramFollowerCount(igUserId, pageAccessToken) {
       return null;
     }
 
-    // Use insights API to get follower count
-    const url = `https://graph.facebook.com/v18.0/${igUserId}/insights?metric=follower_count&period=day&access_token=${pageAccessToken}`;
+    // Use IG User Node to get current total follower count (more reliable than insights)
+    const url = `https://graph.facebook.com/v22.0/${igUserId}?fields=followers_count&access_token=${pageAccessToken}`;
 
     const response = await fetch(url);
     if (!response.ok) {
@@ -93,15 +93,8 @@ export async function fetchInstagramFollowerCount(igUserId, pageAccessToken) {
     }
 
     const data = await response.json();
-    if (data.data && data.data.length > 0) {
-      const metric = data.data[0];
-      if (metric.values && metric.values.length > 0) {
-        // Get the latest value
-        const latest = metric.values[metric.values.length - 1];
-        return latest.value || 0;
-      }
-    }
-    return null;
+    // Return the count
+    return data.followers_count || 0;
   } catch (error) {
     console.error('Error fetching Instagram follower count:', error);
     return null;

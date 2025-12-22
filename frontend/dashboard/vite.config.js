@@ -16,6 +16,7 @@ export default defineConfig({
         strictPort: false,
         // Disable host check for Render deployment
         cors: true,
+        allowedHosts: ['socialhac.com', 'www.socialhac.com'],
     },
     build: {
         outDir: 'dist',
