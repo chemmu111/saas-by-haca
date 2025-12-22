@@ -287,12 +287,12 @@ const ClientCard = ({ client, onEdit, onDelete, onConnectInstagram, onViewDetail
                         )}
                     </div>
                     <div className="bg-gray-50 rounded-lg p-2 text-center">
-                        <p className="text-xs text-gray-500 mb-0.5">Eng. Rate</p>
+                        <p className="text-xs text-gray-500 mb-0.5">Total Eng.</p>
                         {statsLoading ? (
                             <div className="h-6 bg-gray-200 animate-pulse rounded"></div>
                         ) : (
                             <p className="font-semibold text-gray-900">
-                                {liveStats?.engagementRate ?? client.engagementRate ?? '0%'}
+                                {(liveStats?.totalEngagement ?? client.totalEngagement ?? 0).toLocaleString()}
                             </p>
                         )}
                     </div>

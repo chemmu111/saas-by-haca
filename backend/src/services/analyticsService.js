@@ -169,41 +169,27 @@ export async function updateClientStats(client) {
     if (igData && igData.success && igData.data) {
       const data = igData.data;
 
-      // Calculate engagement rate
-      const totalEngagements = data.media?.totalEngagements || 0;
-      const totalFollowers = data.account?.follower_count || 0;
-      const totalReach = data.account?.reach || 0;
 
-      let engagementRate = '0%';
-      const totalPosts = data.media?.total || 1;
+      // Use engagement rate directly from service (which calculates it correctly based on fetched items)
+      // instead of re-calculating with potentially mismatched denominators
+      const engagementRate = data.media?.engagementRate || '0%';
+      const totalEngagement = data.media?.totalEngagements || 0;
 
-      if (totalFollowers > 0) {
-        // Average Engagement Rate per Post: ((Total Engagements / Total Posts) / Followers) * 100
-        engagementRate = (((totalEngagements / totalPosts) / totalFollowers) * 100).toFixed(2) + '%';
-      } else if (totalReach > 0) {
-        // Fallback to reach if no followers (unlikely for active accounts)
-        engagementRate = (((totalEngagements / totalPosts) / totalReach) * 100).toFixed(2) + '%';
-      }
-
-      // Import Post model to count actual posts in database
-      const Post = (await import('../models/Post.js')).default;
+      const apiMediaCount = data.media?.total; // This is now the REAL count from User API (e.g. 53)
       const actualPostCount = await Post.countDocuments({
         client: client._id,
-        status: 'published' // Only count published posts
+        status: 'published'
       });
 
-      const apiMediaCount = igData.data?.account?.media_count;
+      const totalPosts = apiMediaCount || data.media?.total || actualPostCount || 1;
 
-      console.log(`   📊 Post Count Debug for ${client.name}:`);
-      console.log(`      - API media_count: ${apiMediaCount}`);
-      console.log(`      - DB actualPostCount: ${actualPostCount}`);
-      console.log(`      - Legacy totalPosts: ${totalPosts}`);
-      console.log(`      - FAILSAFE used: ${apiMediaCount || actualPostCount || totalPosts}`);
+      console.log(`   📊 Post Count Final: ${totalPosts} (API: ${apiMediaCount}, DB: ${actualPostCount})`);
 
-      return {
+      const stats = {
         followerCount: totalFollowers,
-        totalPosts: apiMediaCount || totalPosts || actualPostCount, // Use API media_count > API Total > Database Count
-        engagementRate: engagementRate,
+        totalPosts: totalPosts,
+        engagementRate: engagementRate, // Keep for backward compatibility or dual display
+        totalEngagement: totalEngagement,
         statsLastUpdated: new Date()
       };
 
@@ -216,6 +202,7 @@ export async function updateClientStats(client) {
             followerCount: stats.followerCount,
             totalPosts: stats.totalPosts,
             engagementRate: stats.engagementRate,
+            totalEngagement: stats.totalEngagement,
             statsLastUpdated: stats.statsLastUpdated
           }
         });
