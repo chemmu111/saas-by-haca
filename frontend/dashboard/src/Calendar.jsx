@@ -266,7 +266,9 @@ const Calendar = () => {
         if (!token) return;
 
         const backendUrl = getBackendUrl();
-        const response = await fetch(`${backendUrl}/api/clients`, {
+        const url = backendUrl ? `${backendUrl}/api/clients` : '/api/clients';
+
+        const response = await fetch(url, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -324,7 +326,9 @@ const Calendar = () => {
       if (filters.platform) params.append('platform', filters.platform);
       if (filters.status) params.append('status', filters.status);
 
-      const response = await fetch(`${backendUrl}/api/posts/calendar?${params.toString()}`, {
+      const url = backendUrl ? `${backendUrl}/api/posts/calendar?${params.toString()}` : `/api/posts/calendar?${params.toString()}`;
+
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

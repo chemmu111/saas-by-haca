@@ -130,7 +130,8 @@ const Posts = () => {
         queryParams.append('clientId', clientFilter);
       }
 
-      const response = await fetch(`${backendUrl}/api/posts?${queryParams.toString()}`, {
+      const url = backendUrl ? `${backendUrl}/api/posts?${queryParams.toString()}` : `/api/posts?${queryParams.toString()}`;
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -175,8 +176,9 @@ const Posts = () => {
     try {
       const token = localStorage.getItem('auth_token');
       const backendUrl = getBackendUrl();
+      const url = backendUrl ? `${backendUrl}/api/clients` : '/api/clients';
 
-      const response = await fetch(`${backendUrl}/api/clients`, {
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -214,7 +216,8 @@ const Posts = () => {
       }
 
       const backendUrl = getBackendUrl();
-      const response = await fetch(`${backendUrl}/api/posts/${postToDelete._id}`, {
+      const url = backendUrl ? `${backendUrl}/api/posts/${postToDelete._id}` : `/api/posts/${postToDelete._id}`;
+      const response = await fetch(url, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,

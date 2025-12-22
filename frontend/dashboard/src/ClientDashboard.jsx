@@ -45,11 +45,13 @@ const ClientDashboard = () => {
         const fetchClient = async () => {
             try {
                 const token = localStorage.getItem('auth_token');
+                const backendUrl = getBackendUrl();
                 if (!token) {
-                    window.location.href = `${getBackendUrl()}/login.html`;
+                    window.location.href = '/login';
                     return;
                 }
-                const response = await fetch(`${getBackendUrl()}/api/clients/${clientId}`, {
+                const url = backendUrl ? `${backendUrl}/api/clients/${clientId}` : `/api/clients/${clientId}`;
+                const response = await fetch(url, {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }

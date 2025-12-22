@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, ArrowRight, X, Check, Mail, Lock } from 'lucide-react';
 import AuthLayout from './AuthLayout';
 import PageTitle from '../PageTitle';
+import { getBackendUrl, buildApiUrl } from '../../utils/api';
 
 const Login = () => {
     const navigate = useNavigate();
@@ -17,27 +18,7 @@ const Login = () => {
     const [newPassword, setNewPassword] = useState('');
     const [forgotStatus, setForgotStatus] = useState({ step: 'email', type: '', message: '' }); // step: email, verify, success
 
-    const getBackendUrl = () => {
-        // 1. Force correct backend for custom domain (socialhac.com)
-        if (window.location.hostname.includes('socialhac.com')) {
-            return 'https://haca-social-x-backend.onrender.com';
-        }
-
-        // 2. Check for environment variable
-        if (import.meta.env.VITE_API_URL) {
-            return import.meta.env.VITE_API_URL.replace(/\/$/, '');
-        }
-
-        // 3. If accessed via ngrok or local dev proxy
-        if (window.location.hostname.includes('ngrok') ||
-            window.location.hostname === 'localhost' ||
-            window.location.port === '3000') {
-            return '';
-        }
-
-        // 4. Production fallback
-        return 'https://haca-social-x-backend.onrender.com';
-    };
+    const [rememberMe, setRememberMe] = useState(false);
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -45,8 +26,7 @@ const Login = () => {
         setIsLoading(true);
 
         try {
-            const backendUrl = getBackendUrl();
-            const url = backendUrl ? `${backendUrl}/api/auth/login` : '/api/auth/login';
+            const url = buildApiUrl('/api/auth/login');
 
             const response = await fetch(url, {
                 method: 'POST',
@@ -92,8 +72,7 @@ const Login = () => {
         setIsLoading(true);
 
         try {
-            const backendUrl = getBackendUrl();
-            const url = backendUrl ? `${backendUrl}/api/auth/forgot-password` : '/api/auth/forgot-password';
+            const url = buildApiUrl('/api/auth/forgot-password');
 
             const response = await fetch(url, {
                 method: 'POST',
@@ -134,8 +113,7 @@ const Login = () => {
         setIsLoading(true);
 
         try {
-            const backendUrl = getBackendUrl();
-            const url = backendUrl ? `${backendUrl}/api/auth/reset-password` : '/api/auth/reset-password';
+            const url = buildApiUrl('/api/auth/reset-password');
 
             const response = await fetch(url, {
                 method: 'POST',

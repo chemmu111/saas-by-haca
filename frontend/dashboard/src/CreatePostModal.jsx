@@ -166,7 +166,7 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
       setLoading(true);
       const token = localStorage.getItem('auth_token');
       const backendUrl = getBackendUrl();
-      const url = `${backendUrl}/api/clients`;
+      const url = backendUrl ? `${backendUrl}/api/clients` : '/api/clients';
 
       console.log('Fetching clients from:', url);
 

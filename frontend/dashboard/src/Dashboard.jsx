@@ -85,7 +85,9 @@ const Dashboard = () => {
         };
 
         const backendUrl = getBackendUrl();
-        const response = await fetch(`${backendUrl}/api/settings/preferences`, {
+        const url = backendUrl ? `${backendUrl}/api/settings/preferences` : '/api/settings/preferences';
+
+        const response = await fetch(url, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'

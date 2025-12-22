@@ -30,7 +30,9 @@ export const getBackendUrl = () => {
  */
 export const buildApiUrl = (endpoint) => {
     const baseUrl = getBackendUrl();
-    // Remove leading slash from endpoint if present to avoid double slashes
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-    return `${baseUrl}${cleanEndpoint}`;
+
+    // If we have a baseUrl (production), combine them. 
+    // If no baseUrl (local dev proxy), use the cleanEndpoint directly.
+    return baseUrl ? `${baseUrl}${cleanEndpoint}` : cleanEndpoint;
 };

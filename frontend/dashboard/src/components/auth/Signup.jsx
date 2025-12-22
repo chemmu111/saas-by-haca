@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, ArrowRight, User, Mail, Lock } from 'lucide-react';
 import AuthLayout from './AuthLayout';
 import PageTitle from '../PageTitle';
+import { getBackendUrl, buildApiUrl } from '../../utils/api';
 
 const Signup = () => {
     const navigate = useNavigate();
@@ -16,25 +17,6 @@ const Signup = () => {
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
-
-    const getBackendUrl = () => {
-        // 1. Force correct backend for custom domain (socialhac.com)
-        if (window.location.hostname.includes('socialhac.com')) {
-            return 'https://haca-social-x-backend.onrender.com';
-        }
-
-        // 2. Check for environment variable
-        if (import.meta.env.VITE_API_URL) {
-            return import.meta.env.VITE_API_URL.replace(/\/$/, '');
-        }
-
-        // 3. Local dev proxy fallback
-        if (window.location.hostname === 'localhost' || window.location.port === '3000') {
-            return '';
-        }
-
-        return 'https://haca-social-x-backend.onrender.com';
-    };
 
     const getPasswordStrength = (password) => {
         let score = 0;
@@ -71,8 +53,7 @@ const Signup = () => {
         setIsLoading(true);
 
         try {
-            const backendUrl = getBackendUrl();
-            const url = backendUrl ? `${backendUrl}/api/auth/signup` : '/api/auth/signup';
+            const url = buildApiUrl('/api/auth/signup');
 
             const response = await fetch(url, {
                 method: 'POST',
