@@ -23,7 +23,7 @@ const DayCell = ({ day, posts, isToday, isRecommended, onClick }) => {
   const postCount = posts.length;
   const hasPosts = postCount > 0;
 
-  // Get post type icon with color coding
+  // Get post type info with color coding
   const getPostTypeInfo = (type) => {
     if (type === 'REEL' || type === 'REELS') return { icon: '🎥', color: 'bg-purple-500', label: 'Reel' };
     if (type === 'VIDEO') return { icon: '🎬', color: 'bg-red-500', label: 'Video' };
@@ -42,28 +42,28 @@ const DayCell = ({ day, posts, isToday, isRecommended, onClick }) => {
 
   return (
     <div
-      className={`relative h-20 lg:h-24 border rounded-lg p-1 transition-all duration-200 hover:shadow-md hover:scale-[1.02] cursor-pointer group ${getDayClasses()}`}
+      className={`relative h-14 sm:h-20 lg:h-24 border rounded-lg p-1 transition-all duration-200 hover:shadow-md hover:scale-[1.02] cursor-pointer group ${getDayClasses()}`}
       onClick={onClick}
     >
       <div className="flex flex-col h-full">
         {/* Date with mini indicator */}
         <div className="flex items-center justify-between mb-0.5">
-          <span className={`text-xs font-semibold ${isToday ? 'text-blue-600' : 'text-slate-700'}`}>
+          <span className={`text-[10px] sm:text-xs font-semibold ${isToday ? 'text-blue-600' : 'text-slate-700'}`}>
             {day}
           </span>
           <div className="flex items-center gap-0.5">
             {isRecommended && (
-              <Star size={10} className="text-yellow-500 fill-yellow-500" />
+              <Star size={8} className="text-yellow-500 fill-yellow-500 sm:size-[10px]" />
             )}
             {hasPosts && (
-              <div className="w-1.5 h-1.5 rounded-full bg-purple-500"></div>
+              <div className="w-1.5 h-1.5 rounded-full bg-purple-500 sm:hidden"></div>
             )}
           </div>
         </div>
 
-        {/* Event blocks - compact */}
+        {/* Event blocks - compact, hidden on very small screens */}
         {hasPosts && (
-          <div className="flex-1 overflow-hidden space-y-0.5">
+          <div className="hidden sm:block flex-1 overflow-hidden space-y-0.5">
             {posts.slice(0, 3).map((post, idx) => {
               const time = new Date(post.scheduledTime).toLocaleTimeString('en-US', {
                 hour: '2-digit',
@@ -75,26 +75,35 @@ const DayCell = ({ day, posts, isToday, isRecommended, onClick }) => {
               return (
                 <div
                   key={post._id || idx}
-                  className={`text-[10px] ${typeInfo.color} text-white rounded px-1 py-0.5 truncate flex items-center gap-0.5 hover:shadow-sm transition-shadow`}
-                  title={`${typeInfo.icon} ${typeInfo.label} - ${time}\n${post.caption || post.content || 'Post'}`}
+                  className={`text-[9px] lg:text-[10px] ${typeInfo.color} text-white rounded px-1 py-0.5 truncate flex items-center gap-0.5 hover:shadow-sm transition-shadow`}
+                  title={`${typeInfo.icon} ${typeInfo.label} - ${time}`}
                 >
-                  <span className="text-[9px]">{typeInfo.icon}</span>
+                  <span className="text-[8px] lg:text-[9px]">{typeInfo.icon}</span>
                   <span className="flex-1 truncate">{time}</span>
                 </div>
               );
             })}
             {postCount > 3 && (
-              <div className="text-[9px] text-slate-600 font-medium bg-slate-100/80 rounded px-1 py-0.5 text-center">
+              <div className="text-[8px] lg:text-[9px] text-slate-600 font-medium bg-slate-100/80 rounded px-1 py-0.5 text-center">
                 +{postCount - 3}
               </div>
             )}
           </div>
         )}
+
+        {/* Mobile indicators (dots) */}
+        {hasPosts && (
+          <div className="sm:hidden flex flex-wrap gap-0.5 mt-auto">
+            {posts.slice(0, 4).map((_, i) => (
+              <div key={i} className="w-1 h-1 rounded-full bg-blue-500"></div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Hover tooltip */}
+      {/* Hover tooltip - only on desktop */}
       {hasPosts && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-900 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+        <div className="hidden lg:block absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-900 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
           {postCount} post{postCount !== 1 ? 's' : ''}
         </div>
       )}
@@ -671,7 +680,7 @@ const Calendar = () => {
                   <div className="grid grid-cols-7 gap-1">
                     {/* Empty cells for days before month starts */}
                     {Array.from({ length: startingDayOfWeek }).map((_, index) => (
-                      <div key={`empty-${index}`} className="h-20 lg:h-24 bg-slate-50/30 rounded-lg"></div>
+                      <div key={`empty-${index}`} className="h-14 sm:h-20 lg:h-24 bg-slate-50/30 rounded-lg"></div>
                     ))}
 
                     {/* Days of the month */}

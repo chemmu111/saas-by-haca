@@ -170,23 +170,23 @@ const PostsPerformanceTable = ({ posts }) => {
     }
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-            <div className="flex items-center justify-between mb-6">
-                <div>
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-3 sm:p-6 overflow-hidden">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                <div className="px-1">
                     <h3 className="text-lg font-bold text-slate-900 mb-1">Posts Performance</h3>
-                    <p className="text-sm text-slate-500">{sortedPosts.length} posts</p>
+                    <p className="text-sm text-slate-500 font-medium">{sortedPosts.length} posts analyzed</p>
                 </div>
                 <button
                     onClick={exportToCSV}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                    className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all text-xs font-bold uppercase tracking-wider shadow-md shadow-blue-500/10"
                 >
-                    <Download size={16} />
+                    <Download size={14} />
                     Export CSV
                 </button>
             </div>
 
             {/* Filters */}
-            <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+            <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
                 {['all', 'REELS', 'IMAGE', 'CAROUSEL_ALBUM', 'VIDEO'].map(type => (
                     <button
                         key={type}
@@ -194,12 +194,12 @@ const PostsPerformanceTable = ({ posts }) => {
                             setFilterType(type);
                             setCurrentPage(1);
                         }}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${filterType === type
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        className={`px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all uppercase tracking-tight ${filterType === type
+                            ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                             }`}
                     >
-                        {type === 'all' ? 'All Posts' : type.replace('_', ' ')}
+                        {type === 'all' ? 'All Content' : type.replace('_', ' ')}
                     </button>
                 ))}
             </div>

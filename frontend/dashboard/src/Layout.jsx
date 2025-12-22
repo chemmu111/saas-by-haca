@@ -237,29 +237,34 @@ const Layout = ({ children }) => {
       </aside >
 
       {/* Main Content */}
-      < div className="flex-1 flex flex-col min-w-0 lg:h-full lg:overflow-hidden" >
+      <div className="flex-1 flex flex-col min-w-0 lg:h-full lg:overflow-hidden">
         {/* Header */}
-        < header className="bg-white border-b border-gray-200 px-4 lg:px-6 py-4 flex items-center justify-between sticky top-0 z-40" >
-          <button
-            onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
-            className="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
-          >
-            {mobileSidebarOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
-          <div className="flex-1 lg:flex-none"></div>
-          <div className="flex-1 lg:flex-none"></div>
+        <header className="bg-white border-b border-gray-200 px-4 lg:px-6 py-4 flex items-center justify-between sticky top-0 z-40">
           <div className="flex items-center gap-4">
-            {/* User info moved to sidebar */}
+            <button
+              onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
+              className="lg:hidden p-2 -ml-2 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              {mobileSidebarOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+            <img
+              src={logoWhite}
+              alt="Social X"
+              className="h-8 lg:hidden block invert brightness-0"
+            />
           </div>
-        </header >
+          <div className="flex items-center gap-4">
+            {/* Can add notifications or search here in future */}
+          </div>
+        </header>
 
         {/* Page Content */}
-        < main className="flex-1 p-4 md:p-6 lg:overflow-y-auto" >
+        <main className="flex-1 p-3 sm:p-4 md:p-6 lg:overflow-y-auto">
           <div className="animate-scale-in">
             {children}
           </div>
-        </main >
-      </div >
+        </main>
+      </div>
 
       {/* Logout Confirmation Modal */}
       <ConfirmationModal

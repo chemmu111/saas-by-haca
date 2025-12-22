@@ -239,33 +239,33 @@ const Dashboard = () => {
 
           {/* Header Section */}
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-            <div>
-              <p className="text-slate-500 font-medium mb-1">{formatDate()}</p>
-              <h1 className="text-3xl md:text-4xl font-bold text-slate-900">
+            <div className="px-1 md:px-0">
+              <p className="text-slate-500 text-sm font-medium mb-1">{formatDate()}</p>
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900 leading-tight">
                 {getGreeting()}, {userName}! 👋
               </h1>
-              <p className="text-slate-600 mt-2 max-w-2xl">
+              <p className="text-slate-600 mt-2 text-sm sm:text-base max-w-2xl">
                 Here's what's happening with your social media empire today. You have <span className="font-semibold text-blue-600">{stats.totalClients} active clients</span> and <span className="font-semibold text-violet-600">{stats.totalPosts} posts</span> managed.
               </p>
             </div>
-            <div className="flex flex-wrap gap-3 mt-4 md:mt-0">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-4 md:mt-0">
               {quickActions.map((action, idx) => (
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   key={idx}
                   onClick={() => navigate(action.path)}
-                  className={`${action.color} text-white px-4 py-2.5 rounded-xl font-medium shadow-lg flex items-center gap-2 transition-shadow`}
+                  className={`${action.color} text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-sm font-medium shadow-lg flex items-center gap-2 transition-shadow`}
                 >
-                  <action.icon size={18} />
-                  <span className="hidden sm:inline">{action.label}</span>
+                  <action.icon size={16} className="sm:size-[18px]" />
+                  <span>{action.label}</span>
                 </motion.button>
               ))}
             </div>
           </div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
             {loading ? (
               [...Array(4)].map((_, i) => <SkeletonCard key={i} />)
             ) : (
@@ -338,22 +338,22 @@ const Dashboard = () => {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-900 truncate">
+                        <p className="text-sm font-medium text-slate-900 truncate pr-4">
                           {post.caption || 'Untitled Post'}
                         </p>
-                        <div className="flex items-center gap-3 mt-1">
+                        <div className="flex flex-wrap items-center gap-y-1 gap-x-3 mt-1">
                           <span className="text-xs text-slate-500 flex items-center gap-1">
                             <Calendar size={12} />
                             {new Date(post.timestamp).toLocaleDateString()}
                           </span>
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium border border-slate-200">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium border border-slate-200">
                             {post.media_type}
                           </span>
                         </div>
                       </div>
-                      <div className="text-right opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="text-right flex-shrink-0 flex flex-col justify-center">
                         <span className="text-sm font-bold text-slate-900 block">{post.metrics?.engagement || 0}</span>
-                        <span className="text-xs text-slate-500">Engagements</span>
+                        <span className="text-[10px] text-slate-500">Engaged</span>
                       </div>
                     </div>
                   ))
