@@ -1255,7 +1255,7 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
         get_directions_clicks: accountInsights.get_directions_clicks || 0
       },
       media: {
-        total: accountInsights.media_count || media.length,
+        total: Math.max(accountInsights.media_count || 0, media.length),
         totalViews,
         totalEngagements,
         totalLikes,
