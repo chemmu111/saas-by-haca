@@ -70,11 +70,12 @@ router.get('/:id', async (req, res) => {
             });
         }
 
-        // Check cache first
+        // Check cache first (unless refresh is requested)
+        const refresh = req.query.refresh === 'true';
         const cacheKey = `stats_${id}`;
         const cached = statsCache.get(cacheKey);
 
-        if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+        if (!refresh && cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
             console.log(`Returning cached stats for client ${id}`);
             return res.json({
                 success: true,

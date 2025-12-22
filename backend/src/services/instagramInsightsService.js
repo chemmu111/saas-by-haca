@@ -24,7 +24,6 @@
  * - Returns needReLogin if token is expired
  */
 
-import fs from 'fs';
 import Client from '../models/Client.js';
 import DailyAnalytics from '../models/DailyAnalytics.js';
 import Post from '../models/Post.js';
@@ -758,8 +757,6 @@ export async function fetchInstagramMedia(igUserId, pageAccessToken, limit = 25)
       }
 
       const data = await response.json();
-      fs.appendFileSync('debug_api_data.json', `\n--- MEDIA PAGE ${pageCount + 1} ---\n${JSON.stringify(data.data?.slice(0, 10), null, 2)}\n----------------------\n`);
-      console.log(`🔍 [DIAGNOSTIC] Media Page ${pageCount + 1} Raw Data (first 3 items):`, JSON.stringify(data.data?.slice(0, 3), null, 2));
       const pageMedia = data.data || [];
       allMedia = [...allMedia, ...pageMedia];
 
@@ -1139,21 +1136,21 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
       const dailyData = {
         client: client?._id, // We need client ID here. If not passed, we can't save.
         id: igUserId,
-        username: accountInsights.data.username || client?.name || igUserId, // FIX: username variable was not defined
-        followers_count: accountInsights.data.follower_count,
+        username: accountInsights.username || client?.name || igUserId,
+        followers_count: accountInsights.follower_count,
         follows_count: 0,
-        media_count: accountInsights.data.media_count,
+        media_count: accountInsights.media_count,
         date: today,
         platform: 'instagram',
-        followers: accountInsights.data.follower_count,
-        impressions: accountInsights.data.impressions,
-        reach: accountInsights.data.reach_28d || accountInsights.data.reach, // User 28-day reach if available
-        profileViews: accountInsights.data.profile_views,
-        websiteClicks: accountInsights.data.website_clicks,
-        emailContacts: accountInsights.data.email_contacts,
-        phoneCallClicks: accountInsights.data.phone_call_clicks,
-        textMessageClicks: accountInsights.data.text_message_clicks,
-        getDirectionsClicks: accountInsights.data.get_directions_clicks,
+        followers: accountInsights.follower_count,
+        impressions: accountInsights.impressions,
+        reach: accountInsights.reach_28d || accountInsights.reach, // User 28-day reach if available
+        profileViews: accountInsights.profile_views,
+        websiteClicks: accountInsights.website_clicks,
+        emailContacts: accountInsights.email_contacts,
+        phoneCallClicks: accountInsights.phone_call_clicks,
+        textMessageClicks: accountInsights.text_message_clicks,
+        getDirectionsClicks: accountInsights.get_directions_clicks,
         // Messaging (placeholder for now as API requires specific permissions)
         messaging: {
           sent: 0,

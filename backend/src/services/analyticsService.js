@@ -11,6 +11,8 @@ import {
   fetchInstagramFollowerCount as fetchIGFollowerCount
 } from './instagramPostMetricsService.js';
 import { fetchInstagramAnalytics } from './instagramInsightsService.js';
+import Post from '../models/Post.js';
+import Client from '../models/Client.js';
 
 /**
  * Fetch engagement metrics for a post from Instagram Graph API
@@ -197,7 +199,6 @@ export async function updateClientStats(client) {
       // PERSIST TO DB: Update Client document with real API stats
       // This ensures that even if live-fetch fails later, the DB has the latest real numbers
       try {
-        const Client = (await import('../models/Client.js')).default;
         await Client.findByIdAndUpdate(client._id, {
           $set: {
             followerCount: stats.followerCount,
