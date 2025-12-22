@@ -534,8 +534,7 @@ router.post('/send-to-clients', async (req, res) => {
     const posts = await Post.find(query).populate('client', 'name email platform');
 
     // Generate report for each client
-    const results = [];
-    for (const client of clients) {
+    const results = await Promise.all(clients.map(async (client) => {
       try {
         const clientPosts = posts.filter(p => {
           if (!p.client) return false;
@@ -581,11 +580,7 @@ router.post('/send-to-clients', async (req, res) => {
               format: 'html'
             });
             pdfBuffer = await generatePDFFromHTML(reportWithHtml.html);
-            console.log('Generated PDF Buffer:', {
-              isBuffer: Buffer.isBuffer(pdfBuffer),
-              length: pdfBuffer ? pdfBuffer.length : 0,
-              type: typeof pdfBuffer
-            });
+            // console.log('Generated PDF Buffer:', { length: pdfBuffer ? pdfBuffer.length : 0 });
           }
         }
 
@@ -593,23 +588,23 @@ router.post('/send-to-clients', async (req, res) => {
         console.log('Sending email to client...', { email: client.email, hasPdf: !!pdfBuffer, additionalRecipients });
         await sendReportToClient(client.email, client.name, report, templateName, format, pdfBuffer, additionalRecipients);
 
-        results.push({
+        return {
           clientId: client._id,
           clientName: client.name,
           email: client.email,
           status: 'sent'
-        });
+        };
       } catch (error) {
         console.error(`Error sending report to client ${client._id}:`, error);
-        results.push({
+        return {
           clientId: client._id,
           clientName: client.name,
           email: client.email,
           status: 'failed',
           error: error.message
-        });
+        };
       }
-    }
+    }));
 
     res.json({
       success: true,

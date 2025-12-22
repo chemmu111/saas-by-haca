@@ -392,34 +392,63 @@ export async function fetchAccountInsightsTrend(igUserId, pageAccessToken) {
       return createSuccessResponse(cached);
     }
 
-    // Daily trends: reach and follower_count CAN be combined.
-    // NOTE: 'impressions' was removed from Instagram Graph API v22+ (no longer supported)
-    const metrics = 'reach,follower_count';
-    const url = `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=${metrics}&period=day&access_token=${pageAccessToken}`;
+    // Split requests for robustness
+    // 1. Fetch Reach (usually supported for all Business/Creator accounts)
+    const reachPromise = fetch(
+      `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=reach&period=day&access_token=${pageAccessToken}`
+    ).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.warn(`   ⚠️ Failed to fetch reach trend: ${err.error?.message || res.status}`);
+        return null;
+      }
+      return res.json();
+    });
 
-    const response = await fetch(url);
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      return createErrorResponse(
-        `Instagram API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`,
-        'fetchAccountInsightsTrend'
-      );
-    }
+    // 2. Fetch Follower Count (requires 100+ followers usually)
+    const followersPromise = fetch(
+      `https://graph.facebook.com/v22.0/${igUserId}/insights?metric=follower_count&period=day&access_token=${pageAccessToken}`
+    ).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        // Suppress known "Unsupported get request" for small accounts
+        if (err.error?.code !== 100) {
+          console.warn(`   ⚠️ Failed to fetch follower trend: ${err.error?.message || res.status}`);
+        }
+        return null;
+      }
+      return res.json();
+    });
 
-    const data = await response.json();
+    const [reachData, followersData] = await Promise.all([reachPromise, followersPromise]);
 
     // Parse daily data
     const dailyData = {};
-    if (data.data && Array.isArray(data.data)) {
-      data.data.forEach(metric => {
-        if (metric.values && Array.isArray(metric.values)) {
+
+    // Process Reach
+    if (reachData?.data) {
+      reachData.data.forEach(metric => {
+        if (metric.values) {
           metric.values.forEach(value => {
             const date = value.end_time ? value.end_time.split('T')[0] : null;
             if (date) {
-              if (!dailyData[date]) {
-                dailyData[date] = { date, follower_count: 0, reach: 0, impressions: 0 };
-              }
-              dailyData[date][metric.name] = value.value || 0;
+              if (!dailyData[date]) dailyData[date] = { date, follower_count: 0, reach: 0, impressions: 0 };
+              dailyData[date].reach = value.value || 0;
+            }
+          });
+        }
+      });
+    }
+
+    // Process Followers
+    if (followersData?.data) {
+      followersData.data.forEach(metric => {
+        if (metric.values) {
+          metric.values.forEach(value => {
+            const date = value.end_time ? value.end_time.split('T')[0] : null;
+            if (date) {
+              if (!dailyData[date]) dailyData[date] = { date, follower_count: 0, reach: 0, impressions: 0 };
+              dailyData[date].follower_count = value.value || 0;
             }
           });
         }
@@ -437,6 +466,8 @@ export async function fetchAccountInsightsTrend(igUserId, pageAccessToken) {
     return createErrorResponse(error, 'fetchAccountInsightsTrend');
   }
 }
+
+
 
 /**
  * Fetch basic interaction metrics (fallback for unsupported types or errors)
@@ -1081,7 +1112,7 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
       const dailyData = {
         client: client?._id, // We need client ID here. If not passed, we can't save.
         id: igUserId,
-        username: username,
+        username: accountInsights.data.username || client?.name || igUserId, // FIX: username variable was not defined
         followers_count: accountInsights.data.follower_count,
         follows_count: 0,
         media_count: accountInsights.data.media_count,
@@ -1183,7 +1214,10 @@ export async function fetchInstagramAnalytics(igUserId, pageAccessToken, client 
       }
 
     } catch (error) {
-      console.error('   ⚠️ Failed to save DailyAnalytics:', error.message);
+      // Suppress duplicate key error noise
+      if (error.code !== 11000) {
+        console.error('   ⚠️ Failed to save DailyAnalytics:', error.message);
+      }
     }
 
     const result = {

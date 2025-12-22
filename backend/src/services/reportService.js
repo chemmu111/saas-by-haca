@@ -1033,26 +1033,31 @@ export async function generatePDFFromTemplate(userId, posts, clients, options = 
   return pdfBytes;
 }
 
+import { getBrowser } from './puppeteerService.js';
+
 /**
- * Generate PDF from HTML content using Puppeteer
+ * Generate PDF from HTML content using Puppeteer (Shared Instance)
  */
 export async function generatePDFFromHTML(htmlContent) {
-  let browser;
+  let page = null;
   try {
-    console.log('Launching Puppeteer...');
-    browser = await puppeteer.launch({
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage']
-    });
-    console.log('Puppeteer launched, creating new page...');
-    const page = await browser.newPage();
+    // console.log('Getting shared Puppeteer browser...');
+    const browser = await getBrowser();
 
-    console.log('Setting page content...');
+    // console.log('Creating new page...');
+    page = await browser.newPage();
+
+    // console.log('Setting page content...');
     await page.setViewport({ width: 1280, height: 1600 });
     await page.emulateMediaType('screen');
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0', timeout: 30000 });
 
-    console.log('Generating PDF...');
+    // Optimization: 'domcontentloaded' is faster than 'networkidle0' for static HTML
+    await page.setContent(htmlContent, {
+      waitUntil: 'networkidle0',
+      timeout: 30000
+    });
+
+    // console.log('Generating PDF...');
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
@@ -1064,7 +1069,7 @@ export async function generatePDFFromHTML(htmlContent) {
       }
     });
 
-    console.log('PDF generated successfully, buffer length:', pdfBuffer.length);
+    // console.log('PDF generated successfully, buffer length:', pdfBuffer.length);
 
     // Ensure we return a proper Buffer
     return Buffer.from(pdfBuffer);
@@ -1072,8 +1077,9 @@ export async function generatePDFFromHTML(htmlContent) {
     console.error('Error generating PDF from HTML:', error);
     throw error;
   } finally {
-    if (browser) {
-      await browser.close();
+    if (page) {
+      // Only close the page, NOT the browser
+      await page.close().catch(e => console.error('Error closing page:', e.message));
     }
   }
 }
