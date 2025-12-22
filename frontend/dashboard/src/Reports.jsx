@@ -50,6 +50,11 @@ const Reports = () => {
   const [summaryData, setSummaryData] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
 
+  // --- State: Send Modal ---
+  const [showSendModal, setShowSendModal] = useState(false);
+  const [additionalEmail, setAdditionalEmail] = useState('');
+  const [sendToClientEmail, setSendToClientEmail] = useState(true);
+
   // --- Effects ---
 
   useEffect(() => {
@@ -913,25 +918,37 @@ const Reports = () => {
     }
   };
 
-  const sendToClients = async () => {
+  // Open the modal instead of sending directly
+  const openSendModal = () => {
     if (selectedClients.length === 0) {
       alert('Please select at least one client');
       return;
     }
+    setShowSendModal(true);
+  };
 
+  const confirmSend = async () => {
     try {
       setSendingToClients(true);
+
+      const additionalRecipients = additionalEmail
+        ? additionalEmail.split(',').map(e => e.trim()).filter(e => e)
+        : [];
+
       const response = await api.post('/reports/send-to-clients', {
         startDate,
         endDate,
         templateName: selectedTemplate || null,
         format: 'pdf',
-        clientIds: selectedClients
+        clientIds: selectedClients,
+        additionalRecipients
       });
       const result = response.data;
 
       if (result.success) {
         alert(result.message || 'Reports sent successfully!');
+        setShowSendModal(false);
+        setAdditionalEmail('');
       } else {
         alert(result.error || 'Failed to send reports');
       }
@@ -1099,7 +1116,7 @@ const Reports = () => {
                     Generate
                   </button>
                   <button
-                    onClick={sendToClients}
+                    onClick={openSendModal}
                     disabled={sendingToClients}
                     className="flex-1 bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl font-medium border border-slate-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                   >
@@ -1377,6 +1394,55 @@ const Reports = () => {
           </div >
         </div >
       </div >
+
+      {/* Send Modal */}
+      {showSendModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full shadow-2xl p-6">
+            <h3 className="text-xl font-bold text-white mb-2">Send Report</h3>
+            <p className="text-slate-400 text-sm mb-6">
+              Send this report to {selectedClients.length} client{selectedClients.length !== 1 ? 's' : ''}.
+            </p>
+
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm text-slate-300 mb-1">Additional Email Recipients</label>
+                <input
+                  type="text"
+                  placeholder="e.g. manager@example.com (comma separated)"
+                  value={additionalEmail}
+                  onChange={(e) => setAdditionalEmail(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                />
+                <p className="text-xs text-slate-500 mt-1">Optional. Separate multiple emails with commas.</p>
+              </div>
+
+              <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                <p className="text-xs text-blue-300">
+                  <span className="font-semibold">Note:</span> The report will strictly be sent to the selected client's registered email address, plus any additional recipients entered above.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowSendModal(false)}
+                className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmSend}
+                disabled={sendingToClients}
+                className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2.5 rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                {sendingToClients ? <Loader2 size={18} className="animate-spin" /> : <Mail size={18} />}
+                Send Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Summary Modal */}
       {

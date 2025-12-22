@@ -232,7 +232,7 @@ export async function sendPasswordResetEmail(email, resetToken, resetUrl) {
 /**
  * Send report to client via email
  */
-export async function sendReportToClient(email, clientName, report, templateName = null, format = 'pdf', pdfBuffer = null) {
+export async function sendReportToClient(email, clientName, report, templateName = null, format = 'pdf', pdfBuffer = null, additionalRecipients = []) {
   try {
     const reportDate = new Date(report.generatedAt).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -287,8 +287,11 @@ export async function sendReportToClient(email, clientName, report, templateName
       }
     }
 
+    // Combine primary email with additional recipients
+    const to = [email, ...(additionalRecipients || [])];
+
     const result = await sendEmail({
-      to: email,
+      to: to,
       subject: `Social Media Performance Report - ${reportDate}`,
       html,
       attachments

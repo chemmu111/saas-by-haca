@@ -492,7 +492,7 @@ router.delete('/templates/:filename', async (req, res) => {
 router.post('/send-to-clients', async (req, res) => {
   try {
     const userId = req.user.sub;
-    const { startDate, endDate, templateName, format = 'pdf', clientIds } = req.body;
+    const { startDate, endDate, templateName, format = 'pdf', clientIds, additionalRecipients } = req.body;
 
     // Get user
     const user = await User.findById(userId);
@@ -590,8 +590,8 @@ router.post('/send-to-clients', async (req, res) => {
         }
 
         // Send email to client with PDF attachment if available
-        console.log('Sending email to client...', { email: client.email, hasPdf: !!pdfBuffer });
-        await sendReportToClient(client.email, client.name, report, templateName, format, pdfBuffer);
+        console.log('Sending email to client...', { email: client.email, hasPdf: !!pdfBuffer, additionalRecipients });
+        await sendReportToClient(client.email, client.name, report, templateName, format, pdfBuffer, additionalRecipients);
 
         results.push({
           clientId: client._id,
