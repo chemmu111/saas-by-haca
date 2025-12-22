@@ -234,11 +234,20 @@ export async function sendPasswordResetEmail(email, resetToken, resetUrl) {
  */
 export async function sendReportToClient(email, clientName, report, templateName = null, format = 'pdf', pdfBuffer = null, additionalRecipients = []) {
   try {
-    const reportDate = new Date(report.generatedAt).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    let reportDate;
+    try {
+      reportDate = new Date(report.generatedAt || new Date()).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    } catch (e) {
+      reportDate = new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    }
 
     const periodText = report.period.startDate && report.period.endDate
       ? `${new Date(report.period.startDate).toLocaleDateString()} - ${new Date(report.period.endDate).toLocaleDateString()}`

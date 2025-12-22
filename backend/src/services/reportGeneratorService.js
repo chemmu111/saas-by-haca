@@ -469,7 +469,8 @@ export const generateReportData = async (clientId, startDate, endDate) => {
         period: {
             startDate,
             endDate
-        }
+        },
+        generatedAt: new Date().toISOString()
     };
 };
 

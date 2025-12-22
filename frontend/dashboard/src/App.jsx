@@ -82,6 +82,15 @@ const AuthGuard = ({ children }) => {
 const App = () => {
   console.log('App component rendering, current path:', window.location.pathname);
 
+  useEffect(() => {
+    // Remove Facebook's ugly hash
+    if (window.location.hash === '#_=_') {
+      history.replaceState
+        ? history.replaceState(null, null, window.location.href.split('#')[0])
+        : window.location.hash = '';
+    }
+  }, []);
+
   return (
     <AuthGuard>
       <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>Loading...</div>}>
@@ -89,7 +98,7 @@ const App = () => {
           <Route path="/login" element={<ErrorBoundary><Login /></ErrorBoundary>} />
           <Route path="/signup" element={<ErrorBoundary><Signup /></ErrorBoundary>} />
           <Route path="/dashboard" element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
-          <Route path="/dashboard/clients" element={<ErrorBoundary><Clients /></ErrorBoundary>} />
+          <Route path="/dashboard/clients/*" element={<ErrorBoundary><Clients /></ErrorBoundary>} />
           <Route path="/dashboard/clients/:clientId" element={<ErrorBoundary><ClientDashboard /></ErrorBoundary>} />
           <Route path="/dashboard/posts" element={<ErrorBoundary><Posts /></ErrorBoundary>} />
           <Route path="/dashboard/calendar" element={<ErrorBoundary><Calendar /></ErrorBoundary>} />
