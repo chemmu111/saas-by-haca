@@ -175,15 +175,16 @@ export async function updateClientStats(client) {
       const engagementRate = data.media?.engagementRate || '0%';
       const totalEngagement = data.media?.totalEngagements || 0;
 
+      const totalFollowers = data.account?.follower_count || 0;
       const apiMediaCount = data.media?.total; // This is now the REAL count from User API (e.g. 53)
       const actualPostCount = await Post.countDocuments({
         client: client._id,
         status: 'published'
       });
 
-      const totalPosts = apiMediaCount || data.media?.total || actualPostCount || 1;
+      const totalPosts = apiMediaCount || actualPostCount || 1;
 
-      console.log(`   📊 Post Count Final: ${totalPosts} (API: ${apiMediaCount}, DB: ${actualPostCount})`);
+      console.log(`   📊 Stats Calculated for ${client.name}: Followers: ${totalFollowers}, Posts: ${totalPosts}, Eng: ${totalEngagement}`);
 
       const stats = {
         followerCount: totalFollowers,

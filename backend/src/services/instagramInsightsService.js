@@ -24,6 +24,7 @@
  * - Returns needReLogin if token is expired
  */
 
+import fs from 'fs';
 import Client from '../models/Client.js';
 import DailyAnalytics from '../models/DailyAnalytics.js';
 import Post from '../models/Post.js';
@@ -274,10 +275,14 @@ export async function fetchAccountInsights(igUserId, pageAccessToken) {
       const userRes = await fetch(userUrl);
       if (userRes.ok) {
         const userData = await userRes.json();
+        fs.appendFileSync('debug_api_data.json', `\n--- USER NODE DATA ---\n${JSON.stringify(userData, null, 2)}\n----------------------\n`);
+        console.log('🔍 [DIAGNOSTIC] Raw User Node Data:', JSON.stringify(userData, null, 2));
         console.log('   ✅ User Node Metrics:', userData);
         basicFollowers = userData.followers_count || 0;
         mediaCount = userData.media_count || 0;
       } else {
+        const errText = await userRes.text();
+        console.error('🔍 [DIAGNOSTIC] User Node Fetch Failed:', userRes.status, errText);
         console.warn('   ⚠️ Failed to fetch User Node metrics:', userRes.status);
       }
     } catch (e) {
@@ -753,6 +758,8 @@ export async function fetchInstagramMedia(igUserId, pageAccessToken, limit = 25)
       }
 
       const data = await response.json();
+      fs.appendFileSync('debug_api_data.json', `\n--- MEDIA PAGE ${pageCount + 1} ---\n${JSON.stringify(data.data?.slice(0, 10), null, 2)}\n----------------------\n`);
+      console.log(`🔍 [DIAGNOSTIC] Media Page ${pageCount + 1} Raw Data (first 3 items):`, JSON.stringify(data.data?.slice(0, 3), null, 2));
       const pageMedia = data.data || [];
       allMedia = [...allMedia, ...pageMedia];
 
