@@ -3,26 +3,24 @@
  * @returns {string} Backend URL
  */
 export const getBackendUrl = () => {
-    // Check for environment variable first (production)
+    // 1. Force correct backend for custom domain (socialhac.com)
+    if (window.location.hostname.includes('socialhac.com')) {
+        return 'https://haca-social-x-backend.onrender.com';
+    }
+
+    // 2. Check for environment variable
     if (import.meta.env.VITE_API_URL) {
         return import.meta.env.VITE_API_URL.replace(/\/$/, '');
     }
 
-    // Development mode - Vite dev server
-    if (window.location.port === '3000' || window.location.port === '5173') {
-        // Check localStorage for saved port, otherwise default to 5000
-        const savedPort = localStorage.getItem('backend_port');
-        if (savedPort) {
-            return `http://localhost:${savedPort}`;
-        }
-        // Default to 5000 (your backend port)
-        return 'http://localhost:5000';
+    // 3. Development mode
+    if (window.location.port === '3000' || window.location.port === '5173' || window.location.hostname === 'localhost') {
+        const savedPort = localStorage.getItem('backend_port') || '5000';
+        return `http://localhost:${savedPort}`;
     }
 
-    // Production fallback - use the actual backend URL
-    const fallbackUrl = 'https://haca-social-x-backend.onrender.com';
-    console.log('⚠️ using fallback URL:', fallbackUrl);
-    return fallbackUrl;
+    // 4. Fallback
+    return 'https://haca-social-x-backend.onrender.com';
 };
 
 /**

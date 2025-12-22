@@ -93,21 +93,30 @@ const Login = () => {
 
         try {
             const backendUrl = getBackendUrl();
-            const response = await fetch(`${backendUrl}/api/auth/forgot-password`, {
+            const url = backendUrl ? `${backendUrl}/api/auth/forgot-password` : '/api/auth/forgot-password';
+
+            const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: forgotEmail }),
             });
 
-            const data = await response.json();
-
-            if (data.success) {
-                setForgotStatus({ step: 'verify', type: 'success', message: 'Verification code sent to your email.' });
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                const data = await response.json();
+                if (data.success) {
+                    setForgotStatus({ step: 'verify', type: 'success', message: 'Verification code sent to your email.' });
+                } else {
+                    setForgotStatus({ ...forgotStatus, type: 'error', message: data.details || data.error || 'Failed to send code.' });
+                }
             } else {
-                setForgotStatus({ ...forgotStatus, type: 'error', message: data.details || data.error || 'Failed to send code.' });
+                const text = await response.text();
+                console.error('Non-JSON response:', text);
+                setForgotStatus({ ...forgotStatus, type: 'error', message: `Server error (${response.status}). Please check console.` });
             }
         } catch (err) {
-            setForgotStatus({ ...forgotStatus, type: 'error', message: 'Network error. Try again.' });
+            console.error('Forgot password error:', err);
+            setForgotStatus({ ...forgotStatus, type: 'error', message: `Connection error: ${err.message}` });
         } finally {
             setIsLoading(false);
         }
@@ -126,7 +135,9 @@ const Login = () => {
 
         try {
             const backendUrl = getBackendUrl();
-            const response = await fetch(`${backendUrl}/api/auth/reset-password`, {
+            const url = backendUrl ? `${backendUrl}/api/auth/reset-password` : '/api/auth/reset-password';
+
+            const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -136,15 +147,22 @@ const Login = () => {
                 }),
             });
 
-            const data = await response.json();
-
-            if (data.success) {
-                setForgotStatus({ step: 'success', type: 'success', message: 'Password reset successfully.' });
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                const data = await response.json();
+                if (data.success) {
+                    setForgotStatus({ step: 'success', type: 'success', message: 'Password reset successfully.' });
+                } else {
+                    setForgotStatus({ ...forgotStatus, type: 'error', message: data.error || 'Failed to reset password.' });
+                }
             } else {
-                setForgotStatus({ ...forgotStatus, type: 'error', message: data.error || 'Failed to reset password.' });
+                const text = await response.text();
+                console.error('Non-JSON response:', text);
+                setForgotStatus({ ...forgotStatus, type: 'error', message: `Server error (${response.status}).` });
             }
         } catch (err) {
-            setForgotStatus({ ...forgotStatus, type: 'error', message: 'Network error. Try again.' });
+            console.error('Reset password error:', err);
+            setForgotStatus({ ...forgotStatus, type: 'error', message: `Connection error: ${err.message}` });
         } finally {
             setIsLoading(false);
         }

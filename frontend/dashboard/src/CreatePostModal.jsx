@@ -21,14 +21,18 @@ import { validateVideo } from './utils/instagramVideoValidator';
 const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
   // Get backend URL helper
   const getBackendUrl = () => {
-    if (window.location.port === '3000' || window.location.port === '5173') {
-      const savedPort = localStorage.getItem('backend_port');
-      if (savedPort) {
-        return `http://localhost:${savedPort}`;
-      }
-      return 'http://localhost:5000';
+    // 1. Force correct backend for target domain
+    if (window.location.hostname.includes('socialhac.com')) {
+      return 'https://haca-social-x-backend.onrender.com';
     }
-    // Production fallback - use actual backend URL
+
+    // 2. Development mode
+    if (window.location.hostname === 'localhost' || window.location.port === '3000' || window.location.port === '5173') {
+      const savedPort = localStorage.getItem('backend_port') || '5000';
+      return `http://localhost:${savedPort}`;
+    }
+
+    // 3. Fallback
     return 'https://haca-social-x-backend.onrender.com';
   };
 
