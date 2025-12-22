@@ -79,7 +79,11 @@ const Analytics = ({ embedded = false, clientId = null }) => {
 
   const dashboardRef = useRef(null);
   const autoRefreshTimerRef = useRef(null);
-  const API_URL = (import.meta.env.VITE_API_URL || 'https://haca-social-x-backend.onrender.com').replace(/\/$/, '');
+  const getBaseBackendUrl = () => {
+    if (window.location.hostname.includes('socialhac.com')) return 'https://haca-social-x-backend.onrender.com';
+    return (import.meta.env.VITE_API_URL || 'https://haca-social-x-backend.onrender.com').replace(/\/$/, '');
+  };
+  const API_URL = getBaseBackendUrl();
   console.log('📊 Analytics API URL:', API_URL);
 
   // Update client filter if prop changes

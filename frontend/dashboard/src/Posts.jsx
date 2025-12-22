@@ -23,14 +23,19 @@ const Posts = () => {
   const [retryingMediaUrls, setRetryingMediaUrls] = useState(new Set());
 
   const getBackendUrl = () => {
-    if (window.location.port === '3000') {
-      const savedPort = localStorage.getItem('backend_port');
-      if (savedPort) {
-        return `http://localhost:${savedPort}`;
-      }
-      return 'http://localhost:5000';
+    // 1. Force correct backend for target domain
+    if (window.location.hostname.includes('socialhac.com')) {
+      return 'https://haca-social-x-backend.onrender.com';
     }
-    return window.location.origin;
+
+    // 2. Development mode
+    if (window.location.hostname === 'localhost' || window.location.port === '3000') {
+      const savedPort = localStorage.getItem('backend_port') || '5000';
+      return `http://localhost:${savedPort}`;
+    }
+
+    // 3. Fallback
+    return 'https://haca-social-x-backend.onrender.com';
   };
   // Client-side filtering logic
   const filteredPosts = posts.filter(post => {

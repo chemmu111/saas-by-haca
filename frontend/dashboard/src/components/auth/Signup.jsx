@@ -18,9 +18,22 @@ const Signup = () => {
     const [error, setError] = useState('');
 
     const getBackendUrl = () => {
-        if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
-        // Use relative paths to let Vite proxy handle API forwarding (works for ngrok and localhost)
-        return '';
+        // 1. Force correct backend for custom domain (socialhac.com)
+        if (window.location.hostname.includes('socialhac.com')) {
+            return 'https://haca-social-x-backend.onrender.com';
+        }
+
+        // 2. Check for environment variable
+        if (import.meta.env.VITE_API_URL) {
+            return import.meta.env.VITE_API_URL.replace(/\/$/, '');
+        }
+
+        // 3. Local dev proxy fallback
+        if (window.location.hostname === 'localhost' || window.location.port === '3000') {
+            return '';
+        }
+
+        return 'https://haca-social-x-backend.onrender.com';
     };
 
     const getPasswordStrength = (password) => {

@@ -14,22 +14,24 @@ import NotFound from './NotFound.jsx';
 
 // Helper function to get backend URL
 const getBackendUrl = () => {
-  // Check for environment variable first (production)
+  // 1. Force correct backend for custom domain (socialhac.com)
+  if (window.location.hostname.includes('socialhac.com')) {
+    return 'https://haca-social-x-backend.onrender.com';
+  }
+
+  // 2. Check for environment variable
   if (import.meta.env.VITE_API_URL) {
-    return import.meta.env.VITE_API_URL;
+    return import.meta.env.VITE_API_URL.replace(/\/$/, '');
   }
-  // Development mode - Vite dev server
-  if (window.location.port === '3000') {
-    // Check localStorage for saved port, otherwise default to 5000
-    const savedPort = localStorage.getItem('backend_port');
-    if (savedPort) {
-      return `http://localhost:${savedPort}`;
-    }
-    // Default to 5000 (your backend port)
-    return 'http://localhost:5000';
+
+  // 3. Development mode - Vite dev server
+  if (window.location.port === '3000' || window.location.hostname === 'localhost') {
+    const savedPort = localStorage.getItem('backend_port') || '5000';
+    return `http://localhost:${savedPort}`;
   }
-  // Fallback to same origin
-  return window.location.origin;
+
+  // 4. Fallback
+  return 'https://haca-social-x-backend.onrender.com';
 };
 
 import Login from './components/auth/Login.jsx';

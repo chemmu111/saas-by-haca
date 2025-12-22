@@ -8,6 +8,7 @@ const AdminTokenMonitor = () => {
     const [error, setError] = useState(null);
 
     const getBackendUrl = () => {
+        if (window.location.hostname.includes('socialhac.com')) return 'https://haca-social-x-backend.onrender.com';
         return (import.meta.env.VITE_API_URL || 'https://haca-social-x-backend.onrender.com').replace(/\/$/, '');
     };
 

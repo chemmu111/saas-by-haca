@@ -69,10 +69,18 @@ const Dashboard = () => {
         if (!token) return;
 
         const getBackendUrl = () => {
-          if (window.location.port === '3000' || window.location.port === '5173') {
-            const savedPort = localStorage.getItem('backend_port');
-            return savedPort ? `http://localhost:${savedPort}` : 'http://localhost:5000';
+          // 1. Force correct backend for target domain
+          if (window.location.hostname.includes('socialhac.com')) {
+            return 'https://haca-social-x-backend.onrender.com';
           }
+
+          // 2. Development mode
+          if (window.location.port === '3000' || window.location.port === '5173' || window.location.hostname === 'localhost') {
+            const savedPort = localStorage.getItem('backend_port') || '5000';
+            return `http://localhost:${savedPort}`;
+          }
+
+          // 3. Fallback
           return 'https://haca-social-x-backend.onrender.com';
         };
 

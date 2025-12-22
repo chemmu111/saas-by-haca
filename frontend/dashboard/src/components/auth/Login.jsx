@@ -18,18 +18,25 @@ const Login = () => {
     const [forgotStatus, setForgotStatus] = useState({ step: 'email', type: '', message: '' }); // step: email, verify, success
 
     const getBackendUrl = () => {
-        // Check for environment variable first (production)
-        if (import.meta.env.VITE_API_URL) {
-            return import.meta.env.VITE_API_URL;
+        // 1. Force correct backend for custom domain (socialhac.com)
+        if (window.location.hostname.includes('socialhac.com')) {
+            return 'https://haca-social-x-backend.onrender.com';
         }
 
-        // If accessed via ngrok, use relative path (Vite proxy will forward)
-        if (window.location.hostname.includes('ngrok')) {
+        // 2. Check for environment variable
+        if (import.meta.env.VITE_API_URL) {
+            return import.meta.env.VITE_API_URL.replace(/\/$/, '');
+        }
+
+        // 3. If accessed via ngrok or local dev proxy
+        if (window.location.hostname.includes('ngrok') ||
+            window.location.hostname === 'localhost' ||
+            window.location.port === '3000') {
             return '';
         }
 
-        // Development mode on localhost with Vite proxy
-        return '';
+        // 4. Production fallback
+        return 'https://haca-social-x-backend.onrender.com';
     };
 
     const handleLogin = async (e) => {

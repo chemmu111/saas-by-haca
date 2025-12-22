@@ -18,16 +18,20 @@ import Layout from './Layout.jsx';
 import TokenCountdown from './components/TokenCountdown.jsx';
 import Analytics from './Analytics';
 
-// Helper function to get backend URL
 const getBackendUrl = () => {
-    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-        return window.location.origin;
+    // 1. Force correct backend for target domain
+    if (window.location.hostname.includes('socialhac.com')) {
+        return 'https://haca-social-x-backend.onrender.com';
     }
-    if (window.location.port === '3000' || window.location.hostname === 'localhost') {
-        const savedPort = localStorage.getItem('backend_port');
-        return savedPort ? `http://localhost:${savedPort}` : 'http://localhost:5000';
+
+    // 2. Development mode
+    if (window.location.hostname === 'localhost' || window.location.port === '3000') {
+        const savedPort = localStorage.getItem('backend_port') || '5000';
+        return `http://localhost:${savedPort}`;
     }
-    return window.location.origin;
+
+    // 3. Fallback
+    return 'https://haca-social-x-backend.onrender.com';
 };
 
 const ClientDashboard = () => {
