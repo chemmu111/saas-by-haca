@@ -39,8 +39,8 @@ router.get('/callback/:platform', async (req, res) => {
         errorParam = 'oauth_cancelled';
       }
 
-      // Get frontend URL for redirect
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      // Get frontend URL for redirect and robustly remove trailing slash
+      const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
 
       // Build redirect URL with error parameters
       let redirectUrl = `${frontendUrl}/dashboard/clients?error=${errorParam}`;
@@ -846,8 +846,7 @@ router.get('/callback/:platform', async (req, res) => {
 
       // Redirect to clients page with success
       const action = existingClient ? 'client_updated' : 'client_added';
-      const frontendUrl = process.env.FRONTEND_URL ||
-        'http://localhost:3000';
+      const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
       return res.redirect(`${frontendUrl}/dashboard/clients?success=${action}&platform=${platform}`);
     } catch (dbError) {
       console.error('❌ Database error saving client:');
@@ -857,14 +856,14 @@ router.get('/callback/:platform', async (req, res) => {
       if (dbError.errors) {
         console.error('  Validation errors:', JSON.stringify(dbError.errors, null, 2));
       }
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
       return res.redirect(`${frontendUrl}/dashboard/clients?error=database_error`);
     }
   } catch (error) {
     console.error('❌ OAuth callback error:', error);
     console.error('  Error stack:', error.stack);
     // Always redirect, never return JSON error (to avoid "Unauthorized" JSON response)
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
     return res.redirect(`${frontendUrl}/dashboard/clients?error=oauth_failed`);
   }
 });
