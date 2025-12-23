@@ -315,7 +315,7 @@ router.post('/forgot-password', async (req, res) => {
     } catch (emailError) {
       console.error('Error sending password reset OTP:', emailError);
       return res.status(500).json({
-        error: 'Failed to send verification code. Please try again.'
+        error: emailError.message || 'Failed to send verification code.'
       });
     }
   } catch (err) {
