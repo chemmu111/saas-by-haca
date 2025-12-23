@@ -75,9 +75,11 @@ export const validateVideo = async (file) => {
             // 4. Dimensions (Resolution)
             // Minimum: 720x1280 (implies 720px width for vertical)
             // We'll enforce min width of 720px for quality
-            if (width < 720) {
-                result.errors.push(`Resolution width too low (${width}px). Min width: 720px.`);
+            if (width < 320) {
+                result.errors.push(`Resolution width too low (${width}px). Min width: 320px.`);
                 result.isValid = false;
+            } else if (width < 480) {
+                result.warnings.push(`Low resolution (${width}px). Recommended width: 720px+ for best quality.`);
             }
 
             // Horizontal check
