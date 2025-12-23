@@ -146,8 +146,8 @@ router.post('/login', async (req, res) => {
 
 
     // For non-admin users, proceed with normal login
-    // 5. Track device
-    await trackUserDevice(user, req);
+    // 5. Track device (non-blocking)
+    trackUserDevice(user, req).catch(err => console.error('Device tracking error:', err));
 
     const tokens = generateTokens(user);
     res.json({
@@ -201,8 +201,8 @@ router.post('/verify-login-otp', async (req, res) => {
 
     // Generate token and return user
 
-    // Track device
-    await trackUserDevice(user, req);
+    // Track device (non-blocking)
+    trackUserDevice(user, req).catch(err => console.error('Device tracking error:', err));
 
     const tokens = generateTokens(user);
     res.json({
@@ -246,8 +246,8 @@ router.post('/verify-code', async (req, res) => {
 
     // Generate token and return user
 
-    // Track device
-    await trackUserDevice(user, req);
+    // Track device (non-blocking)
+    trackUserDevice(user, req).catch(err => console.error('Device tracking error:', err));
 
     const tokens = generateTokens(user);
     res.json({

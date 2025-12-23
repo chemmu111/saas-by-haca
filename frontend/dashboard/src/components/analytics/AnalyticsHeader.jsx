@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, RefreshCw, Calendar, AlertTriangle, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Download, RefreshCw, Calendar, AlertTriangle, ToggleLeft, ToggleRight, ChevronDown } from 'lucide-react';
 
 const AnalyticsHeader = ({
     version,
