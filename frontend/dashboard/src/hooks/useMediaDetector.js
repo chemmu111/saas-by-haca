@@ -174,9 +174,11 @@ export const useMediaDetector = (files) => {
             if (file.dimensions) {
               const { width, height } = file.dimensions;
 
-              // Min resolution 720x1280
-              if (width < 720) {
-                addMessage(`Resolution width (${width}px) is below minimum 720px`, 'error');
+              // Min resolution 320x (WhatsApp usually 480px)
+              if (width < 320) {
+                addMessage(`Resolution width (${width}px) is below minimum 320px`, 'error');
+              } else if (width < 480) {
+                addMessage(`Low resolution (${width}px). Recommended width: 720px+ for best quality.`, 'warning');
               }
 
               // Warn if < 1080x1920
