@@ -40,11 +40,9 @@ const app = express();
 // Serve static files from frontend/public
 const publicDir = path.resolve(__dirname, '../../frontend/public');
 
-// Security middleware
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-  contentSecurityPolicy: false, // Disable CSP for API
-}));
+// Security middleware - specific configuration moved to later
+// Leaving this spot empty to avoid confusion or just removing the lines
+// We will configure a single helmet instance below to avoid overwriting rules
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -134,6 +132,7 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 const helmetConfig = {
+  crossOriginResourcePolicy: { policy: "cross-origin" }, // Allow cross-origin for images/media
   contentSecurityPolicy: {
     useDefaults: true,
     directives: cspDirectives,
