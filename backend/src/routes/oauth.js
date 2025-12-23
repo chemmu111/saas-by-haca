@@ -3,7 +3,6 @@ import mongoose from 'mongoose';
 import Client from '../models/Client.js';
 import requireAuth from '../middleware/requireAuth.js';
 import { exchangeForLongLivedToken } from '../services/instagramTokenService.js';
-import Link from '../models/Link.js'; // Not used but preserving just in case
 import User from '../models/User.js';
 import { updateClientStats } from '../services/analyticsService.js';
 import { sendInstagramConnectedEmail } from '../services/emailService.js';
