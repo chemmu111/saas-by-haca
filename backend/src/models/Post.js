@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 const postSchema = new mongoose.Schema(
   {
-    content: { type: String, required: true, trim: true },
+    content: { type: String, required: false, trim: true },
     platform: {
       type: String,
       enum: ['instagram', 'facebook', 'both'],
