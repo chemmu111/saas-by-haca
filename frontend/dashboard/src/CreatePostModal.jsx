@@ -447,7 +447,8 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
     }
 
     // Caption validation (optional but recommended)
-    if (!formData.caption.trim()) {
+    // Stories don't need captions
+    if (formData.postType !== 'story' && !formData.caption.trim()) {
       errors.push('Please add a caption to your post');
     }
 
@@ -1124,35 +1125,38 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
                     )}
 
                   {/* Caption */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Caption
-                    </label>
-                    <div className="relative">
-                      <textarea
-                        value={formData.caption}
-                        onChange={(e) => setFormData(prev => ({ ...prev, caption: e.target.value }))}
-                        rows={6}
-                        className="w-full p-4 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#6A4DFF]/20 focus:border-[#6A4DFF] resize-none text-sm leading-relaxed"
-                        placeholder="Write a compelling caption..."
-                        maxLength={2200}
-                      />
-                      <div className="flex justify-between items-center mt-2 px-1">
-                        <span className="text-xs text-gray-400 font-medium">{formData.caption.length}/2200</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAiGeneratorType('caption');
-                            setShowAIGenerator(true);
-                          }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#6A4DFF]/10 text-[#6A4DFF] rounded-lg text-xs font-bold hover:bg-[#6A4DFF]/20 transition-colors"
-                        >
-                          <Sparkles size={14} />
-                          Improve with AI
-                        </button>
+                  {/* Caption - Not for Stories */}
+                  {formData.postType !== 'story' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Caption
+                      </label>
+                      <div className="relative">
+                        <textarea
+                          value={formData.caption}
+                          onChange={(e) => setFormData(prev => ({ ...prev, caption: e.target.value }))}
+                          rows={6}
+                          className="w-full p-4 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#6A4DFF]/20 focus:border-[#6A4DFF] resize-none text-sm leading-relaxed"
+                          placeholder="Write a compelling caption..."
+                          maxLength={2200}
+                        />
+                        <div className="flex justify-between items-center mt-2 px-1">
+                          <span className="text-xs text-gray-400 font-medium">{formData.caption.length}/2200</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAiGeneratorType('caption');
+                              setShowAIGenerator(true);
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#6A4DFF]/10 text-[#6A4DFF] rounded-lg text-xs font-bold hover:bg-[#6A4DFF]/20 transition-colors"
+                          >
+                            <Sparkles size={14} />
+                            Improve with AI
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Schedule Section (Moved to Left Column) */}
                   <div className="bg-gray-50 p-6 rounded-xl border border-gray-100">
