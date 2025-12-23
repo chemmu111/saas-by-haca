@@ -1075,8 +1075,8 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
                     )}
                   </div>
 
-                  {/* Cover Photo Selection - Only for video/reel */}
-                  {(formData.postType === 'reel' || formData.postType === 'video' ||
+                  {/* Cover Photo Selection - Only for video/reel (not for stories) */}
+                  {formData.postType !== 'story' && (formData.postType === 'reel' || formData.postType === 'video' ||
                     formData.mediaFiles.some(m => m.file?.type?.startsWith('video/'))) && (
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
