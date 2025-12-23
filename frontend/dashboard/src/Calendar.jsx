@@ -232,7 +232,7 @@ const Calendar = () => {
   const [filters, setFilters] = useState({
     clientId: '',
     platform: '',
-    status: 'scheduled'
+    status: '' // Default to show all (scheduled + published)
   });
   const [clients, setClients] = useState([]);
   const [selectedDay, setSelectedDay] = useState(null);
