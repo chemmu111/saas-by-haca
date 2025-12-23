@@ -3,7 +3,10 @@ import mongoose from 'mongoose';
 import Client from '../models/Client.js';
 import requireAuth from '../middleware/requireAuth.js';
 import { exchangeForLongLivedToken } from '../services/instagramTokenService.js';
+import Link from '../models/Link.js'; // Not used but preserving just in case
+import User from '../models/User.js';
 import { updateClientStats } from '../services/analyticsService.js';
+import { sendInstagramConnectedEmail } from '../services/emailService.js';
 
 const router = express.Router();
 
@@ -40,7 +43,10 @@ router.get('/callback/:platform', async (req, res) => {
 
 
     // Get frontend URL for redirect (moved to top scope)
-    const frontendUrl = process.env.FRONTEND_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://socialhac.com');
+    // FORCE socialhac.com in production to avoid old Render URL issues
+    const frontendUrl = process.env.NODE_ENV === 'development'
+      ? 'http://localhost:3000'
+      : 'https://socialhac.com';
 
     // Check for OAuth errors from Facebook/Instagram
     if (error) {
@@ -816,6 +822,20 @@ router.get('/callback/:platform', async (req, res) => {
         console.log('  Client ID:', client._id);
       }
 
+      // Send Instagram Connected Email (non-blocking)
+      if (platform === 'instagram') {
+        try {
+          // Fetch user details mostly for the name and email
+          const user = await User.findById(userId);
+          if (user) {
+            sendInstagramConnectedEmail(user.email, user.name, client.instagramUsername || client.name)
+              .catch(err => console.error('Instagram connected email error:', err));
+          }
+        } catch (err) {
+          console.error('Error fetching user for email:', err);
+        }
+      }
+
       // Fetch initial stats for Instagram clients
       if (platform === 'instagram' && client.pageAccessToken && client.igUserId) {
         console.log('📊 Fetching initial Instagram analytics...');
@@ -859,7 +879,7 @@ router.get('/callback/:platform', async (req, res) => {
 
       // Redirect to clients page with success
       const action = existingClient ? 'client_updated' : 'client_added';
-      const frontendUrl = process.env.FRONTEND_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://socialhac.com');
+      // const frontendUrl = ... (using top scope variable)
       return res.redirect(`${frontendUrl}/dashboard/clients/${client._id}?success=${action}&platform=${platform}`);
     } catch (dbError) {
       console.error('❌ Database error saving client:');
@@ -869,15 +889,17 @@ router.get('/callback/:platform', async (req, res) => {
       if (dbError.errors) {
         console.error('  Validation errors:', JSON.stringify(dbError.errors, null, 2));
       }
-      const frontendUrl = process.env.FRONTEND_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://socialhac.com');
+      // const frontendUrl = ... (using top scope variable)
       return res.redirect(`${frontendUrl}/dashboard/clients?error=database_error`);
     }
   } catch (error) {
     console.error('❌ OAuth callback error:', error);
     console.error('  Error stack:', error.stack);
     // Always redirect, never return JSON error (to avoid "Unauthorized" JSON response)
-    const frontendUrl = process.env.FRONTEND_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://socialhac.com');
-    return res.redirect(`${frontendUrl}/dashboard/clients?error=oauth_failed`);
+    // const frontendUrl = ... (using top scope variable)
+    // Note: If error occurred before frontendUrl was defined at top, we need a fallback here
+    const redirectBase = (process.env.NODE_ENV === 'development') ? 'http://localhost:3000' : 'https://socialhac.com';
+    return res.redirect(`${redirectBase}/dashboard/clients?error=oauth_failed`);
   }
 });
 

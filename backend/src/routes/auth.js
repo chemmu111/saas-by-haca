@@ -5,7 +5,7 @@ import crypto from 'crypto';
 import User from '../models/User.js';
 import PendingUser from '../models/PendingUser.js';
 import VerificationCode from '../models/VerificationCode.js';
-import { sendPasswordResetEmail, sendOtpEmail } from '../services/emailService.js';
+import { sendPasswordResetEmail, sendOtpEmail, sendWelcomeEmail, sendLoginAlertEmail, sendPasswordChangedEmail } from '../services/emailService.js';
 import Client from '../models/Client.js';
 import mongoose from 'mongoose';
 import { refreshLongLivedToken } from '../services/instagramTokenService.js';
@@ -66,7 +66,7 @@ async function createSession(user, req) {
   // Save user with new session
   await user.save();
 
-  return sessionId;
+  return { sessionId, deviceName, ip };
 }
 
 router.post('/signup', async (req, res) => {
@@ -95,7 +95,10 @@ router.post('/signup', async (req, res) => {
     });
 
     // 3. Track device & Generate Token
-    await trackUserDevice(user, req);
+    await trackUserDevice(user, req, true); // true = isSignup (suppress login alert)
+
+    // Send Welcome Email (non-blocking)
+    sendWelcomeEmail(user.email, user.name).catch(err => console.error('Welcome email error:', err));
 
     const tokens = generateTokens(user);
     res.status(201).json({
@@ -355,6 +358,9 @@ router.post('/reset-password', async (req, res) => {
     // Update user password
     user.passwordHash = passwordHash;
     await user.save();
+
+    // Send Password Changed Email (non-blocking)
+    sendPasswordChangedEmail(user.email, user.name).catch(err => console.error('Password changed email error:', err));
 
     // Mark code as used
     verification.used = true;
@@ -636,8 +642,22 @@ router.post('/refresh-token', async (req, res) => {
   }
 });
 
-async function trackUserDevice(user, req) {
-  await createSession(user, req);
+async function trackUserDevice(user, req, isSignup = false) {
+  // Check for previous sessions to identify new device/IP
+  const userAgent = req.headers['user-agent'] || 'Unknown';
+  const ip = req.ip || req.connection.remoteAddress || 'Unknown';
+
+  const isNewDevice = !user.sessions || !user.sessions.some(s => s.userAgent === userAgent);
+  const isNewIp = !user.sessions || !user.sessions.some(s => s.ip === ip); // Simple check
+
+  const sessionInfo = await createSession(user, req);
+
+  // Send Login Alert if new device/IP and NOT signup
+  if (!isSignup && (isNewDevice || isNewIp)) {
+    const time = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
+    sendLoginAlertEmail(user.email, user.name, sessionInfo.deviceName, sessionInfo.ip, time)
+      .catch(err => console.error('Login alert email error:', err));
+  }
 }
 
 export default router;

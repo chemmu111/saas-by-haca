@@ -56,7 +56,8 @@ app.use((req, res, next) => {
 // CORS configuration with cookie support for cross-origin requests
 const allowedOrigins = [
   "https://haca-social-x.onrender.com", // Frontend URL
-  "https://social-x-idsr.onrender.com", // New Frontend URL
+  "https://socialhac.com", // Production Frontend URL
+  "https://www.socialhac.com",
   "https://social-x-production-y82t.onrender.com", // Production frontend
   "https://haca-social-x-backend.onrender.com", // Backend URL (Render internal call)
   "http://localhost:3000", // Development frontend

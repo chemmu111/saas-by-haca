@@ -361,5 +361,186 @@ export default {
   sendPasswordResetEmail,
   sendMonthlyReportEmail,
   sendReportToClient,
-  sendInstagramAspectRatioErrorEmail
+  sendInstagramAspectRatioErrorEmail,
+  sendWelcomeEmail,
+  sendLoginAlertEmail,
+  sendPasswordChangedEmail,
+  sendInstagramConnectedEmail,
+  sendTokenExpiryAlert
 };
+
+/**
+ * Send Welcome Email
+ */
+export async function sendWelcomeEmail(email, name) {
+  try {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #4f46e5;">Welcome to Social X 🚀</h2>
+        <p style="color: #374151; font-size: 16px;">Hello ${name},</p>
+        <p style="color: #374151; font-size: 16px;">We're thrilled to have you on board! Social X helps you manage your social media presence effortlessly.</p>
+        <p style="color: #374151; font-size: 16px;">To get started, connect your Instagram account and start scheduling posts like a pro.</p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${process.env.FRONTEND_URL || 'https://socialhac.com'}/dashboard/clients" style="display: inline-block; background: #4f46e5; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Connect Instagram</a>
+        </div>
+        
+        <p style="color: #6b7280; font-size: 14px;">If you have any questions, feel free to reply to this email.</p>
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+        <p style="color: #9ca3af; font-size: 12px;">© Social X - Social Media Management Platform</p>
+      </div>
+    `;
+
+    const result = await sendEmail({ to: email, subject: 'Welcome to Social X 🚀', html });
+    console.log('✅ Welcome email sent:', result.messageId);
+    return { success: true, messageId: result.messageId };
+  } catch (error) {
+    console.error('❌ Error sending welcome email:', error);
+    // Silent fail
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Send Login Alert Email
+ */
+export async function sendLoginAlertEmail(email, name, deviceName, location, time) {
+  try {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #ef4444;">New login detected on your account</h2>
+        <p style="color: #374151; font-size: 16px;">Hello ${name},</p>
+        <p style="color: #374151; font-size: 16px;">We noticed a new login to your Social X account.</p>
+        
+        <div style="background: #fef2f2; border-radius: 12px; padding: 20px; margin: 20px 0; border: 1px solid #fee2e2;">
+          <p style="margin: 5px 0;"><strong>Device:</strong> ${deviceName}</p>
+          <p style="margin: 5px 0;"><strong>Location:</strong> ${location || 'Unknown'}</p>
+          <p style="margin: 5px 0;"><strong>Time:</strong> ${time}</p>
+        </div>
+
+        <p style="color: #374151; font-size: 16px;">If this was you, you can safely ignore this email.</p>
+        <p style="color: #ef4444; font-weight: bold; font-size: 16px;">If this wasn't you, please reset your password immediately.</p>
+        
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+        <p style="color: #9ca3af; font-size: 12px;">© Social X - Social Media Management Platform</p>
+      </div>
+    `;
+
+    const result = await sendEmail({ to: email, subject: 'New login detected on your account', html });
+    console.log('✅ Login alert email sent:', result.messageId);
+    return { success: true, messageId: result.messageId };
+  } catch (error) {
+    console.error('❌ Error sending login alert email:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Send Password Changed Email
+ */
+export async function sendPasswordChangedEmail(email, name) {
+  try {
+    const time = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }); // Adjust time zone as needed
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #4f46e5;">Your password has been changed</h2>
+        <p style="color: #374151; font-size: 16px;">Hello ${name},</p>
+        <p style="color: #374151; font-size: 16px;">This is a confirmation that the password for your Social X account was recently changed.</p>
+        <p style="color: #374151; font-size: 16px;"><strong>Time:</strong> ${time}</p>
+        
+        <p style="color: #374151; font-size: 16px; margin-top: 20px;">If you did not make this change, please contact support immediately.</p>
+        
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+        <p style="color: #9ca3af; font-size: 12px;">© Social X - Social Media Management Platform</p>
+      </div>
+    `;
+
+    const result = await sendEmail({ to: email, subject: 'Your password has been changed', html });
+    console.log('✅ Password changed email sent:', result.messageId);
+    return { success: true, messageId: result.messageId };
+  } catch (error) {
+    console.error('❌ Error sending password changed email:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Send Instagram Connected Email
+ */
+export async function sendInstagramConnectedEmail(email, name, instagramUsername) {
+  try {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #10b981;">Instagram account connected successfully 🎉</h2>
+        <p style="color: #374151; font-size: 16px;">Hello ${name},</p>
+        <p style="color: #374151; font-size: 16px;">You have successfully connected the Instagram account <strong>@${instagramUsername}</strong> to Social X.</p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${process.env.FRONTEND_URL || 'https://socialhac.com'}/dashboard" style="display: inline-block; background: #4f46e5; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">View Dashboard</a>
+        </div>
+        
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+        <p style="color: #9ca3af; font-size: 12px;">© Social X - Social Media Management Platform</p>
+      </div>
+    `;
+
+    const result = await sendEmail({ to: email, subject: 'Instagram account connected successfully', html });
+    console.log('✅ Instagram connected email sent:', result.messageId);
+    return { success: true, messageId: result.messageId };
+  } catch (error) {
+    console.error('❌ Error sending Instagram connected email:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Send token expiry alert email (Centralized)
+ */
+export async function sendTokenExpiryAlert(email, userName, clientName, daysLeft, reconnectUrl) {
+  try {
+    const subject = daysLeft <= 0
+      ? `⚠️ Instagram Token EXPIRED – ${clientName}`
+      : `⚠️ Action required: Instagram access expires in ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'}`; // Updated subject as per request
+
+    const bodyMessage = daysLeft <= 0
+      ? `Your Instagram token for <strong>${clientName}</strong> has <strong>EXPIRED</strong>.`
+      : `Your Instagram token for <strong>${clientName}</strong> expires in <strong>${daysLeft} day${daysLeft !== 1 ? 's' : ''}</strong>.`;
+
+    const html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #ef4444; margin-bottom: 20px;">⚠️ Instagram Token ${daysLeft <= 0 ? 'Expired' : 'Expiring Soon'}</h2>
+          <p style="color: #374151; line-height: 1.6;">Hello ${userName},</p>
+          <p style="color: #374151; line-height: 1.6;">${bodyMessage}</p>
+          
+          <div style="background: #fef2f2; border-left: 4px solid #ef4444; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h3 style="color: #991b1b; margin-top: 0;">Action Required</h3>
+            <p style="color: #7f1d1d; line-height: 1.6;">
+              ${daysLeft <= 0
+        ? 'Your token has expired. You must reconnect your Instagram account to continue posting.'
+        : 'Please reconnect your Instagram account before the token expires to avoid service interruption.'}
+            </p>
+          </div>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${reconnectUrl}" style="display: inline-block; background: #ef4444; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
+              Reconnect Instagram
+            </a>
+          </div>
+          
+          <p style="color: #6b7280; font-size: 14px; line-height: 1.6;">Or copy and paste this link into your browser:</p>
+          <p style="color: #6366f1; font-size: 14px; word-break: break-all; background: #f3f4f6; padding: 12px; border-radius: 6px;">${reconnectUrl}</p>
+          
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+          <p style="color: #9ca3af; font-size: 12px;">This is an automated alert. Please do not reply.</p>
+          <p style="color: #9ca3af; font-size: 12px;">© Social X - Social Media Management Platform</p>
+        </div>
+      `;
+
+    const result = await sendEmail({ to: email, subject, html });
+    console.log(`✅ Token expiry alert sent for ${clientName}:`, result.messageId);
+    return { success: true, messageId: result.messageId };
+  } catch (error) {
+    console.error('❌ Error sending token expiry alert:', error);
+    throw error;
+  }
+}
