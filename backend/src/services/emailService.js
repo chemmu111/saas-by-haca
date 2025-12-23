@@ -22,6 +22,12 @@ const gmailTransporter = nodemailer.createTransport({
   }
 });
 
+// Debug log for email configuration on startup
+console.log('📧 Email Configuration Loaded:');
+console.log(`   Provider: ${EMAIL_PROVIDER}`);
+console.log(`   User: ${EMAIL_USER}`);
+console.log(`   Pass: ${EMAIL_PASS ? '********' + EMAIL_PASS.slice(-4) : 'Not Set'}`);
+
 // Default from email: Resend requires a verified domain or uses onboarding@resend.dev for testing
 // Gmail uses the authenticated user
 const FROM_EMAIL = process.env.EMAIL_FROM || (EMAIL_PROVIDER === 'resend' ? 'onboarding@resend.dev' : EMAIL_USER);
@@ -72,7 +78,8 @@ async function sendEmail({ to, subject, html, attachments = [] }) {
     }
   } catch (error) {
     console.error('❌ Error sending email:', error);
-    throw new Error(`Failed to send email: ${error.message}`);
+    // Propagate the actual error message
+    throw new Error(error.message);
   }
 }
 
@@ -313,7 +320,8 @@ export async function sendReportToClient(email, clientName, report, templateName
     return { success: true, messageId: result.messageId };
   } catch (error) {
     console.error('Error sending report to client:', error);
-    throw new Error('Failed to send report to client');
+    // Propagate the actual error message to the UI
+    throw new Error(error.message);
   }
 }
 
