@@ -201,92 +201,97 @@ const CreatePostModal = ({ isOpen, onClose, editingPost, onSuccess }) => {
 
   // Handle file selection
   const handleMediaSelect = async (e) => {
-    const files = Array.from(e.target.files);
+    try {
+      const files = Array.from(e.target.files);
 
-    // Process files and validate videos
-    const newMediaFiles = await Promise.all(files.map(async (file) => {
-      let validation = null;
-      if (file.type.startsWith('video/')) {
-        validation = await validateVideo(file);
+      // Process files and validate videos
+      const newMediaFiles = await Promise.all(files.map(async (file) => {
+        let validation = null;
+        if (file.type.startsWith('video/')) {
+          validation = await validateVideo(file);
+        }
+
+        return {
+          file,
+          preview: URL.createObjectURL(file),
+          url: null,
+          validation
+        };
+      }));
+
+      // Auto-detect aspect ratio and set format
+      const detectAspectRatio = async (file) => {
+        return new Promise((resolve) => {
+          if (file.type.startsWith('image/')) {
+            const img = new Image();
+            img.onload = () => {
+              const ratio = img.width / img.height;
+              URL.revokeObjectURL(img.src);
+              resolve(ratio);
+            };
+            img.onerror = () => resolve(null);
+            img.src = URL.createObjectURL(file);
+          } else if (file.type.startsWith('video/')) {
+            const video = document.createElement('video');
+            video.onloadedmetadata = () => {
+              const ratio = video.videoWidth / video.videoHeight;
+              URL.revokeObjectURL(video.src);
+              resolve(ratio);
+            };
+            video.onerror = () => resolve(null);
+            video.src = URL.createObjectURL(file);
+          } else {
+            resolve(null);
+          }
+        });
+      };
+
+      // Detect aspect ratio for the first file
+      let detectedFormat = formData.format;
+      if (files.length > 0 && formData.mediaFiles.length === 0) {
+        const ratio = await detectAspectRatio(files[0]);
+        if (ratio) {
+          // Map ratio to Instagram formats
+          if (Math.abs(ratio - 1.0) < 0.1) {
+            detectedFormat = 'square'; // 1:1
+          } else if (ratio < 0.9) {
+            detectedFormat = 'portrait'; // 4:5 (0.8)
+          } else if (ratio > 1.5) {
+            detectedFormat = 'landscape'; // 1.91:1
+          } else if (Math.abs(ratio - 0.8) < 0.1) {
+            detectedFormat = 'portrait'; // 4:5
+          }
+          console.log(`Auto-detected aspect ratio: ${ratio.toFixed(2)} → Format: ${detectedFormat}`);
+        }
       }
 
-      return {
-        file,
-        preview: URL.createObjectURL(file),
-        url: null,
-        validation
-      };
-    }));
+      setFormData(prev => {
+        const updatedMediaFiles = [...prev.mediaFiles, ...newMediaFiles];
+        let updatedPostType = prev.postType;
 
-    // Auto-detect aspect ratio and set format
-    const detectAspectRatio = async (file) => {
-      return new Promise((resolve) => {
-        if (file.type.startsWith('image/')) {
-          const img = new Image();
-          img.onload = () => {
-            const ratio = img.width / img.height;
-            URL.revokeObjectURL(img.src);
-            resolve(ratio);
-          };
-          img.onerror = () => resolve(null);
-          img.src = URL.createObjectURL(file);
-        } else if (file.type.startsWith('video/')) {
-          const video = document.createElement('video');
-          video.onloadedmetadata = () => {
-            const ratio = video.videoWidth / video.videoHeight;
-            URL.revokeObjectURL(video.src);
-            resolve(ratio);
-          };
-          video.onerror = () => resolve(null);
-          video.src = URL.createObjectURL(file);
-        } else {
-          resolve(null);
+        // Auto-detect post type
+        if (updatedMediaFiles.length > 1) {
+          // If multiple files, switch to carousel
+          updatedPostType = 'carousel';
+        } else if (prev.mediaFiles.length === 0 && files.length > 0) {
+          // If first file is video, switch to reel
+          const firstFile = files[0];
+          if (firstFile.type.startsWith('video/')) {
+            updatedPostType = 'reel';
+          }
         }
+
+        return {
+          ...prev,
+          mediaFiles: updatedMediaFiles,
+          postType: updatedPostType,
+          format: detectedFormat
+        };
       });
-    };
-
-    // Detect aspect ratio for the first file
-    let detectedFormat = formData.format;
-    if (files.length > 0 && formData.mediaFiles.length === 0) {
-      const ratio = await detectAspectRatio(files[0]);
-      if (ratio) {
-        // Map ratio to Instagram formats
-        if (Math.abs(ratio - 1.0) < 0.1) {
-          detectedFormat = 'square'; // 1:1
-        } else if (ratio < 0.9) {
-          detectedFormat = 'portrait'; // 4:5 (0.8)
-        } else if (ratio > 1.5) {
-          detectedFormat = 'landscape'; // 1.91:1
-        } else if (Math.abs(ratio - 0.8) < 0.1) {
-          detectedFormat = 'portrait'; // 4:5
-        }
-        console.log(`Auto-detected aspect ratio: ${ratio.toFixed(2)} → Format: ${detectedFormat}`);
-      }
+    } catch (err) {
+      console.error('Error selecting media:', err);
+      showToast('Failed to load media file: ' + err.message, 'error');
     }
-
-    setFormData(prev => {
-      const updatedMediaFiles = [...prev.mediaFiles, ...newMediaFiles];
-      let updatedPostType = prev.postType;
-
-      // Auto-detect post type
-      if (updatedMediaFiles.length > 1) {
-        // If multiple files, switch to carousel
-        updatedPostType = 'carousel';
-      } else if (prev.mediaFiles.length === 0 && files.length > 0) {
-        // If first file is video, switch to reel
-        const firstFile = files[0];
-        if (firstFile.type.startsWith('video/')) {
-          updatedPostType = 'reel';
-        }
-      }
-
-      return {
-        ...prev,
-        mediaFiles: updatedMediaFiles,
-        postType: updatedPostType,
-        format: detectedFormat
-      };
-    });
   };
 
   // Remove media file
