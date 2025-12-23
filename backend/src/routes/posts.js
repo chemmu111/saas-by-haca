@@ -497,8 +497,9 @@ router.post('/', async (req, res) => {
 
     // Continue with normal post creation logic
 
-    // Validation - content or caption is required
-    if ((!content || content.trim().length === 0) && (!caption || caption.trim().length === 0)) {
+    // Validation - content or caption is required (except for stories)
+    // Stories don't support captions in Instagram API anyway (for containers)
+    if (postType !== 'story' && (!content || content.trim().length === 0) && (!caption || caption.trim().length === 0)) {
       return sendResponse(400, {
         success: false,
         error: 'Content or caption is required'
