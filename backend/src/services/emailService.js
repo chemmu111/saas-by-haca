@@ -65,7 +65,7 @@ async function sendEmail({ to, subject, html, attachments = [] }) {
     // Fallback to Gmail
     else {
       const mailOptions = {
-        from: `Social X <${FROM_EMAIL}>`, // Enhance from field for Gmail
+        from: `Socialhac <${FROM_EMAIL}>`, // Enhance from field for Gmail
         to: to,
         subject: subject,
         html: html,
@@ -97,15 +97,15 @@ export async function sendOtpEmail(email, code, type = 'login') {
     let message = 'Please use the verification code below:';
 
     if (type === 'signup') {
-      subject = 'Verify Your Account - Social X';
+      subject = 'Verify Your Account - Socialhac';
       title = 'Verify Your Email';
-      message = 'Welcome to Social X! Please verify your email address to complete your registration:';
+      message = 'Welcome to Socialhac! Please verify your email address to complete your registration:';
     } else if (type === 'reset') {
-      subject = 'Password Reset Code - Social X';
+      subject = 'Password Reset Code - Socialhac';
       title = 'Reset Password';
       message = 'You requested to reset your password. Use the code below to proceed:';
     } else if (type === 'login') {
-      subject = 'Login Verification Code - Social X';
+      subject = 'Login Verification Code - Socialhac';
       title = 'Login Verification';
       message = 'You requested to login. Please use the verification code below:';
     }
@@ -124,7 +124,7 @@ export async function sendOtpEmail(email, code, type = 'login') {
         <p style="color: #6b7280; font-size: 14px; text-align: center;">If you didn't request this code, please ignore this email.</p>
         
         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
-        <p style="color: #9ca3af; font-size: 12px; text-align: center;">© Social X - Social Media Management Platform</p>
+        <p style="color: #9ca3af; font-size: 12px; text-align: center;">© Socialhac - Social Media Management Platform</p>
       </div>
     `;
 
@@ -219,13 +219,13 @@ export async function sendPasswordResetEmail(email, resetToken, resetUrl) {
         <p style="color: #6b7280; font-size: 14px; margin-top: 20px;">This link will expire in 1 hour.</p>
         <p style="color: #6b7280; font-size: 14px;">If you didn't request a password reset, please ignore this email.</p>
         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
-        <p style="color: #9ca3af; font-size: 12px;">© Social X - Social Media Management Platform</p>
+        <p style="color: #9ca3af; font-size: 12px;">© Socialhac - Social Media Management Platform</p>
       </div>
     `;
 
     const result = await sendEmail({
       to: email,
-      subject: 'Reset Your Password - Social X',
+      subject: 'Reset Your Password - Socialhac',
       html
     });
     console.log('Password reset email sent:', result.messageId);
@@ -283,7 +283,7 @@ export async function sendReportToClient(email, clientName, report, templateName
           </p>
           <hr style="border: none; border-top: 1px solid #cccccc; margin: 30px 0 20px 0;">
           <p style="color: #666666; font-size: 12px; margin: 5px 0;">
-            © ${new Date().getFullYear()} Social X. All rights reserved.
+            © ${new Date().getFullYear()} Socialhac. All rights reserved.
           </p>
         </div>
       </body>
@@ -346,7 +346,7 @@ export async function sendInstagramAspectRatioErrorEmail(email, userName, errorM
         </div>
         
         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
-        <p style="color: #9ca3af; font-size: 12px;">© Social X - Social Media Management Platform</p>
+        <p style="color: #9ca3af; font-size: 12px;">© Socialhac - Social Media Management Platform</p>
       </div>
     `;
 
@@ -384,9 +384,9 @@ export async function sendWelcomeEmail(email, name) {
   try {
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #4f46e5;">Welcome to Social X 🚀</h2>
+        <h2 style="color: #4f46e5;">Welcome to Socialhac 🚀</h2>
         <p style="color: #374151; font-size: 16px;">Hello ${name},</p>
-        <p style="color: #374151; font-size: 16px;">We're thrilled to have you on board! Social X helps you manage your social media presence effortlessly.</p>
+        <p style="color: #374151; font-size: 16px;">We're thrilled to have you on board! Socialhac helps you manage your social media presence effortlessly.</p>
         <p style="color: #374151; font-size: 16px;">To get started, connect your Instagram account and start scheduling posts like a pro.</p>
         
         <div style="text-align: center; margin: 30px 0;">
@@ -395,11 +395,11 @@ export async function sendWelcomeEmail(email, name) {
         
         <p style="color: #6b7280; font-size: 14px;">If you have any questions, feel free to reply to this email.</p>
         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
-        <p style="color: #9ca3af; font-size: 12px;">© Social X - Social Media Management Platform</p>
+        <p style="color: #9ca3af; font-size: 12px;">© Socialhac - Social Media Management Platform</p>
       </div>
     `;
 
-    const result = await sendEmail({ to: email, subject: 'Welcome to Social X 🚀', html });
+    const result = await sendEmail({ to: email, subject: 'Welcome to Socialhac 🚀', html });
     console.log('✅ Welcome email sent:', result.messageId);
     return { success: true, messageId: result.messageId };
   } catch (error) {
@@ -418,7 +418,7 @@ export async function sendLoginAlertEmail(email, name, deviceName, location, tim
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <h2 style="color: #ef4444;">New login detected on your account</h2>
         <p style="color: #374151; font-size: 16px;">Hello ${name},</p>
-        <p style="color: #374151; font-size: 16px;">We noticed a new login to your Social X account.</p>
+        <p style="color: #374151; font-size: 16px;">We noticed a new login to your Socialhac account.</p>
         
         <div style="background: #fef2f2; border-radius: 12px; padding: 20px; margin: 20px 0; border: 1px solid #fee2e2;">
           <p style="margin: 5px 0;"><strong>Device:</strong> ${deviceName}</p>
@@ -430,7 +430,7 @@ export async function sendLoginAlertEmail(email, name, deviceName, location, tim
         <p style="color: #ef4444; font-weight: bold; font-size: 16px;">If this wasn't you, please reset your password immediately.</p>
         
         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
-        <p style="color: #9ca3af; font-size: 12px;">© Social X - Social Media Management Platform</p>
+        <p style="color: #9ca3af; font-size: 12px;">© Socialhac - Social Media Management Platform</p>
       </div>
     `;
 
@@ -453,13 +453,13 @@ export async function sendPasswordChangedEmail(email, name) {
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <h2 style="color: #4f46e5;">Your password has been changed</h2>
         <p style="color: #374151; font-size: 16px;">Hello ${name},</p>
-        <p style="color: #374151; font-size: 16px;">This is a confirmation that the password for your Social X account was recently changed.</p>
+        <p style="color: #374151; font-size: 16px;">This is a confirmation that the password for your Socialhac account was recently changed.</p>
         <p style="color: #374151; font-size: 16px;"><strong>Time:</strong> ${time}</p>
         
         <p style="color: #374151; font-size: 16px; margin-top: 20px;">If you did not make this change, please contact support immediately.</p>
         
         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
-        <p style="color: #9ca3af; font-size: 12px;">© Social X - Social Media Management Platform</p>
+        <p style="color: #9ca3af; font-size: 12px;">© Socialhac - Social Media Management Platform</p>
       </div>
     `;
 
@@ -481,14 +481,14 @@ export async function sendInstagramConnectedEmail(email, name, instagramUsername
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <h2 style="color: #10b981;">Instagram account connected successfully 🎉</h2>
         <p style="color: #374151; font-size: 16px;">Hello ${name},</p>
-        <p style="color: #374151; font-size: 16px;">You have successfully connected the Instagram account <strong>@${instagramUsername}</strong> to Social X.</p>
+        <p style="color: #374151; font-size: 16px;">You have successfully connected the Instagram account <strong>@${instagramUsername}</strong> to Socialhac.</p>
         
         <div style="text-align: center; margin: 30px 0;">
           <a href="${process.env.FRONTEND_URL || 'https://socialhac.com'}/dashboard" style="display: inline-block; background: #4f46e5; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">View Dashboard</a>
         </div>
         
         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
-        <p style="color: #9ca3af; font-size: 12px;">© Social X - Social Media Management Platform</p>
+        <p style="color: #9ca3af; font-size: 12px;">© Socialhac - Social Media Management Platform</p>
       </div>
     `;
 
@@ -540,7 +540,7 @@ export async function sendTokenExpiryAlert(email, userName, clientName, daysLeft
           
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
           <p style="color: #9ca3af; font-size: 12px;">This is an automated alert. Please do not reply.</p>
-          <p style="color: #9ca3af; font-size: 12px;">© Social X - Social Media Management Platform</p>
+          <p style="color: #9ca3af; font-size: 12px;">© Socialhac - Social Media Management Platform</p>
         </div>
       `;
 

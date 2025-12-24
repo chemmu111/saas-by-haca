@@ -157,7 +157,7 @@ const Layout = ({ children }) => {
         <div className="p-4 border-b border-gray-700/50 flex items-center justify-center bg-black/20">
           <img
             src={logoWhite}
-            alt="Social X"
+            alt="Socialhac"
             className={`h-10 w-auto object-contain transition-all duration-300 ${isSidebarExpanded ? 'opacity-100' : 'opacity-0 lg:opacity-0 lg:w-0'}`}
           />
         </div>

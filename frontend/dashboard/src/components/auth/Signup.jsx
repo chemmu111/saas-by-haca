@@ -96,7 +96,7 @@ const Signup = () => {
             <form onSubmit={handleSignup} noValidate className="w-full">
                 <div className="mb-6">
                     <h2 className="auth-form-title">Create Account</h2>
-                    <p className="auth-form-subtitle">Join Social X to manage your presence</p>
+                    <p className="auth-form-subtitle">Join Socialhac to manage your presence</p>
                 </div>
 
                 {error && (

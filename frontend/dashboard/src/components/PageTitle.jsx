@@ -4,7 +4,7 @@ import { Helmet } from 'react-helmet-async';
 const PageTitle = ({ title }) => {
     return (
         <Helmet>
-            <title>{title} · Social X</title>
+            <title>{title} · Socialhac</title>
         </Helmet>
     );
 };

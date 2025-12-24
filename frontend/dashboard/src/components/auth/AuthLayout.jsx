@@ -10,7 +10,7 @@ const AuthLayout = ({ children }) => {
                 <div className="flex flex-col items-center text-center max-w-lg translate-x-8">
                     <img
                         src={logoWhite}
-                        alt="Social X"
+                        alt="Socialhac"
                         className="h-24 w-auto mb-6 object-contain"
                     />
                     <h1 className="mx-auto mb-4">
