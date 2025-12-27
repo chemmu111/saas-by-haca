@@ -52,7 +52,7 @@ const isTokenExpired = (token) => {
 const AuthGuard = ({ children }) => {
   const location = useLocation();
   const token = localStorage.getItem('auth_token');
-  const publicPaths = ['/login', '/signup'];
+  const publicPaths = ['/login', '/signup', '/privacy-policy'];
 
   useEffect(() => {
     // Initial check (only runs once on mount)
@@ -88,8 +88,10 @@ const AuthGuard = ({ children }) => {
     return null;
   }
 
-  // If authenticated and trying to access login/signup, redirect to dashboard
-  if (token && publicPaths.includes(location.pathname)) {
+  // If authenticated and truly guest-only (login/signup), redirect to dashboard
+  // Privacy Policy should remain accessible even if logged in
+  const guestOnlyPaths = ['/login', '/signup'];
+  if (token && guestOnlyPaths.includes(location.pathname)) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -106,6 +108,8 @@ const App = () => {
   );
 };
 
+import PrivacyPolicy from './PrivacyPolicy.jsx';
+
 // Separate component to use router hooks - MUST be inside BrowserRouter
 const AppRoutes = () => {
   return (
@@ -113,6 +117,7 @@ const AppRoutes = () => {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/dashboard/clients" element={<Clients />} />
         <Route path="/dashboard/clients/:clientId" element={<ClientDashboard />} />

@@ -230,6 +230,10 @@ const Login = () => {
                 <div className="auth-footer mt-2">
                     Don't have an account? <Link to="/signup">Sign up</Link>
                 </div>
+
+                <div className="mt-8 text-center text-xs text-gray-400">
+                    <a href="/privacy-policy" className="hover:text-gray-600 transition-colors">Privacy Policy</a> | &copy; {new Date().getFullYear()} Socialhac
+                </div>
             </form>
 
             {/* Forgot Password Modal */}
