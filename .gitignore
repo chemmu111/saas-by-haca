@@ -5,3 +5,5 @@ dist/
 build/
 temp_*.js
 *.log
+backend/.cache/
+**/.cache/

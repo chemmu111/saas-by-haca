@@ -29,11 +29,29 @@ router.get('/callback/:platform', async (req, res) => {
     const { platform } = req.params;
     const { code, state, error, error_description, error_reason } = req.query;
 
+    // Initialize all shared variables to prevent ReferenceError
+    let accessToken = null;
+    let refreshToken = null;
+    let socialMediaId = null;
+    let socialMediaLink = null;
+    let igUserId = null;
+    let pageId = null;
+    let pageAccessToken = null;
+    let instagramUsername = null;
+    let instagramProfilePicture = null;
+    let userId = null;
+    let clientData = {};
+
     if (state) {
       try {
         const decodedDebug = Buffer.from(state, 'base64').toString();
         const parsedDebug = JSON.parse(decodedDebug);
         console.log('🔐 [OAUTH CALLBACK] State contains UserID:', parsedDebug.userId);
+
+        // Extract data for top-level scope
+        userId = parsedDebug.userId;
+        clientData = parsedDebug; // Assign whole object as clientData
+
       } catch (e) {
         console.log('❌ [OAUTH CALLBACK] Failed to decode state for debug log');
       }
