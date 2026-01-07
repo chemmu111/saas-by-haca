@@ -43,6 +43,8 @@ router.get('/callback/:platform', async (req, res) => {
 
     // Get frontend URL for redirect (moved to top scope)
     // FORCE socialhac.com in production to avoid old Render URL issues
+    // Get frontend URL for redirect (moved to top scope)
+    // FORCE socialhac.com in production to avoid old Render URL issues
     const frontendUrl = process.env.NODE_ENV === 'development'
       ? 'http://localhost:3000'
       : 'https://socialhac.com';
@@ -250,57 +252,71 @@ router.get('/callback/:platform', async (req, res) => {
         console.log('  Using access token:', accessToken ? 'Yes (length: ' + accessToken.length + ')' : 'No');
         // Request pages with fields including access_token and permissions
         // The access_token returned here should have the permissions requested in the OAuth scopes
-        const pagesUrl = `https://graph.facebook.com/v18.0/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${accessToken}`;
-        console.log('  Pages URL (masked):', pagesUrl.replace(/access_token=[^&]+/, 'access_token=***'));
+        // Initial URL with limit=100 for better coverage
+        let nextPageUrl = `https://graph.facebook.com/v18.0/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${accessToken}&limit=100`;
+        let allPages = [];
 
-        let pagesResponse;
-        try {
-          pagesResponse = await fetch(pagesUrl, {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          });
-          console.log('  Pages response status:', pagesResponse.status, pagesResponse.statusText);
-        } catch (fetchError) {
-          console.error('❌ Network error fetching pages:', fetchError.message);
-          console.error('  Error stack:', fetchError.stack);
-          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_pages_network_error`);
-        }
+        console.log('  Starting pagination fetch for pages...');
 
-        if (!pagesResponse.ok) {
-          const errorData = await pagesResponse.text();
-          console.error('❌ Failed to fetch pages:');
-          console.error('  Status:', pagesResponse.status);
-          console.error('  Status Text:', pagesResponse.statusText);
-          console.error('  Error Response:', errorData);
+        while (nextPageUrl) {
+          console.log('  Fetching URL (masked):', nextPageUrl.replace(/access_token=[^&]+/, 'access_token=***'));
+
+          let pagesResponse;
           try {
-            const errorJson = JSON.parse(errorData);
-            console.error('  Parsed Error:', JSON.stringify(errorJson, null, 2));
-          } catch (e) {
-            console.error('  Error is not JSON');
+            pagesResponse = await fetch(nextPageUrl, {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            });
+            console.log('  Pages response status:', pagesResponse.status, pagesResponse.statusText);
+          } catch (fetchError) {
+            console.error('❌ Network error fetching pages:', fetchError.message);
+            console.error('  Error stack:', fetchError.stack);
+
+            if (allPages.length > 0) {
+              console.warn('  ⚠️ Error fetching subsequent page, handling what we have so far.');
+              break;
+            }
+            return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_pages_network_error`);
           }
-          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_pages_failed`);
+
+          if (!pagesResponse.ok) {
+            const errorData = await pagesResponse.text();
+            console.error('❌ Failed to fetch pages:');
+            console.error('  Status:', pagesResponse.status);
+            console.error('  Error Response:', errorData);
+
+            if (allPages.length > 0) {
+              console.warn('  ⚠️ Error fetching subsequent page, handling what we have so far.');
+              break;
+            }
+            return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_pages_failed`);
+          }
+
+          let pagesData;
+          try {
+            pagesData = await pagesResponse.json();
+          } catch (parseError) {
+            console.error('❌ Error parsing pages response JSON:', parseError.message);
+            if (allPages.length > 0) break;
+            return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_pages_parse_error`);
+          }
+
+          const currentBatch = pagesData.data || [];
+          allPages = [...allPages, ...currentBatch];
+          console.log(`  Received ${currentBatch.length} pages. Total collected so far: ${allPages.length}`);
+
+          // Prepare for next iteration
+          nextPageUrl = (pagesData.paging && pagesData.paging.next) ? pagesData.paging.next : null;
         }
 
-        let pagesData;
-        try {
-          pagesData = await pagesResponse.json();
-          console.log('  Pages response keys:', Object.keys(pagesData).join(', '));
-        } catch (parseError) {
-          console.error('❌ Error parsing pages response JSON:', parseError.message);
-          const responseText = await pagesResponse.text();
-          console.error('  Raw response:', responseText);
-          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_pages_parse_error`);
-        }
-
-        const pages = pagesData.data || [];
-        console.log(`✅ Found ${pages.length} page(s)`);
+        const pages = allPages;
+        console.log(`✅ Found ${pages.length} page(s) total`);
 
         if (pages.length === 0) {
           console.error('❌ No Facebook Pages found.');
           console.error('  User must have a Facebook Page connected to Instagram Business account.');
-          console.error('  Pages response:', JSON.stringify(pagesData, null, 2));
           return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_no_pages`);
         }
 
@@ -310,14 +326,21 @@ router.get('/callback/:platform', async (req, res) => {
         console.log('📱 Step 4: Finding page with connected Instagram Business Account...');
         let pageName = null;
         let pagesChecked = 0;
+        let pagesWithNoIg = [];
 
         for (const page of pages) {
           pagesChecked++;
-          console.log(`  Checking page ${pagesChecked}/${pages.length}: ${page.id}`);
-          console.log('    Page has access token:', page.access_token ? 'Yes' : 'No');
+
+          if (!page.id || !page.access_token) {
+            console.log(`  Checking page ${pagesChecked}/${pages.length}: [Invalid Page Data] - Skipping`);
+            continue;
+          }
+
+          console.log(`  Checking page ${pagesChecked}/${pages.length}: ${page.id} (${page.name})`);
+          // console.log('    Page has access token:', page.access_token ? 'Yes' : 'No');
 
           const pageInfoUrl = `https://graph.facebook.com/v18.0/${page.id}?fields=instagram_business_account,name&access_token=${page.access_token}`;
-          console.log('    Page info URL (masked):', pageInfoUrl.replace(/access_token=[^&]+/, 'access_token=***'));
+          // console.log('    Page info URL (masked):', pageInfoUrl.replace(/access_token=[^&]+/, 'access_token=***'));
 
           let pageInfoResponse;
           try {
@@ -327,7 +350,7 @@ router.get('/callback/:platform', async (req, res) => {
                 'Content-Type': 'application/json',
               },
             });
-            console.log('    Page info response status:', pageInfoResponse.status, pageInfoResponse.statusText);
+            // console.log('    Page info response status:', pageInfoResponse.status, pageInfoResponse.statusText);
           } catch (fetchError) {
             console.error('    ❌ Network error fetching page info:', fetchError.message);
             continue; // Try next page
@@ -337,20 +360,20 @@ router.get('/callback/:platform', async (req, res) => {
             let pageInfo;
             try {
               pageInfo = await pageInfoResponse.json();
-              console.log('    Page info keys:', Object.keys(pageInfo).join(', '));
+              // console.log('    Page info keys:', Object.keys(pageInfo).join(', '));
             } catch (parseError) {
               console.error('    ❌ Error parsing page info JSON:', parseError.message);
               continue; // Try next page
             }
 
             console.log('    Page name:', pageInfo.name || 'Not found');
-            console.log('    Has Instagram Business Account:', pageInfo.instagram_business_account ? 'Yes' : 'No');
+            // console.log('    Has Instagram Business Account:', pageInfo.instagram_business_account ? 'Yes' : 'No');
 
             if (pageInfo.instagram_business_account) {
+              console.log('    ✅ FOUND INSTAGRAM ACCOUNT:', pageInfo.instagram_business_account.id);
               pageId = page.id;
               // Page access token might be short-lived - we need to exchange it too
               const pageToken = page.access_token;
-              console.log('    Page access token received (length):', pageToken ? pageToken.length : 'Missing');
 
               // Exchange page token for long-lived - CRITICAL: Must succeed
               try {
@@ -358,14 +381,8 @@ router.get('/callback/:platform', async (req, res) => {
                 const longLivedPageToken = await exchangeForLongLivedToken(pageToken);
                 pageAccessToken = longLivedPageToken.accessToken;
                 console.log('    ✅ Long-lived page token obtained');
-                console.log(`       Expires in: ${Math.floor(longLivedPageToken.expiresIn / 86400)} days`);
-                console.log('       ✅ This token will be valid for 60 days');
               } catch (pageTokenError) {
                 console.error('    ❌ CRITICAL: Failed to exchange page token:', pageTokenError.message);
-                console.error('    ⚠️  Cannot proceed with short-lived page token');
-                console.error('    User must re-authenticate');
-                console.error('    User must re-authenticate');
-                // Don't continue - fail the OAuth flow
                 return res.redirect(`${frontendUrl}/dashboard/clients?error=page_token_exchange_failed&error_description=${encodeURIComponent(pageTokenError.message)}`);
               }
 
@@ -378,7 +395,8 @@ router.get('/callback/:platform', async (req, res) => {
               console.log('  IG Business Account ID:', igUserId);
               break;
             } else {
-              console.log('    ❌ This page does not have Instagram Business Account connected');
+              console.log('    ❌ No Instagram Business Account connected to this page');
+              pagesWithNoIg.push(`${pageInfo.name} (ID: ${page.id})`);
             }
           } else {
             const errorData = await pageInfoResponse.text();
@@ -391,11 +409,11 @@ router.get('/callback/:platform', async (req, res) => {
 
         if (!igUserId) {
           console.error('❌ No Instagram Business Account found after checking', pagesChecked, 'page(s)');
+          console.error('  Pages checked without IG:', pagesWithNoIg.join(', '));
           console.error('  User must connect Instagram Business account to a Facebook Page.');
-          console.error('  Steps to fix:');
-          console.error('    2. Link Instagram Business Account to the Page');
-          console.error('    3. Try connecting again');
-          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_no_ig_account`);
+
+          const errorDesc = "No Instagram Business Account found. key: Ensure you selected the correct Facebook Page in the 'Edit Settings' or 'Continue' dialog. The Instagram account must also be a Business/Creator account connected to that Page.";
+          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_no_ig_account&error_description=${encodeURIComponent(errorDesc)}`);
         }
 
         // Step 5: Get Instagram Business Account info
@@ -941,6 +959,7 @@ router.post('/authorize', requireAuth, async (req, res) => {
       logo: logo || null,
       userId: userId.toString()
     })).toString('base64');
+
     // Robustly construct base URL by removing trailing slash and any existing /api path
     const baseUrl = (process.env.API_URL || 'http://localhost:5001').replace(/\/$/, '').replace(/\/api.*$/, '');
     const redirectUri = `${baseUrl}/api/oauth/callback/${platform}`;
@@ -967,7 +986,7 @@ router.post('/authorize', requireAuth, async (req, res) => {
       console.log('  Using config_id: 840928395225436');
 
       // Use Facebook OAuth endpoint for Instagram Business API with config_id
-      authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${facebookAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&config_id=840928395225436&response_type=code&state=${state}`;
+      authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${facebookAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&config_id=840928395225436&response_type=code&auth_type=rerequest&state=${state}`;
       console.log('Instagram Business API OAuth URL generated:', authUrl.replace(/client_id=[^&]+/, 'client_id=***'));
       console.log('⚠️  Make sure this redirect URI is configured in Instagram Business API settings:', redirectUri);
     } else if (platform === 'facebook') {

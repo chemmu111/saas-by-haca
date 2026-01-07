@@ -212,10 +212,6 @@ const Signup = () => {
                 <div className="auth-footer">
                     Already have an account? <Link to="/login">Login</Link>
                 </div>
-
-                <div className="mt-8 text-center text-xs text-gray-400">
-                    <a href="/privacy-policy" className="hover:text-gray-600 transition-colors">Privacy Policy</a> | &copy; {new Date().getFullYear()} Socialhac
-                </div>
             </form>
         </AuthLayout>
     );

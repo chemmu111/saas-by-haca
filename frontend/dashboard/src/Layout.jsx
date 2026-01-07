@@ -267,11 +267,6 @@ const Layout = ({ children }) => {
           <div className="animate-scale-in">
             {children}
           </div>
-          <footer className="mt-auto py-6 text-center text-sm text-gray-500 border-t border-gray-100">
-            <p>
-              <a href="/privacy-policy" className="hover:text-blue-600 transition-colors">Privacy Policy</a> | &copy; {new Date().getFullYear()} Socialhac
-            </p>
-          </footer>
         </main>
       </div>
 
