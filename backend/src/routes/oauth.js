@@ -87,7 +87,7 @@ router.get('/callback/:platform', async (req, res) => {
       if (!clientId || !clientSecret) {
         console.error('  INSTAGRAM_CLIENT_ID:', process.env.INSTAGRAM_CLIENT_ID ? 'Set' : 'Missing');
         console.error('  INSTAGRAM_CLIENT_SECRET:', process.env.INSTAGRAM_CLIENT_SECRET ? 'Set' : 'Missing');
-        return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_config_missing`);
+        return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_config_missing&error_description=Missing Instagram Client ID or Secret in backend configuration`);
       }
 
       try {
@@ -112,7 +112,7 @@ router.get('/callback/:platform', async (req, res) => {
         } catch (fetchError) {
           console.error('❌ Network error fetching token:', fetchError.message);
           console.error('  Error stack:', fetchError.stack);
-          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_network_error`);
+          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_network_error&error_description=Network error fetching token: ${encodeURIComponent(fetchError.message)}`);
         }
 
         if (!tokenResponse.ok) {
@@ -127,7 +127,7 @@ router.get('/callback/:platform', async (req, res) => {
           } catch (e) {
             console.error('  Error is not JSON');
           }
-          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_token_failed`);
+          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_token_failed&error_description=Instagram token exchange failed: ${tokenResponse.status}`);
         }
 
         let tokenData;
@@ -138,13 +138,13 @@ router.get('/callback/:platform', async (req, res) => {
           console.error('❌ Error parsing token response JSON:', parseError.message);
           const responseText = await tokenResponse.text();
           console.error('  Raw response:', responseText);
-          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_token_parse_error`);
+          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_token_parse_error&error_description=Failed to parse token response`);
         }
 
         if (!tokenData.access_token) {
           console.error('❌ No access_token in token response');
           console.error('  Token data:', JSON.stringify(tokenData, null, 2));
-          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_no_access_token`);
+          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_no_access_token&error_description=No access token returned from Instagram`);
         }
 
         const shortLivedToken = tokenData.access_token;
@@ -212,7 +212,7 @@ router.get('/callback/:platform', async (req, res) => {
 
         if (pages.length === 0) {
           console.error('❌ No Facebook Pages found.');
-          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_no_pages`);
+          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_no_pages&error_description=No Facebook Pages found. Please create a Facebook Page and link your Instagram credentials.`);
         }
 
         // Step 4: Find page with connected Instagram Business Account
@@ -276,7 +276,7 @@ router.get('/callback/:platform', async (req, res) => {
           console.error('  Steps to fix:');
           console.error('    2. Link Instagram Business Account to the Page');
           console.error('    3. Try connecting again');
-          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_no_ig_account`);
+          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_no_ig_account&error_description=No Instagram Business Account found linked to your Facebook Pages.`);
         }
 
         // Step 5: Get Instagram Business Account info
@@ -394,7 +394,7 @@ router.get('/callback/:platform', async (req, res) => {
         if (error.cause) {
           console.error('  Error cause:', error.cause);
         }
-        return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_oauth_failed`);
+        return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_oauth_failed&error_description=${encodeURIComponent(error.message)}`);
       }
     } else if (platform === 'facebook') {
       console.log('📘 Starting Facebook OAuth flow...');
@@ -771,7 +771,7 @@ router.get('/callback/:platform', async (req, res) => {
         console.error('  Validation errors:', JSON.stringify(dbError.errors, null, 2));
       }
       // const frontendUrl = ... (using top scope variable)
-      return res.redirect(`${frontendUrl}/dashboard/clients?error=database_error`);
+      return res.redirect(`${frontendUrl}/dashboard/clients?error=database_error&error_description=${encodeURIComponent(dbError.message)}`);
     }
   } catch (error) {
     console.error('❌ OAuth callback error:', error);
@@ -780,7 +780,7 @@ router.get('/callback/:platform', async (req, res) => {
     // const frontendUrl = ... (using top scope variable)
     // Note: If error occurred before frontendUrl was defined at top, we need a fallback here
     const redirectBase = (process.env.NODE_ENV === 'development') ? 'http://localhost:3000' : 'https://socialhac.com';
-    return res.redirect(`${redirectBase}/dashboard/clients?error=oauth_failed`);
+    return res.redirect(`${redirectBase}/dashboard/clients?error=oauth_failed&error_description=${encodeURIComponent(error.message)}`);
   }
 });
 
