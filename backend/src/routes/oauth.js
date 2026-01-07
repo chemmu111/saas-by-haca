@@ -181,6 +181,25 @@ router.get('/callback/:platform', async (req, res) => {
           return res.redirect(`${frontendUrl}/dashboard/clients?error=token_exchange_failed&error_description=${encodeURIComponent(exchangeError.message)}`);
         }
 
+        // Step 2.5: Verify Permissions
+        console.log('📱 Step 2.5: Verifying permissions...');
+        const permissionsUrl = `https://graph.facebook.com/v24.0/me/permissions?access_token=${accessToken}`;
+        try {
+          const permRes = await fetch(permissionsUrl);
+          const permData = await permRes.json();
+          if (permData.data) {
+            const pagesPermission = permData.data.find(p => p.permission === 'pages_show_list');
+            console.log('   Permission pages_show_list:', pagesPermission ? pagesPermission.status : 'MISSING');
+
+            if (!pagesPermission || pagesPermission.status !== 'granted') {
+              console.error('❌ CRITICAL: pages_show_list permission NOT granted.');
+              return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_permission_denied&error_description=Permission 'pages_show_list' was denied. You MUST allow this permission and select your pages in the Facebook Login dialog.`);
+            }
+          }
+        } catch (e) {
+          console.warn('   ⚠️ Failed to check permissions:', e.message);
+        }
+
         // Step 3: Get user's Facebook Pages
         // Request pages with all necessary permissions for Instagram publishing
         console.log('📱 Step 3: Fetching user\'s Facebook Pages...');
@@ -212,7 +231,7 @@ router.get('/callback/:platform', async (req, res) => {
 
         if (pages.length === 0) {
           console.error('❌ No Facebook Pages found.');
-          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_no_pages&error_description=No Facebook Pages found. Please create a Facebook Page and link your Instagram credentials.`);
+          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_no_pages&error_description=No Facebook Pages found. IMPORTANT: Did you uncheck your pages in the Facebook Login dialog? You MUST select the Facebook Page linked to your Instagram account.`);
         }
 
         // Step 4: Find page with connected Instagram Business Account
