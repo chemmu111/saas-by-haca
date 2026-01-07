@@ -30,6 +30,33 @@ import Post from '../models/Post.js';
 import { ensureValidToken } from './instagramTokenService.js';
 import fs from 'fs';
 
+/**
+ * Helper to mark a client's token as expired in the database
+ * Used when API returns error 190 (Invalid OAuth Session)
+ */
+async function markClientTokenExpired(igUserId) {
+  try {
+    if (!igUserId) return;
+
+    console.log(`⚠️ Marking token as expired for igUserId: ${igUserId}`);
+    const result = await Client.updateMany(
+      { igUserId: igUserId },
+      {
+        $set: {
+          tokenNeedsRefresh: true,
+          'tokenStatus.state': 'expired',
+          'tokenStatus.lastRefreshStatus': 'failed',
+          instagramConnected: false
+        }
+      }
+    );
+    console.log(`   Updated ${result.modifiedCount} client(s) status to expired`);
+  } catch (error) {
+    console.error('Error marking client token expired:', error);
+  }
+}
+
+
 // Simple in-memory cache (5 minutes TTL)
 const cache = new Map();
 
@@ -148,6 +175,15 @@ async function fetchFollowerCount(igUserId, pageAccessToken) {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('❌ Error fetching follower_count from insights:', response.status, errorText);
+
+      // Attempt to parse validation error
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (errorJson.error?.code === 190) {
+          await markClientTokenExpired(igUserId);
+        }
+      } catch (e) { /* ignore parse error */ }
+
       return 0;
     }
 
@@ -395,6 +431,10 @@ export async function fetchAccountInsights(igUserId, pageAccessToken) {
     setCache(cacheKey, result);
     return createSuccessResponse(result);
   } catch (error) {
+    // Check if it's an API error object and has code 190
+    if (error.code === 190 || error.message?.includes('190')) {
+      await markClientTokenExpired(igUserId);
+    }
     return createErrorResponse(error, 'fetchAccountInsights');
   }
 }
@@ -749,6 +789,12 @@ export async function fetchInstagramMedia(igUserId, pageAccessToken, limit = 25)
         const errorData = await response.json().catch(() => ({}));
         console.error(`   ⚠️ Error fetching page ${pageCount + 1}:`, errorData);
         if (pageCount === 0) { // Only return error if first page fails
+          // Check for Invalid OAuth Session (Code 190)
+          if (errorData.error?.code === 190 || errorData.error?.error_subcode === 460) {
+            console.error('   ❌ Critical: Token invalidated (Code 190). Marking as expired.');
+            await markClientTokenExpired(igUserId);
+          }
+
           return createErrorResponse(
             `Instagram API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`,
             'fetchInstagramMedia'
