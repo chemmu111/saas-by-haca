@@ -30,8 +30,7 @@ const Posts = () => {
 
     // 2. Development mode
     if (window.location.hostname === 'localhost' || window.location.port === '3000') {
-      const savedPort = localStorage.getItem('backend_port') || '5000';
-      return `http://localhost:${savedPort}`;
+      return 'http://localhost:5001';
     }
 
     // 3. Fallback
@@ -62,7 +61,7 @@ const Posts = () => {
         }
 
         // If it's a localhost URL with different port, normalize to our backend
-        if (urlObj.hostname === 'localhost' && urlObj.port && urlObj.port !== '5000' && urlObj.port !== '3000') {
+        if (urlObj.hostname === 'localhost' && urlObj.port && urlObj.port !== '5001' && urlObj.port !== '3000') {
           return `${backendUrl}${urlObj.pathname}`;
         }
 

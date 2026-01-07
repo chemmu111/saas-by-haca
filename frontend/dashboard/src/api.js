@@ -23,7 +23,7 @@ const getBackendUrl = () => {
     if (isLocal) {
         const savedPort = localStorage.getItem('backend_port');
         const port = savedPort || '5000';
-        return `http://localhost:${port}/api`;
+        return 'http://localhost:5001/api';
     }
 
     // 3. Force correct backend for custom domain (socialhac.com)

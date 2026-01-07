@@ -13,7 +13,7 @@ const TokenHealthSettings = () => {
     const fetchClients = async () => {
         try {
             const token = localStorage.getItem('auth_token');
-            const response = await fetch('http://localhost:5000/api/clients', {
+            const response = await fetch('http://localhost:5001/api/clients', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await response.json();
@@ -31,7 +31,7 @@ const TokenHealthSettings = () => {
         setRefreshingId(clientId);
         try {
             const token = localStorage.getItem('auth_token');
-            const response = await fetch(`http://localhost:5000/api/auth/refresh/${clientId}`, {
+            const response = await fetch(`http://localhost:5001/api/auth/refresh/${clientId}`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -132,8 +132,8 @@ const TokenHealthSettings = () => {
                                         onClick={() => handleForceRefresh(client._id)}
                                         disabled={refreshingId === client._id || state === 'expired'}
                                         className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${state === 'expired'
-                                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                                : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
+                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                            : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
                                             }`}
                                     >
                                         <RefreshCw size={14} className={refreshingId === client._id ? 'animate-spin' : ''} />

@@ -61,8 +61,7 @@ const Layout = ({ children }) => {
       window.location.port === '5173';
 
     if (isLocal) {
-      const savedPort = localStorage.getItem('backend_port') || '5000';
-      return `http://localhost:${savedPort}`;
+      return 'http://localhost:5001';
     }
 
     // Force correct backend for custom domain (socialhac.com)

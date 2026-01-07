@@ -57,7 +57,7 @@ const ClientDrawer = ({ client, isOpen, onClose, onUpdate }) => {
 
         try {
             const token = localStorage.getItem('auth_token');
-            const response = await fetch(`http://localhost:5000/api/clients/${client._id}/notes`, {
+            const response = await fetch(`http://localhost:5001/api/clients/${client._id}/notes`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -78,7 +78,7 @@ const ClientDrawer = ({ client, isOpen, onClose, onUpdate }) => {
     const handleSaveDetails = async () => {
         try {
             const token = localStorage.getItem('auth_token');
-            const response = await fetch(`http://localhost:5000/api/clients/${client._id}`, {
+            const response = await fetch(`http://localhost:5001/api/clients/${client._id}`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -102,7 +102,7 @@ const ClientDrawer = ({ client, isOpen, onClose, onUpdate }) => {
         setIsSyncing(true);
         try {
             const token = localStorage.getItem('auth_token');
-            const response = await fetch(`http://localhost:5000/api/clients/${client._id}/sync`, {
+            const response = await fetch(`http://localhost:5001/api/clients/${client._id}/sync`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`

@@ -28,6 +28,7 @@ import Client from '../models/Client.js';
 import DailyAnalytics from '../models/DailyAnalytics.js';
 import Post from '../models/Post.js';
 import { ensureValidToken } from './instagramTokenService.js';
+import fs from 'fs';
 
 // Simple in-memory cache (5 minutes TTL)
 const cache = new Map();

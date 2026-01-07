@@ -26,8 +26,7 @@ const getBackendUrl = () => {
 
     // 2. Development mode
     if (window.location.hostname === 'localhost' || window.location.port === '3000') {
-        const savedPort = localStorage.getItem('backend_port') || '5000';
-        return `http://localhost:${savedPort}`;
+        return 'http://localhost:5001';
     }
 
     // 3. Fallback

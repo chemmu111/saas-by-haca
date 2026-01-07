@@ -76,8 +76,7 @@ const Dashboard = () => {
 
           // 2. Development mode
           if (window.location.port === '3000' || window.location.port === '5173' || window.location.hostname === 'localhost') {
-            const savedPort = localStorage.getItem('backend_port') || '5000';
-            return `http://localhost:${savedPort}`;
+            return 'http://localhost:5001';
           }
 
           // 3. Fallback
@@ -120,7 +119,7 @@ const Dashboard = () => {
             if (savedPort) {
               return `http://localhost:${savedPort}`;
             }
-            return 'http://localhost:5000';
+            return 'http://localhost:5001';
           }
           return 'https://haca-social-x-backend.onrender.com';
         };

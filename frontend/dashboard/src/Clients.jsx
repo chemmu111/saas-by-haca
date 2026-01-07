@@ -50,6 +50,9 @@ const Clients = () => {
     if (urlParams.get('success') === 'client_added') {
       fetchClients();
       window.history.replaceState({}, '', '/dashboard/clients');
+    } else if (urlParams.get('error')) {
+      setError(urlParams.get('error_description') || 'OAuth connection failed');
+      window.history.replaceState({}, '', '/dashboard/clients');
     }
   }, []);
 

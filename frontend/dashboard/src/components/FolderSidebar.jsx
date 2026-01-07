@@ -13,7 +13,7 @@ const FolderSidebar = ({ activeFolder, onSelectFolder }) => {
     const fetchFolders = async () => {
         try {
             const token = localStorage.getItem('auth_token');
-            const res = await fetch('http://localhost:5000/api/folders', {
+            const res = await fetch('http://localhost:5001/api/folders', {
                 headers: { Authorization: `Bearer ${token}` }
             });
             const data = await res.json();
@@ -27,7 +27,7 @@ const FolderSidebar = ({ activeFolder, onSelectFolder }) => {
         if (!newFolderName.trim()) return;
         try {
             const token = localStorage.getItem('auth_token');
-            const res = await fetch('http://localhost:5000/api/folders', {
+            const res = await fetch('http://localhost:5001/api/folders', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -51,7 +51,7 @@ const FolderSidebar = ({ activeFolder, onSelectFolder }) => {
         if (!window.confirm('Delete this folder? Posts inside will not be deleted.')) return;
         try {
             const token = localStorage.getItem('auth_token');
-            await fetch(`http://localhost:5000/api/folders/${id}`, {
+            await fetch(`http://localhost:5001/api/folders/${id}`, {
                 method: 'DELETE',
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -78,8 +78,8 @@ const FolderSidebar = ({ activeFolder, onSelectFolder }) => {
                 <button
                     onClick={() => onSelectFolder(null)}
                     className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeFolder === null
-                            ? 'bg-blue-50 text-blue-700'
-                            : 'text-slate-600 hover:bg-slate-50'
+                        ? 'bg-blue-50 text-blue-700'
+                        : 'text-slate-600 hover:bg-slate-50'
                         }`}
                 >
                     <FolderOpen size={18} />
@@ -91,8 +91,8 @@ const FolderSidebar = ({ activeFolder, onSelectFolder }) => {
                         key={folder._id}
                         onClick={() => onSelectFolder(folder._id)}
                         className={`w-full group flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeFolder === folder._id
-                                ? 'bg-blue-50 text-blue-700'
-                                : 'text-slate-600 hover:bg-slate-50'
+                            ? 'bg-blue-50 text-blue-700'
+                            : 'text-slate-600 hover:bg-slate-50'
                             }`}
                     >
                         <div className="flex items-center gap-3">

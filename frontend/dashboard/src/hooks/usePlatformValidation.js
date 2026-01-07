@@ -8,11 +8,7 @@ export const usePlatformValidation = (selectedClient, platform, postType) => {
   // Get backend URL helper
   const getBackendUrl = () => {
     if (window.location.port === '3000') {
-      const savedPort = localStorage.getItem('backend_port');
-      if (savedPort) {
-        return `http://localhost:${savedPort}`;
-      }
-      return 'http://localhost:5000';
+      return 'http://localhost:5001';
     }
     return window.location.origin;
   };

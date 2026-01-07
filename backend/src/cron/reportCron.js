@@ -38,7 +38,8 @@ export async function processSchedule(schedule) {
         console.log(`Processing schedule for client ${schedule.client?.name || schedule.client} (${schedule._id})`);
 
         if (!schedule.client || !schedule.createdBy) {
-            console.warn(`Invalid schedule ${schedule._id}: missing client or creator`);
+            console.warn(`Invalid schedule ${schedule._id}: missing client or creator. Deleting schedule.`);
+            await ReportSchedule.findByIdAndDelete(schedule._id);
             return;
         }
 

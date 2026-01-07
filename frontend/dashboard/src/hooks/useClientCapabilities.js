@@ -22,8 +22,7 @@ export const useClientCapabilities = (selectedClientId, platform, postType) => {
 
     // Development mode
     if (window.location.port === '3000' || window.location.port === '5173') {
-      const savedPort = localStorage.getItem('backend_port');
-      return savedPort ? `http://localhost:${savedPort}/api` : 'http://localhost:5000/api';
+      return 'http://localhost:5001/api';
     }
 
     // Default production fallback

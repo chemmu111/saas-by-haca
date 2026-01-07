@@ -26,8 +26,7 @@ const getBackendUrl = () => {
 
   // 3. Development mode - Vite dev server
   if (window.location.port === '3000' || window.location.hostname === 'localhost') {
-    const savedPort = localStorage.getItem('backend_port') || '5000';
-    return `http://localhost:${savedPort}`;
+    return 'http://localhost:5001';
   }
 
   // 4. Fallback
