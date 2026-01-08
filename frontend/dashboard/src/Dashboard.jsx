@@ -37,6 +37,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [userName, setUserName] = useState('User');
   const [loading, setLoading] = useState(true);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const [stats, setStats] = useState({
     totalClients: 0,
     totalPosts: 0,
@@ -130,14 +131,14 @@ const Dashboard = () => {
           'Content-Type': 'application/json'
         };
 
-        // Simulate a small delay to show skeletons (optional context)
-        // await new Promise(resolve => setTimeout(resolve, 1000));
-
-        const [clientsRes, analyticsRes, clientsListRes, postsRes] = await Promise.all([
+        // 1. FAST LOAD: Fetch clients, counts, and scheduled posts
+        // This should be nearly instant as it only hits the DB
+        console.log('Fetching fast dashboard data...');
+        const [clientsRes, clientsListRes, postsRes, totalPostsRes] = await Promise.all([
           fetch(`${backendUrl}/api/clients/count`, { headers }),
-          fetch(`${backendUrl}/api/analytics?startDate=&endDate=`, { headers }),
           fetch(`${backendUrl}/api/clients`, { headers }),
-          fetch(`${backendUrl}/api/posts?status=scheduled`, { headers })
+          fetch(`${backendUrl}/api/posts?status=scheduled`, { headers }),
+          fetch(`${backendUrl}/api/posts?limit=1`, { headers }) // Get total post count efficiently
         ]);
 
         const newStats = { ...stats };
@@ -147,16 +148,9 @@ const Dashboard = () => {
           if (data.success) newStats.totalClients = data.count || 0;
         }
 
-        if (analyticsRes.ok) {
-          const data = await analyticsRes.json();
-          if (data.success && data.data) {
-            newStats.totalPosts = data.data.totalPosts || 0;
-            newStats.totalViews = data.data.totalViews || 0;
-            newStats.totalReach = data.data.totalReach || data.data.totalViews || 0;
-            newStats.engagementRate = data.data.engagementRate || 0;
-            const posts = data.data.detailedPosts || data.data.recentPosts || [];
-            newStats.recentPosts = posts.slice(0, 5);
-          }
+        if (totalPostsRes.ok) {
+          const data = await totalPostsRes.json();
+          if (data.success) newStats.totalPosts = data.total || 0;
         }
 
         if (clientsListRes.ok) {
@@ -174,10 +168,36 @@ const Dashboard = () => {
         }
 
         setStats(newStats);
+        setLoading(false); // Unblock UI for fast content
+
+        // 2. SLOW LOAD: Fetch Analytics (Instagram API calls)
+        // This runs in background while user interacts with dashboard
+        console.log('Fetching background analytics...');
+        try {
+          const analyticsRes = await fetch(`${backendUrl}/api/analytics?startDate=&endDate=`, { headers });
+
+          if (analyticsRes.ok) {
+            const data = await analyticsRes.json();
+            if (data.success && data.data) {
+              setStats(prev => ({
+                ...prev,
+                totalViews: data.data.totalViews || 0,
+                totalReach: data.data.totalReach || data.data.totalViews || 0,
+                engagementRate: data.data.engagementRate || 0,
+                recentPosts: (data.data.detailedPosts || data.data.recentPosts || []).slice(0, 5)
+              }));
+            }
+          }
+        } catch (e) {
+          console.error('Error fetching background analytics:', e);
+        } finally {
+          setAnalyticsLoading(false);
+        }
+
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
-      } finally {
         setLoading(false);
+        setAnalyticsLoading(false);
       }
     };
 
@@ -203,7 +223,8 @@ const Dashboard = () => {
       icon: Users,
       gradient: 'from-blue-500 to-blue-600',
       shadow: 'shadow-blue-200',
-      onClick: () => navigate('/dashboard/clients')
+      onClick: () => navigate('/dashboard/clients'),
+      isLoading: loading
     },
     {
       label: 'Total Posts',
@@ -212,16 +233,18 @@ const Dashboard = () => {
       icon: FileText,
       gradient: 'from-violet-500 to-purple-600',
       shadow: 'shadow-purple-200',
-      onClick: () => navigate('/dashboard/posts')
+      onClick: () => navigate('/dashboard/posts'),
+      isLoading: loading
     },
     {
       label: 'Total Views',
       value: stats.totalViews.toLocaleString(),
-      subtext: loading ? '-' : (stats.totalReach > 0 ? `+${stats.totalReach.toLocaleString()} Reach` : '0 Reach'),
+      subtext: analyticsLoading ? 'Calculated from last 100 posts' : (stats.totalReach > 0 ? `+${stats.totalReach.toLocaleString()} Reach` : '0 Reach'),
       icon: Activity,
       gradient: 'from-emerald-400 to-emerald-600',
       shadow: 'shadow-emerald-200',
-      onClick: () => navigate('/dashboard/analytics')
+      onClick: () => navigate('/dashboard/analytics'),
+      isLoading: analyticsLoading
     },
     {
       label: 'Avg Engagement',
@@ -230,7 +253,8 @@ const Dashboard = () => {
       icon: Zap,
       gradient: 'from-rose-500 to-rose-600',
       shadow: 'shadow-rose-200',
-      onClick: () => navigate('/dashboard/analytics')
+      onClick: () => navigate('/dashboard/analytics'),
+      isLoading: analyticsLoading
     },
   ];
 
@@ -275,41 +299,39 @@ const Dashboard = () => {
 
           {/* Stats Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-            {loading ? (
-              [...Array(4)].map((_, i) => <SkeletonCard key={i} />)
-            ) : (
-              statCards.map((card, index) => {
-                const Icon = card.icon;
-                return (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    whileHover={{ y: -5 }}
-                    key={index}
-                    onClick={card.onClick}
-                    className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-sm hover:shadow-xl transition-all cursor-pointer group relative overflow-hidden"
-                  >
-                    <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${card.gradient} opacity-10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110`} />
+            {statCards.map((card, index) => {
+              if (card.isLoading) return <SkeletonCard key={index} />;
 
-                    <div className="flex items-start justify-between mb-4">
-                      <div className={`p-3 rounded-xl bg-gradient-to-br ${card.gradient} text-white shadow-lg ${card.shadow}`}>
-                        <Icon size={24} />
-                      </div>
-                      <div className="flex items-center text-slate-400 group-hover:text-slate-600 transition-colors">
-                        <ArrowRight size={20} className="-rotate-45 group-hover:rotate-0 transition-transform duration-300" />
-                      </div>
-                    </div>
+              const Icon = card.icon;
+              return (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  whileHover={{ y: -5 }}
+                  key={index}
+                  onClick={card.onClick}
+                  className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-sm hover:shadow-xl transition-all cursor-pointer group relative overflow-hidden"
+                >
+                  <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${card.gradient} opacity-10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110`} />
 
-                    <div>
-                      <h3 className="text-slate-500 text-sm font-medium mb-1">{card.label}</h3>
-                      <p className="text-3xl font-bold text-slate-900 tracking-tight">{card.value}</p>
-                      <p className="text-xs text-slate-400 mt-1 font-medium">{card.subtext}</p>
+                  <div className="flex items-start justify-between mb-4">
+                    <div className={`p-3 rounded-xl bg-gradient-to-br ${card.gradient} text-white shadow-lg ${card.shadow}`}>
+                      <Icon size={24} />
                     </div>
-                  </motion.div>
-                );
-              })
-            )}
+                    <div className="flex items-center text-slate-400 group-hover:text-slate-600 transition-colors">
+                      <ArrowRight size={20} className="-rotate-45 group-hover:rotate-0 transition-transform duration-300" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-slate-500 text-sm font-medium mb-1">{card.label}</h3>
+                    <p className="text-3xl font-bold text-slate-900 tracking-tight">{card.value}</p>
+                    <p className="text-xs text-slate-400 mt-1 font-medium">{card.subtext}</p>
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
 
           {/* Main Content Grid */}
@@ -332,7 +354,7 @@ const Dashboard = () => {
               </div>
 
               <div className="divide-y divide-slate-100">
-                {loading ? (
+                {analyticsLoading ? (
                   [...Array(5)].map((_, i) => <SkeletonFeedItem key={i} />)
                 ) : stats.recentPosts.length > 0 ? (
                   stats.recentPosts.map((post) => (

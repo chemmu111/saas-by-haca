@@ -290,172 +290,184 @@ router.get('/', async (req, res) => {
 
     let allDetailedPosts = [];
 
-    for (const client of instagramClients) {
+    // Move dynamic import outside the loop
+    const { getLatestClickSnapshot } = await import('../services/clickSnapshotService.js');
+
+    // Parallelize fetching for all clients
+    const clientPromises = instagramClients.map(async (client) => {
       try {
         console.log(`   Fetching data for client: ${client.name} (IG User: ${client.igUserId})`);
         const igData = await fetchInstagramAnalytics(client.igUserId, client.pageAccessToken, client);
+        return { client, igData };
+      } catch (error) {
+        console.error(`   ❌ Error fetching IG data for client ${client._id}:`, error.message);
+        return { client, error };
+      }
+    });
 
-        // Check if token expired
-        if (igData && igData.needReLogin) {
-          console.error(`   ❌ Token expired for ${client.name} — user must re-authenticate`);
-          // Return error response requiring re-authentication
-          return res.status(401).json({
-            success: false,
-            needReLogin: true,
-            error: 'instagram_token_expired',
-            message: `Instagram access token expired for ${client.name}. Please reconnect your Instagram account.`,
+    const clientResults = await Promise.all(clientPromises);
+
+    for (const { client, igData, error } of clientResults) {
+      if (error) continue;
+
+      // Check if token expired
+      if (igData && igData.needReLogin) {
+        console.error(`   ❌ Token expired for ${client.name} — user must re-authenticate`);
+        // Return error response requiring re-authentication
+        return res.status(401).json({
+          success: false,
+          needReLogin: true,
+          error: 'instagram_token_expired',
+          message: `Instagram access token expired for ${client.name}. Please reconnect your Instagram account.`,
+          clientName: client.name,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      if (igData && igData.success && igData.data) {
+        const data = igData.data;
+
+        // Collect detailed posts - ONLY REAL INSTAGRAM API DATA
+        if (data.allPosts && Array.isArray(data.allPosts)) {
+          // Ensure each post has proper metrics structure
+          const formattedPosts = data.allPosts.map(post => ({
+            id: post.id,
+            media_type: post.media_type,
+            media_url: post.media_url || null,
+            thumbnail_url: post.thumbnail_url || post.media_url || null,
+            caption: post.caption || '',
+            permalink: post.permalink,
+            timestamp: post.timestamp,
+            clientId: client._id.toString(), // Convert to string for filtering
             clientName: client.name,
-            timestamp: new Date().toISOString()
+            platform: 'instagram',
+            metrics: {
+              likes: post.metrics?.likes || post.insights?.likes || 0,
+              comments: post.metrics?.comments || post.insights?.comments || 0,
+              saved: post.metrics?.saved || post.insights?.saved || 0,
+              shares: post.metrics?.shares || post.insights?.shares || 0,
+              reach: post.metrics?.reach || post.insights?.reach || 0,
+              views: post.metrics?.views
+                || post.insights?.views
+                || post.insights?.video_views
+                || post.insights?.videoViews
+                || post.video_play_count
+                || 0,
+              engagement: post.metrics?.engagement
+                || post.insights?.engagement
+                || post.insights?.interactions
+                || post.insights?.total_interactions
+                || ((post.insights?.likes || 0) + (post.insights?.comments || 0) + (post.insights?.saved || 0) + (post.insights?.shares || 0))
+            }
+          }));
+          allDetailedPosts = [...allDetailedPosts, ...formattedPosts];
+          console.log(`   📊 Added ${formattedPosts.length} posts with real metrics from Instagram API`);
+        }
+
+        // Extract account data
+        totalFollowers += data.account?.follower_count || 0;
+        totalAccountReach += data.account?.reach_28d || data.account?.reach || 0;
+        totalAccountImpressions += data.account?.impressions || 0;
+
+        // Extract profile activity metrics from account data
+        if (data.account) {
+          profileActivity.profile_views += data.account.profile_views || 0;
+          profileActivity.website_clicks += data.account.website_clicks || 0;
+          profileActivity.email_contacts += data.account.email_contacts || 0;
+          profileActivity.phone_call_clicks += data.account.phone_call_clicks || 0;
+          profileActivity.text_message_clicks += data.account.text_message_clicks || 0;
+          profileActivity.get_directions_clicks += data.account.get_directions_clicks || 0;
+        }
+
+        // Check for latest ClickSnapshot (5-minute tracker data)
+        // This helps if API data is stale or if we have better data in DB
+        try {
+          // Import is now done outside the loop
+          const snapshot = await getLatestClickSnapshot(client._id);
+          if (snapshot) {
+            console.log(`   📸 Found ClickSnapshot for ${client.name}:`, snapshot.website_clicks);
+            // Use snapshot data if it's higher (cumulative logic)
+            if (snapshot.website_clicks > profileActivity.website_clicks) profileActivity.website_clicks = snapshot.website_clicks;
+            if (snapshot.email_contacts > profileActivity.email_contacts) profileActivity.email_contacts = snapshot.email_contacts;
+            if (snapshot.phone_call_clicks > profileActivity.phone_call_clicks) profileActivity.phone_call_clicks = snapshot.phone_call_clicks;
+            if (snapshot.text_message_clicks > profileActivity.text_message_clicks) profileActivity.text_message_clicks = snapshot.text_message_clicks;
+            if (snapshot.get_directions_clicks > profileActivity.get_directions_clicks) profileActivity.get_directions_clicks = snapshot.get_directions_clicks;
+          }
+        } catch (err) {
+          console.warn('   ⚠️ Failed to check ClickSnapshot:', err.message);
+        }
+
+        // Extract media metrics - ONLY FROM INSTAGRAM API
+        if (data.media) {
+          const mediaViews = data.media.totalViews || 0;
+          const mediaInteractions = data.media.totalInteractions || 0;
+          const mediaWatchTime = data.media.totalWatchTime || 0;
+          const mediaAvgWatchTime = data.media.avgWatchTime || 0;
+
+          igTotalViews += mediaViews;
+          igTotalInteractions += mediaInteractions;
+          igTotalWatchTime += mediaWatchTime;
+          if (mediaAvgWatchTime > 0) {
+            igAvgWatchTimeSum += mediaAvgWatchTime;
+            igAvgWatchTimeCount += 1;
+          }
+          igTotalEngagements += data.media.totalEngagements || 0;
+          igTotalLikes += data.media.totalLikes || 0;
+          igTotalComments += data.media.totalComments || 0;
+          igTotalShares += data.media.totalShares || 0;
+          igTotalSaves += data.media.totalSaves || 0;
+
+          // Log views extraction for debugging
+          console.log(`   📊 Instagram API Response:`);
+          console.log(`      Total Views: ${mediaViews}`);
+          console.log(`      Total Interactions: ${mediaInteractions}`);
+          console.log(`      Posts by Type (raw):`, data.media.postsByType || {});
+
+          // NOTE: We DON'T use data.media.postsByType directly because it doesn't
+          // distinguish between REELS and regular VIDEOs. We'll count from allDetailedPosts instead.
+        }
+
+        // Extract follower growth
+        totalFollowerGrowth += data.followerGrowth || 0;
+
+        // Extract followers trend data
+        if (data.trends && data.trends.followers && Array.isArray(data.trends.followers)) {
+          // Merge trend data from all clients
+          data.trends.followers.forEach(day => {
+            const existingDay = followersTrendData.find(d => d.date === day.date);
+            if (existingDay) {
+              existingDay.follower_count += day.follower_count || 0;
+              existingDay.followers += day.followers || 0;
+            } else {
+              followersTrendData.push({
+                date: day.date,
+                follower_count: day.follower_count || 0,
+                followers: day.followers || day.follower_count || 0
+              });
+            }
           });
         }
 
-        if (igData && igData.success && igData.data) {
-          const data = igData.data;
-
-          // Collect detailed posts - ONLY REAL INSTAGRAM API DATA
-          if (data.allPosts && Array.isArray(data.allPosts)) {
-            // Ensure each post has proper metrics structure
-            const formattedPosts = data.allPosts.map(post => ({
-              id: post.id,
-              media_type: post.media_type,
-              media_url: post.media_url || null,
-              thumbnail_url: post.thumbnail_url || post.media_url || null,
-              caption: post.caption || '',
-              permalink: post.permalink,
-              timestamp: post.timestamp,
-              clientId: client._id.toString(), // Convert to string for filtering
-              clientName: client.name,
-              platform: 'instagram',
-              metrics: {
-                likes: post.metrics?.likes || post.insights?.likes || 0,
-                comments: post.metrics?.comments || post.insights?.comments || 0,
-                saved: post.metrics?.saved || post.insights?.saved || 0,
-                shares: post.metrics?.shares || post.insights?.shares || 0,
-                reach: post.metrics?.reach || post.insights?.reach || 0,
-                views: post.metrics?.views
-                  || post.insights?.views
-                  || post.insights?.video_views
-                  || post.insights?.videoViews
-                  || post.video_play_count
-                  || 0,
-                engagement: post.metrics?.engagement
-                  || post.insights?.engagement
-                  || post.insights?.interactions
-                  || post.insights?.total_interactions
-                  || ((post.insights?.likes || 0) + (post.insights?.comments || 0) + (post.insights?.saved || 0) + (post.insights?.shares || 0))
-              }
-            }));
-            allDetailedPosts = [...allDetailedPosts, ...formattedPosts];
-            console.log(`   📊 Added ${formattedPosts.length} posts with real metrics from Instagram API`);
-          }
-
-          // Extract account data
-          totalFollowers += data.account?.follower_count || 0;
-          totalAccountReach += data.account?.reach_28d || data.account?.reach || 0;
-          totalAccountImpressions += data.account?.impressions || 0;
-
-          // Extract profile activity metrics from account data
-          if (data.account) {
-            profileActivity.profile_views += data.account.profile_views || 0;
-            profileActivity.website_clicks += data.account.website_clicks || 0;
-            profileActivity.email_contacts += data.account.email_contacts || 0;
-            profileActivity.phone_call_clicks += data.account.phone_call_clicks || 0;
-            profileActivity.text_message_clicks += data.account.text_message_clicks || 0;
-            profileActivity.get_directions_clicks += data.account.get_directions_clicks || 0;
-          }
-
-          // Check for latest ClickSnapshot (5-minute tracker data)
-          // This helps if API data is stale or if we have better data in DB
-          try {
-            const { getLatestClickSnapshot } = await import('../services/clickSnapshotService.js');
-            const snapshot = await getLatestClickSnapshot(client._id);
-            if (snapshot) {
-              console.log(`   📸 Found ClickSnapshot for ${client.name}:`, snapshot.website_clicks);
-              // Use snapshot data if it's higher (cumulative logic)
-              if (snapshot.website_clicks > profileActivity.website_clicks) profileActivity.website_clicks = snapshot.website_clicks;
-              if (snapshot.email_contacts > profileActivity.email_contacts) profileActivity.email_contacts = snapshot.email_contacts;
-              if (snapshot.phone_call_clicks > profileActivity.phone_call_clicks) profileActivity.phone_call_clicks = snapshot.phone_call_clicks;
-              if (snapshot.text_message_clicks > profileActivity.text_message_clicks) profileActivity.text_message_clicks = snapshot.text_message_clicks;
-              if (snapshot.get_directions_clicks > profileActivity.get_directions_clicks) profileActivity.get_directions_clicks = snapshot.get_directions_clicks;
+        // Extract account trend data (impressions and reach)
+        if (data.trends && data.trends.engagement && Array.isArray(data.trends.engagement)) {
+          data.trends.engagement.forEach(day => {
+            const existingDay = accountTrend.find(d => d.date === day.date);
+            if (existingDay) {
+              existingDay.reach += day.reach || 0;
+              existingDay.impressions += day.impressions || 0;
+            } else {
+              accountTrend.push({
+                date: day.date,
+                reach: day.reach || 0,
+                impressions: day.impressions || 0
+              });
             }
-          } catch (err) {
-            console.warn('   ⚠️ Failed to check ClickSnapshot:', err.message);
-          }
-
-          // Extract media metrics - ONLY FROM INSTAGRAM API
-          if (data.media) {
-            const mediaViews = data.media.totalViews || 0;
-            const mediaInteractions = data.media.totalInteractions || 0;
-            const mediaWatchTime = data.media.totalWatchTime || 0;
-            const mediaAvgWatchTime = data.media.avgWatchTime || 0;
-
-            igTotalViews += mediaViews;
-            igTotalInteractions += mediaInteractions;
-            igTotalWatchTime += mediaWatchTime;
-            if (mediaAvgWatchTime > 0) {
-              igAvgWatchTimeSum += mediaAvgWatchTime;
-              igAvgWatchTimeCount += 1;
-            }
-            igTotalEngagements += data.media.totalEngagements || 0;
-            igTotalLikes += data.media.totalLikes || 0;
-            igTotalComments += data.media.totalComments || 0;
-            igTotalShares += data.media.totalShares || 0;
-            igTotalSaves += data.media.totalSaves || 0;
-
-            // Log views extraction for debugging
-            console.log(`   📊 Instagram API Response:`);
-            console.log(`      Total Views: ${mediaViews}`);
-            console.log(`      Total Interactions: ${mediaInteractions}`);
-            console.log(`      Posts by Type (raw):`, data.media.postsByType || {});
-
-            // NOTE: We DON'T use data.media.postsByType directly because it doesn't
-            // distinguish between REELS and regular VIDEOs. We'll count from allDetailedPosts instead.
-          }
-
-          // Extract follower growth
-          totalFollowerGrowth += data.followerGrowth || 0;
-
-          // Extract followers trend data
-          if (data.trends && data.trends.followers && Array.isArray(data.trends.followers)) {
-            // Merge trend data from all clients
-            data.trends.followers.forEach(day => {
-              const existingDay = followersTrendData.find(d => d.date === day.date);
-              if (existingDay) {
-                existingDay.follower_count += day.follower_count || 0;
-                existingDay.followers += day.followers || 0;
-              } else {
-                followersTrendData.push({
-                  date: day.date,
-                  follower_count: day.follower_count || 0,
-                  followers: day.followers || day.follower_count || 0
-                });
-              }
-            });
-          }
-
-          // Extract account trend data (impressions and reach)
-          if (data.trends && data.trends.engagement && Array.isArray(data.trends.engagement)) {
-            data.trends.engagement.forEach(day => {
-              const existingDay = accountTrend.find(d => d.date === day.date);
-              if (existingDay) {
-                existingDay.reach += day.reach || 0;
-                existingDay.impressions += day.impressions || 0;
-              } else {
-                accountTrend.push({
-                  date: day.date,
-                  reach: day.reach || 0,
-                  impressions: day.impressions || 0
-                });
-              }
-            });
-          }
-
-          console.log(`   ✅ Fetched: ${data.media?.total || 0} posts, ${data.account?.follower_count || 0} followers, ${data.account?.reach || 0} reach`);
-        } else {
-          console.warn(`   ⚠️  No data returned for client ${client.name}`);
+          });
         }
-      } catch (error) {
-        console.error(`   ❌ Error fetching IG data for client ${client._id}:`, error.message);
+
+        console.log(`   ✅ Fetched: ${data.media?.total || 0} posts, ${data.account?.follower_count || 0} followers, ${data.account?.reach || 0} reach`);
+      } else {
+        console.warn(`   ⚠️  No data returned for client ${client.name}`);
       }
     }
 

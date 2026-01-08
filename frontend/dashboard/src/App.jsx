@@ -59,7 +59,7 @@ const AuthGuard = ({ children }) => {
       localStorage.removeItem('auth_token');
       localStorage.removeItem('user_info');
       localStorage.removeItem('refresh_token');
-      window.location.href = '/login';
+      window.location.href = '/login?expired=true';
     }
 
     // Periodic check every minute
@@ -71,7 +71,7 @@ const AuthGuard = ({ children }) => {
         localStorage.removeItem('auth_token');
         localStorage.removeItem('user_info');
         localStorage.removeItem('refresh_token');
-        window.location.href = '/login';
+        window.location.href = '/login?expired=true';
       }
     }, 60000); // Check every 1 minute
 

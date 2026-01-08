@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, ArrowRight, X, Check, Mail, Lock } from 'lucide-react';
 import AuthLayout from './AuthLayout';
 import PageTitle from '../PageTitle';
@@ -7,6 +7,7 @@ import { getBackendUrl, buildApiUrl } from '../../utils/api';
 
 const Login = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -19,6 +20,13 @@ const Login = () => {
     const [forgotStatus, setForgotStatus] = useState({ step: 'email', type: '', message: '' }); // step: email, verify, success
 
     const [rememberMe, setRememberMe] = useState(false);
+
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        if (params.get('expired') === 'true') {
+            setError('Your session has expired. Please log in again.');
+        }
+    }, [location]);
 
     const handleLogin = async (e) => {
         e.preventDefault();
