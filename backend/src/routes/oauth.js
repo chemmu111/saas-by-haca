@@ -29,29 +29,11 @@ router.get('/callback/:platform', async (req, res) => {
     const { platform } = req.params;
     const { code, state, error, error_description, error_reason } = req.query;
 
-    // Initialize all shared variables to prevent ReferenceError
-    let accessToken = null;
-    let refreshToken = null;
-    let socialMediaId = null;
-    let socialMediaLink = null;
-    let igUserId = null;
-    let pageId = null;
-    let pageAccessToken = null;
-    let instagramUsername = null;
-    let instagramProfilePicture = null;
-    let userId = null;
-    let clientData = {};
-
     if (state) {
       try {
         const decodedDebug = Buffer.from(state, 'base64').toString();
         const parsedDebug = JSON.parse(decodedDebug);
         console.log('🔐 [OAUTH CALLBACK] State contains UserID:', parsedDebug.userId);
-
-        // Extract data for top-level scope
-        userId = parsedDebug.userId;
-        clientData = parsedDebug; // Assign whole object as clientData
-
       } catch (e) {
         console.log('❌ [OAUTH CALLBACK] Failed to decode state for debug log');
       }
@@ -61,19 +43,102 @@ router.get('/callback/:platform', async (req, res) => {
 
     // Get frontend URL for redirect (moved to top scope)
     // FORCE socialhac.com in production to avoid old Render URL issues
+    // Get frontend URL for redirect (moved to top scope)
+    // FORCE socialhac.com in production to avoid old Render URL issues
     const frontendUrl = process.env.NODE_ENV === 'development'
-      ? 'http://localhost:5173'
+      ? 'http://localhost:3000'
       : 'https://socialhac.com';
 
-    // ... (unchanged code) ...
+    // Check for OAuth errors from Facebook/Instagram
+    if (error) {
+      console.error('❌ OAuth error received from provider');
+      console.error('  Error:', error);
+      console.error('  Error description:', error_description);
+      console.error('  Error reason:', error_reason);
+
+      let errorParam = 'oauth_error';
+      if (error === 'access_denied') {
+        errorParam = 'oauth_cancelled';
+      }
+
+      // Get frontend URL for redirect
+      // frontendUrl is already defined above
+
+      // Build redirect URL with error parameters
+      let redirectUrl = `${frontendUrl}/dashboard/clients?error=${errorParam}`;
+      if (error_description) {
+        // Encode error description to pass it to frontend
+        const encodedError = encodeURIComponent(error_description);
+        redirectUrl += `&error_description=${encodedError}`;
+      }
+      if (error_reason) {
+        const encodedReason = encodeURIComponent(error_reason);
+        redirectUrl += `&error_reason=${encodedReason}`;
+      }
+
+      return res.redirect(redirectUrl);
+    }
+
+    if (!code) {
+      console.error('❌ No authorization code received');
+      return res.redirect(`${frontendUrl}/dashboard/clients?error=oauth_cancelled`);
+    }
+
+    if (!state) {
+      console.error('❌ No state parameter received');
+      return res.redirect(`${frontendUrl}/dashboard/clients?error=invalid_state`);
+    }
+
+    // Extract client data from state (includes userId, name, email)
+    let clientData = {};
+    try {
+      console.log('📦 Decoding state parameter...');
+      const decodedState = Buffer.from(state, 'base64').toString();
+      console.log('  Decoded state:', decodedState);
+      clientData = JSON.parse(decodedState);
+      console.log('  Parsed clientData:', JSON.stringify(clientData));
+    } catch (e) {
+      console.error('❌ Error parsing state:', e.message);
+      console.error('  State value:', state);
+      return res.redirect(`${frontendUrl}/dashboard/clients?error=invalid_state`);
+    }
+
+    // Get user ID from state parameter (set during OAuth initiation)
+    const userIdString = clientData.userId;
+    if (!userIdString) {
+      console.error('❌ No userId found in state parameter');
+      console.error('  clientData:', JSON.stringify(clientData));
+      return res.redirect(`${frontendUrl}/dashboard/clients?error=invalid_user`);
+    }
+
+    console.log('✅ User ID extracted from state:', userIdString);
+
+    // Convert string ID to ObjectId for MongoDB
+    const userId = mongoose.Types.ObjectId.isValid(userIdString)
+      ? new mongoose.Types.ObjectId(userIdString)
+      : userIdString;
+
+    if (!['instagram', 'facebook'].includes(platform)) {
+      console.error('❌ Invalid platform:', platform);
+      return res.redirect(`${frontendUrl}/dashboard/clients?error=invalid_platform`);
+    }
+
+    console.log(`✅ Platform validated: ${platform}`);
+
+    // Exchange code for access token
+    let accessToken, refreshToken, socialMediaId, socialMediaLink;
+    // Instagram Business API specific variables
+    let pageId = null, pageAccessToken = null, igUserId = null;
+    // Instagram profile variables
+    let instagramUsername = null;
+    let instagramProfilePicture = null;
 
     if (platform === 'instagram') {
       console.log('📱 Starting Instagram Business API OAuth flow...');
 
       // Instagram Business API OAuth flow via Facebook Graph API
       // Robustly construct base URL by removing trailing slash and any existing /api path
-      const isDev = process.env.NODE_ENV === 'development';
-      const baseUrl = isDev ? 'http://localhost:5001' : (process.env.API_URL || 'https://socialhac.com').replace(/\/$/, '').replace(/\/api.*$/, '');
+      const baseUrl = (process.env.API_URL || 'http://localhost:5001').replace(/\/$/, '').replace(/\/api.*$/, '');
       const redirectUri = `${baseUrl}/api/oauth/callback/instagram`;
       console.log('  Redirect URI:', redirectUri);
 
@@ -87,7 +152,7 @@ router.get('/callback/:platform', async (req, res) => {
       if (!clientId || !clientSecret) {
         console.error('  INSTAGRAM_CLIENT_ID:', process.env.INSTAGRAM_CLIENT_ID ? 'Set' : 'Missing');
         console.error('  INSTAGRAM_CLIENT_SECRET:', process.env.INSTAGRAM_CLIENT_SECRET ? 'Set' : 'Missing');
-        return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_config_missing&error_description=Missing Instagram Client ID or Secret in backend configuration`);
+        return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_config_missing`);
       }
 
       try {
@@ -97,7 +162,7 @@ router.get('/callback/:platform', async (req, res) => {
         console.log('  Redirect URI:', redirectUri);
         console.log('  Client ID:', clientId ? clientId.substring(0, 10) + '...' : 'Missing');
 
-        const tokenUrl = `https://graph.facebook.com/v24.0/oauth/access_token?client_id=${clientId}&client_secret=${clientSecret}&redirect_uri=${encodeURIComponent(redirectUri)}&code=${code}`;
+        const tokenUrl = `https://graph.facebook.com/v18.0/oauth/access_token?client_id=${clientId}&client_secret=${clientSecret}&redirect_uri=${encodeURIComponent(redirectUri)}&code=${code}`;
         console.log('  Token URL (masked):', tokenUrl.replace(/client_secret=[^&]+/, 'client_secret=***').replace(/code=[^&]+/, 'code=***'));
 
         let tokenResponse;
@@ -112,7 +177,7 @@ router.get('/callback/:platform', async (req, res) => {
         } catch (fetchError) {
           console.error('❌ Network error fetching token:', fetchError.message);
           console.error('  Error stack:', fetchError.stack);
-          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_network_error&error_description=Network error fetching token: ${encodeURIComponent(fetchError.message)}`);
+          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_network_error`);
         }
 
         if (!tokenResponse.ok) {
@@ -127,7 +192,7 @@ router.get('/callback/:platform', async (req, res) => {
           } catch (e) {
             console.error('  Error is not JSON');
           }
-          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_token_failed&error_description=Instagram token exchange failed: ${tokenResponse.status}`);
+          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_token_failed`);
         }
 
         let tokenData;
@@ -138,13 +203,13 @@ router.get('/callback/:platform', async (req, res) => {
           console.error('❌ Error parsing token response JSON:', parseError.message);
           const responseText = await tokenResponse.text();
           console.error('  Raw response:', responseText);
-          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_token_parse_error&error_description=Failed to parse token response`);
+          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_token_parse_error`);
         }
 
         if (!tokenData.access_token) {
           console.error('❌ No access_token in token response');
           console.error('  Token data:', JSON.stringify(tokenData, null, 2));
-          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_no_access_token&error_description=No access token returned from Instagram`);
+          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_no_access_token`);
         }
 
         const shortLivedToken = tokenData.access_token;
@@ -181,121 +246,174 @@ router.get('/callback/:platform', async (req, res) => {
           return res.redirect(`${frontendUrl}/dashboard/clients?error=token_exchange_failed&error_description=${encodeURIComponent(exchangeError.message)}`);
         }
 
-        // Step 2.5: Verify Permissions
-        console.log('📱 Step 2.5: Verifying permissions...');
-        const permissionsUrl = `https://graph.facebook.com/v24.0/me/permissions?access_token=${accessToken}`;
-        try {
-          const permRes = await fetch(permissionsUrl);
-          const permData = await permRes.json();
-          if (permData.data) {
-            const pagesPermission = permData.data.find(p => p.permission === 'pages_show_list');
-            console.log('   Permission pages_show_list:', pagesPermission ? pagesPermission.status : 'MISSING');
-
-            if (!pagesPermission || pagesPermission.status !== 'granted') {
-              console.error('❌ CRITICAL: pages_show_list permission NOT granted.');
-              return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_permission_denied&error_description=Permission 'pages_show_list' was denied. You MUST allow this permission and select your pages in the Facebook Login dialog.`);
-            }
-          }
-        } catch (e) {
-          console.warn('   ⚠️ Failed to check permissions:', e.message);
-        }
-
         // Step 3: Get user's Facebook Pages
         // Request pages with all necessary permissions for Instagram publishing
         console.log('📱 Step 3: Fetching user\'s Facebook Pages...');
         console.log('  Using access token:', accessToken ? 'Yes (length: ' + accessToken.length + ')' : 'No');
+        // Request pages with fields including access_token and permissions
+        // The access_token returned here should have the permissions requested in the OAuth scopes
+        // Initial URL with limit=100 for better coverage
+        let nextPageUrl = `https://graph.facebook.com/v18.0/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${accessToken}&limit=100`;
+        let allPages = [];
 
-        // V24.0 UPDATE: Fetch basic page list first
-        // GET /me/accounts?fields=id,name,access_token
-        const pagesUrl = `https://graph.facebook.com/v24.0/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${accessToken}`;
-        console.log('  Pages URL (masked):', pagesUrl.replace(/access_token=[^&]+/, 'access_token=***'));
+        console.log('  Starting pagination fetch for pages...');
 
-        let pagesResponse;
-        try {
-          pagesResponse = await fetch(pagesUrl, { method: 'GET', headers: { 'Content-Type': 'application/json' } });
-          console.log('  Pages response status:', pagesResponse.status, pagesResponse.statusText);
-        } catch (fetchError) {
-          console.error('❌ Network error fetching pages:', fetchError.message);
-          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_pages_network_error`);
+        while (nextPageUrl) {
+          console.log('  Fetching URL (masked):', nextPageUrl.replace(/access_token=[^&]+/, 'access_token=***'));
+
+          let pagesResponse;
+          try {
+            pagesResponse = await fetch(nextPageUrl, {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            });
+            console.log('  Pages response status:', pagesResponse.status, pagesResponse.statusText);
+          } catch (fetchError) {
+            console.error('❌ Network error fetching pages:', fetchError.message);
+            console.error('  Error stack:', fetchError.stack);
+
+            if (allPages.length > 0) {
+              console.warn('  ⚠️ Error fetching subsequent page, handling what we have so far.');
+              break;
+            }
+            return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_pages_network_error`);
+          }
+
+          if (!pagesResponse.ok) {
+            const errorData = await pagesResponse.text();
+            console.error('❌ Failed to fetch pages:');
+            console.error('  Status:', pagesResponse.status);
+            console.error('  Error Response:', errorData);
+
+            if (allPages.length > 0) {
+              console.warn('  ⚠️ Error fetching subsequent page, handling what we have so far.');
+              break;
+            }
+            return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_pages_failed`);
+          }
+
+          let pagesData;
+          try {
+            pagesData = await pagesResponse.json();
+          } catch (parseError) {
+            console.error('❌ Error parsing pages response JSON:', parseError.message);
+            if (allPages.length > 0) break;
+            return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_pages_parse_error`);
+          }
+
+          const currentBatch = pagesData.data || [];
+          allPages = [...allPages, ...currentBatch];
+          console.log(`  Received ${currentBatch.length} pages. Total collected so far: ${allPages.length}`);
+
+          // Prepare for next iteration
+          nextPageUrl = (pagesData.paging && pagesData.paging.next) ? pagesData.paging.next : null;
         }
 
-        if (!pagesResponse.ok) {
-          const errorData = await pagesResponse.text();
-          console.error('❌ Failed to fetch pages:', pagesResponse.status, errorData);
-          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_pages_failed`);
-        }
-
-        const pagesData = await pagesResponse.json();
-        const pages = pagesData.data || [];
-        console.log(`✅ Found ${pages.length} page(s)`);
+        const pages = allPages;
+        console.log(`✅ Found ${pages.length} page(s) total`);
 
         if (pages.length === 0) {
           console.error('❌ No Facebook Pages found.');
-          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_no_pages&error_description=No Facebook Pages found. IMPORTANT: Did you uncheck your pages in the Facebook Login dialog? You MUST select the Facebook Page linked to your Instagram account.`);
+          console.error('  User must have a Facebook Page connected to Instagram Business account.');
+          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_no_pages`);
         }
+
+        console.log('  Page IDs:', pages.map(p => p.id).join(', '));
 
         // Step 4: Find page with connected Instagram Business Account
         console.log('📱 Step 4: Finding page with connected Instagram Business Account...');
         let pageName = null;
         let pagesChecked = 0;
+        let pagesWithNoIg = [];
 
         for (const page of pages) {
           pagesChecked++;
-          console.log(`  Checking page ${pagesChecked}/${pages.length}: ${page.id} (${page.name})`);
 
-          if (page.instagram_business_account) {
-            console.log('    ✅ Page has Instagram Business Account directly linked!');
-            igUserId = page.instagram_business_account.id;
-            pageId = page.id;
-            pageName = page.name;
-          } else {
-            // Fallback: Fetch explicit page details if not returned in list
-            // V24.0 UPDATE: Explicitly fetch individual page details
-            const pageDetailsUrl = `https://graph.facebook.com/v24.0/${page.id}?fields=instagram_business_account,name,access_token&access_token=${page.access_token}`;
-            try {
-              const pdRes = await fetch(pageDetailsUrl);
-              if (pdRes.ok) {
-                const pd = await pdRes.json();
-                if (pd.instagram_business_account) {
-                  console.log('    ✅ Found Instagram Business Account via distinct fetch!');
-                  igUserId = pd.instagram_business_account.id;
-                  pageId = pd.id;
-                  pageName = pd.name;
-                  // Update page token if needed
-                  if (pd.access_token) page.access_token = pd.access_token;
-                }
-              }
-            } catch (e) {
-              console.warn('    ⚠️ Failed to fetch specific page details:', e.message);
-            }
+          if (!page.id || !page.access_token) {
+            console.log(`  Checking page ${pagesChecked}/${pages.length}: [Invalid Page Data] - Skipping`);
+            continue;
           }
 
-          if (igUserId) {
-            // Page access token might be short-lived - we need to exchange it too
-            const pageToken = page.access_token;
-            console.log('    Page access token received (length):', pageToken ? pageToken.length : 'Missing');
+          console.log(`  Checking page ${pagesChecked}/${pages.length}: ${page.id} (${page.name})`);
+          // console.log('    Page has access token:', page.access_token ? 'Yes' : 'No');
 
-            // Exchange page token for long-lived - CRITICAL: Must succeed
+          const pageInfoUrl = `https://graph.facebook.com/v18.0/${page.id}?fields=instagram_business_account,name&access_token=${page.access_token}`;
+          // console.log('    Page info URL (masked):', pageInfoUrl.replace(/access_token=[^&]+/, 'access_token=***'));
+
+          let pageInfoResponse;
+          try {
+            pageInfoResponse = await fetch(pageInfoUrl, {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            });
+            // console.log('    Page info response status:', pageInfoResponse.status, pageInfoResponse.statusText);
+          } catch (fetchError) {
+            console.error('    ❌ Network error fetching page info:', fetchError.message);
+            continue; // Try next page
+          }
+
+          if (pageInfoResponse.ok) {
+            let pageInfo;
             try {
-              console.log('    🔄 Exchanging page token for long-lived token...');
-              const longLivedPageToken = await exchangeForLongLivedToken(pageToken);
-              pageAccessToken = longLivedPageToken.accessToken;
-              console.log('    ✅ Long-lived page token obtained');
-            } catch (pageTokenError) {
-              console.error('    ❌ CRITICAL: Failed to exchange page token:', pageTokenError.message);
-              return res.redirect(`${frontendUrl}/dashboard/clients?error=page_token_exchange_failed&error_description=${encodeURIComponent(pageTokenError.message)}`);
+              pageInfo = await pageInfoResponse.json();
+              // console.log('    Page info keys:', Object.keys(pageInfo).join(', '));
+            } catch (parseError) {
+              console.error('    ❌ Error parsing page info JSON:', parseError.message);
+              continue; // Try next page
             }
-            break; // Found our account, stop searching
+
+            console.log('    Page name:', pageInfo.name || 'Not found');
+            // console.log('    Has Instagram Business Account:', pageInfo.instagram_business_account ? 'Yes' : 'No');
+
+            if (pageInfo.instagram_business_account) {
+              console.log('    ✅ FOUND INSTAGRAM ACCOUNT:', pageInfo.instagram_business_account.id);
+              pageId = page.id;
+              // Page access token might be short-lived - we need to exchange it too
+              const pageToken = page.access_token;
+
+              // Exchange page token for long-lived - CRITICAL: Must succeed
+              try {
+                console.log('    🔄 Exchanging page token for long-lived token...');
+                const longLivedPageToken = await exchangeForLongLivedToken(pageToken);
+                pageAccessToken = longLivedPageToken.accessToken;
+                console.log('    ✅ Long-lived page token obtained');
+              } catch (pageTokenError) {
+                console.error('    ❌ CRITICAL: Failed to exchange page token:', pageTokenError.message);
+                return res.redirect(`${frontendUrl}/dashboard/clients?error=page_token_exchange_failed&error_description=${encodeURIComponent(pageTokenError.message)}`);
+              }
+
+              igUserId = pageInfo.instagram_business_account.id;
+              pageName = pageInfo.name;
+
+              console.log('✅ Found Instagram Business Account!');
+              console.log('  Page ID:', pageId);
+              console.log('  Page Name:', pageName);
+              console.log('  IG Business Account ID:', igUserId);
+              break;
+            } else {
+              console.log('    ❌ No Instagram Business Account connected to this page');
+              pagesWithNoIg.push(`${pageInfo.name} (ID: ${page.id})`);
+            }
+          } else {
+            const errorData = await pageInfoResponse.text();
+            console.error('    ❌ Failed to fetch page info:');
+            console.error('      Status:', pageInfoResponse.status);
+            console.error('      Error:', errorData);
+            continue; // Try next page
           }
         }
 
         if (!igUserId) {
           console.error('❌ No Instagram Business Account found after checking', pagesChecked, 'page(s)');
+          console.error('  Pages checked without IG:', pagesWithNoIg.join(', '));
           console.error('  User must connect Instagram Business account to a Facebook Page.');
-          console.error('  Steps to fix:');
-          console.error('    2. Link Instagram Business Account to the Page');
-          console.error('    3. Try connecting again');
-          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_no_ig_account&error_description=No Instagram Business Account found linked to your Facebook Pages.`);
+
+          const errorDesc = "No Instagram Business Account found. key: Ensure you selected the correct Facebook Page in the 'Edit Settings' or 'Continue' dialog. The Instagram account must also be a Business/Creator account connected to that Page.";
+          return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_no_ig_account&error_description=${encodeURIComponent(errorDesc)}`);
         }
 
         // Step 5: Get Instagram Business Account info
@@ -307,7 +425,7 @@ router.get('/callback/:platform', async (req, res) => {
         try {
           // Note: Instagram Business API doesn't provide profile_picture_url directly
           // We can only get username and then construct profile link
-          const igInfoUrl = `https://graph.facebook.com/v24.0/${igUserId}?fields=id,username&access_token=${pageAccessToken}`;
+          const igInfoUrl = `https://graph.facebook.com/v18.0/${igUserId}?fields=id,username&access_token=${pageAccessToken}`;
           console.log('  IG Info URL (masked):', igInfoUrl.replace(/access_token=[^&]+/, 'access_token=***'));
 
           let igInfoResponse;
@@ -413,15 +531,14 @@ router.get('/callback/:platform', async (req, res) => {
         if (error.cause) {
           console.error('  Error cause:', error.cause);
         }
-        return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_oauth_failed&error_description=${encodeURIComponent(error.message)}`);
+        return res.redirect(`${frontendUrl}/dashboard/clients?error=instagram_oauth_failed`);
       }
     } else if (platform === 'facebook') {
       console.log('📘 Starting Facebook OAuth flow...');
 
       // Facebook OAuth flow
       // Robustly construct base URL by removing trailing slash and any existing /api path
-      const isDev = process.env.NODE_ENV === 'development';
-      const baseUrl = isDev ? 'http://localhost:5001' : (process.env.API_URL || 'https://socialhac.com').replace(/\/$/, '').replace(/\/api.*$/, '');
+      const baseUrl = (process.env.API_URL || 'http://localhost:5001').replace(/\/$/, '').replace(/\/api.*$/, '');
       const redirectUri = `${baseUrl}/api/oauth/callback/facebook`;
       console.log('  Redirect URI:', redirectUri);
 
@@ -790,7 +907,7 @@ router.get('/callback/:platform', async (req, res) => {
         console.error('  Validation errors:', JSON.stringify(dbError.errors, null, 2));
       }
       // const frontendUrl = ... (using top scope variable)
-      return res.redirect(`${frontendUrl}/dashboard/clients?error=database_error&error_description=${encodeURIComponent(dbError.message)}`);
+      return res.redirect(`${frontendUrl}/dashboard/clients?error=database_error`);
     }
   } catch (error) {
     console.error('❌ OAuth callback error:', error);
@@ -799,7 +916,7 @@ router.get('/callback/:platform', async (req, res) => {
     // const frontendUrl = ... (using top scope variable)
     // Note: If error occurred before frontendUrl was defined at top, we need a fallback here
     const redirectBase = (process.env.NODE_ENV === 'development') ? 'http://localhost:3000' : 'https://socialhac.com';
-    return res.redirect(`${redirectBase}/dashboard/clients?error=oauth_failed&error_description=${encodeURIComponent(error.message)}`);
+    return res.redirect(`${redirectBase}/dashboard/clients?error=oauth_failed`);
   }
 });
 
@@ -842,9 +959,9 @@ router.post('/authorize', requireAuth, async (req, res) => {
       logo: logo || null,
       userId: userId.toString()
     })).toString('base64');
+
     // Robustly construct base URL by removing trailing slash and any existing /api path
-    const isDev = process.env.NODE_ENV === 'development';
-    const baseUrl = isDev ? 'http://localhost:5001' : (process.env.API_URL || 'https://socialhac.com').replace(/\/$/, '').replace(/\/api.*$/, '');
+    const baseUrl = (process.env.API_URL || 'http://localhost:5001').replace(/\/$/, '').replace(/\/api.*$/, '');
     const redirectUri = `${baseUrl}/api/oauth/callback/${platform}`;
 
     let authUrl;
@@ -866,23 +983,10 @@ router.post('/authorize', requireAuth, async (req, res) => {
       console.log('  Facebook App ID:', facebookAppId);
       console.log('  Redirect URI:', redirectUri);
       console.log('  API URL:', process.env.API_URL || 'http://localhost:5001');
-      // Use Facebook OAuth endpoint for Instagram Business API with explicit scopes
-      // REMOVED unapproved scopes: pages_manage_posts, read_insights, business_messaging, pages_read_user_content
-      const scopes = [
-        'email',
-        'public_profile',
-        'instagram_basic',
-        'instagram_content_publish',
-        'instagram_manage_comments',
-        'instagram_manage_insights',
-        'pages_show_list',
-        'pages_read_engagement',
-        'business_management' // Optional, but good to request
-      ].join(',');
+      console.log('  Using config_id: 840928395225436');
 
-      console.log('  Using explicit scopes:', scopes);
-
-      authUrl = `https://www.facebook.com/v24.0/dialog/oauth?client_id=${facebookAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&response_type=code&state=${state}`;
+      // Use Facebook OAuth endpoint for Instagram Business API with config_id
+      authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${facebookAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&config_id=840928395225436&response_type=code&auth_type=rerequest&state=${state}`;
       console.log('Instagram Business API OAuth URL generated:', authUrl.replace(/client_id=[^&]+/, 'client_id=***'));
       console.log('⚠️  Make sure this redirect URI is configured in Instagram Business API settings:', redirectUri);
     } else if (platform === 'facebook') {
@@ -894,7 +998,7 @@ router.post('/authorize', requireAuth, async (req, res) => {
           error: 'Facebook OAuth not configured. Please set FACEBOOK_CLIENT_ID in .env file.'
         });
       }
-      authUrl = `https://www.facebook.com/v24.0/dialog/oauth?client_id=${facebookClientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=email,public_profile&response_type=code&state=${state}`;
+      authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${facebookClientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=email,public_profile&response_type=code&state=${state}`;
     }
 
     if (!authUrl) {

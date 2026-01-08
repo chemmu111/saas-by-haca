@@ -47,11 +47,25 @@ const Clients = () => {
 
     // Check for OAuth callback
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('success') === 'client_added') {
+    if (urlParams.get('success') === 'client_added' || urlParams.get('success') === 'client_updated') {
       fetchClients();
       window.history.replaceState({}, '', '/dashboard/clients');
-    } else if (urlParams.get('error')) {
-      setError(urlParams.get('error_description') || 'OAuth connection failed');
+    }
+
+    // Check for errors
+    const errorParam = urlParams.get('error');
+    if (errorParam) {
+      const errorDesc = urlParams.get('error_description');
+      console.error('OAuth Error:', errorParam, errorDesc);
+
+      // Map common error codes to user-friendly messages
+      let userMessage = errorDesc || `Connection failed: ${errorParam}`;
+      if (errorParam === 'instagram_no_ig_account') {
+        userMessage = errorDesc || 'No Instagram Business Account found connected to your Facebook Pages.';
+      }
+
+      setError(userMessage);
+      // Clean URL but keep error visible in UI
       window.history.replaceState({}, '', '/dashboard/clients');
     }
   }, []);
